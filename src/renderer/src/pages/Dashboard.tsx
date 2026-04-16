@@ -1,42 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { Target, FolderGit2, Link, AlertTriangle, Plus, FolderOpen } from 'lucide-react';
+import FormDialog, { FormField } from '../components/ui/FormDialog';
+import { useToast } from '../components/ui/Toast';
+
+const createSkillFields: FormField[] = [
+  { name: 'name', label: 'Skill Name', placeholder: 'e.g., my-skill', required: true },
+  { name: 'displayName', label: 'Display Name', placeholder: 'My Skill' },
+  { name: 'description', label: 'Description', placeholder: 'What this skill does...' },
+];
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ skills: 0, projects: 0, links: 0, warnings: 0 });
   const [loading, setLoading] = useState(true);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const { toast } = useToast();
+
+  const loadStats = async () => {
+    try {
+      const [skills, projects, links] = await Promise.all([
+        window.api.skills.list(),
+        window.api.projects.list(),
+        window.api.links.list(),
+      ]);
+
+      setStats({
+        skills: skills?.length || 0,
+        projects: projects?.length || 0,
+        links: links?.length || 0,
+        warnings: 0,
+      });
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const [skills, projects, links] = await Promise.all([
-          window.api.skills.list(),
-          window.api.projects.list(),
-          window.api.links.list(),
-        ]);
-
-        setStats({
-          skills: skills?.length || 0,
-          projects: projects?.length || 0,
-          links: links?.length || 0,
-          warnings: 0,
-        });
-      } catch (err) {
-        console.error('Failed to load stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadStats();
   }, []);
 
-  const handleCreateSkill = async () => {
+  const handleCreateSkill = async (values: Record<string, string>) => {
     try {
-      const name = prompt('Enter skill name (e.g., my-skill):');
-      if (!name) return;
-
-      const displayName = prompt('Enter display name:') || name;
-      const description = prompt('Enter description:') || '';
+      const name = values.name;
+      const displayName = values.displayName || name;
+      const description = values.description || '';
 
       await window.api.skills.create({
         name,
@@ -48,20 +56,24 @@ const Dashboard: React.FC = () => {
         tags: [],
       });
 
-      alert('Skill created successfully!');
-      window.location.reload();
+      await loadStats();
+      toast({ title: 'Skill created', description: `"${displayName}" has been created.`, variant: 'success' });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
   const handleScanProjects = async () => {
     try {
       const projects = await window.api.projects.scan();
-      alert(`Found ${projects?.length || 0} projects!`);
-      window.location.reload();
+      await loadStats();
+      toast({
+        title: 'Scan Complete',
+        description: `Found ${projects?.length || 0} projects.`,
+        variant: 'info',
+      });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
@@ -104,7 +116,7 @@ const Dashboard: React.FC = () => {
         <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
         <div className="flex gap-4">
           <button
-            onClick={handleCreateSkill}
+            onClick={() => setShowCreateDialog(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -125,6 +137,16 @@ const Dashboard: React.FC = () => {
         <h3 className="text-lg font-semibold text-white mb-4">IDE Status</h3>
         <IDEHealthCheck />
       </div>
+
+      <FormDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        title="Create New Skill"
+        description="Add a new skill to your collection."
+        fields={createSkillFields}
+        onSubmit={handleCreateSkill}
+        submitLabel="Create"
+      />
     </div>
   );
 };

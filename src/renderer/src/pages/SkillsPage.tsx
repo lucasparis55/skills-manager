@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit, Search } from 'lucide-react';
+import FormDialog, { FormField } from '../components/ui/FormDialog';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 interface Skill {
   id: string;
@@ -12,10 +15,19 @@ interface Skill {
   sourcePath: string;
 }
 
+const createSkillFields: FormField[] = [
+  { name: 'name', label: 'Skill Name', placeholder: 'e.g., my-skill', required: true },
+  { name: 'displayName', label: 'Display Name', placeholder: 'My Skill' },
+  { name: 'description', label: 'Description', placeholder: 'What this skill does...' },
+];
+
 const SkillsPage: React.FC = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadSkills();
@@ -32,13 +44,11 @@ const SkillsPage: React.FC = () => {
     }
   };
 
-  const handleCreateSkill = async () => {
+  const handleCreateSkill = async (values: Record<string, string>) => {
     try {
-      const name = prompt('Enter skill name (e.g., my-skill):');
-      if (!name) return;
-
-      const displayName = prompt('Enter display name:') || name;
-      const description = prompt('Enter description:') || '';
+      const name = values.name;
+      const displayName = values.displayName || name;
+      const description = values.description || '';
 
       await window.api.skills.create({
         name,
@@ -51,19 +61,20 @@ const SkillsPage: React.FC = () => {
       });
 
       await loadSkills();
+      toast({ title: 'Skill created', description: `"${displayName}" has been created.`, variant: 'success' });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
   const handleDeleteSkill = async (skill: Skill) => {
-    if (!confirm(`Delete skill "${skill.displayName}"?`)) return;
-
     try {
       await window.api.skills.delete(skill.id);
       await loadSkills();
+      setConfirmState(null);
+      toast({ title: 'Skill deleted', description: `"${skill.displayName}" has been removed.`, variant: 'success' });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
@@ -94,7 +105,7 @@ const SkillsPage: React.FC = () => {
           </div>
         </div>
         <button
-          onClick={handleCreateSkill}
+          onClick={() => setShowCreateDialog(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -110,7 +121,7 @@ const SkillsPage: React.FC = () => {
           </p>
           {!search && (
             <button
-              onClick={handleCreateSkill}
+              onClick={() => setShowCreateDialog(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
             >
               Create your first skill
@@ -120,9 +131,31 @@ const SkillsPage: React.FC = () => {
       ) : (
         <div className="grid gap-4">
           {filteredSkills.map((skill) => (
-            <SkillCard key={skill.id} skill={skill} onDelete={handleDeleteSkill} />
+            <SkillCard key={skill.id} skill={skill} onDelete={(s) => setConfirmState({ skill: s })} />
           ))}
         </div>
+      )}
+
+      <FormDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        title="Create New Skill"
+        description="Add a new skill to your collection."
+        fields={createSkillFields}
+        onSubmit={handleCreateSkill}
+        submitLabel="Create"
+      />
+
+      {confirmState && (
+        <ConfirmDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setConfirmState(null); }}
+          title="Delete Skill"
+          description={`Are you sure you want to delete "${confirmState.skill.displayName}"? This cannot be undone.`}
+          onConfirm={() => handleDeleteSkill(confirmState.skill)}
+          confirmLabel="Delete"
+          variant="danger"
+        />
       )}
     </div>
   );

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, FolderOpen, Monitor } from 'lucide-react';
+import FormDialog, { FormField } from '../components/ui/FormDialog';
+import { useToast } from '../components/ui/Toast';
 
 interface AppSettings {
   centralSkillsRoot: string;
@@ -12,6 +14,8 @@ interface AppSettings {
 const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPathDialog, setShowPathDialog] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadSettings();
@@ -37,6 +41,15 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const handlePathSubmit = async (values: Record<string, string>) => {
+    try {
+      await handleUpdate('centralSkillsRoot', values.centralSkillsRoot);
+      toast({ title: 'Settings updated', description: 'Skills root path has been changed.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'error' });
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading settings...</div>;
   }
@@ -44,6 +57,15 @@ const SettingsPage: React.FC = () => {
   if (!settings) {
     return <div className="text-center py-12">Failed to load settings</div>;
   }
+
+  const pathFields: FormField[] = [
+    {
+      name: 'centralSkillsRoot',
+      label: 'Skills Root Path',
+      defaultValue: settings.centralSkillsRoot,
+      required: true,
+    },
+  ];
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -67,12 +89,7 @@ const SettingsPage: React.FC = () => {
                 className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-300"
               />
               <button
-                onClick={() => {
-                  const newPath = prompt('Enter new skills root path:', settings.centralSkillsRoot);
-                  if (newPath) {
-                    handleUpdate('centralSkillsRoot', newPath);
-                  }
-                }}
+                onClick={() => setShowPathDialog(true)}
                 className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
               >
                 <FolderOpen className="w-4 h-4" />
@@ -140,6 +157,16 @@ const SettingsPage: React.FC = () => {
           Custom overrides will be supported in a future update.
         </p>
       </div>
+
+      <FormDialog
+        open={showPathDialog}
+        onOpenChange={setShowPathDialog}
+        title="Change Skills Root Path"
+        description="Update the root directory where skills are stored."
+        fields={pathFields}
+        onSubmit={handlePathSubmit}
+        submitLabel="Update"
+      />
     </div>
   );
 };

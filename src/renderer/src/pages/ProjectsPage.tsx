@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FolderGit2, Plus, Scan, Trash2, CheckCircle } from 'lucide-react';
+import FormDialog, { FormField } from '../components/ui/FormDialog';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 interface Project {
   id: string;
@@ -7,11 +10,19 @@ interface Project {
   path: string;
   detectedIDEs: string[];
   addedAt: string;
+  metadata?: { hasGit?: boolean };
 }
+
+const addProjectFields: FormField[] = [
+  { name: 'path', label: 'Project Path', placeholder: 'C:\\Users\\...\\my-project', required: true },
+];
 
 const ProjectsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ project: Project } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadProjects();
@@ -28,15 +39,13 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
-  const handleAddProject = async () => {
+  const handleAddProject = async (values: Record<string, string>) => {
     try {
-      const path = prompt('Enter project path:');
-      if (!path) return;
-
-      await window.api.projects.add(path);
+      await window.api.projects.add(values.path);
       await loadProjects();
+      toast({ title: 'Project added', description: `"${values.path}" has been added.`, variant: 'success' });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
@@ -44,20 +53,24 @@ const ProjectsPage: React.FC = () => {
     try {
       const result = await window.api.projects.scan();
       await loadProjects();
-      alert(`Found ${result?.length || 0} projects!`);
+      toast({
+        title: 'Scan Complete',
+        description: `Found ${result?.length || 0} projects.`,
+        variant: 'info',
+      });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
   const handleRemoveProject = async (project: Project) => {
-    if (!confirm(`Remove project "${project.name}"?`)) return;
-
     try {
       await window.api.projects.remove(project.id);
       await loadProjects();
+      setConfirmState(null);
+      toast({ title: 'Project removed', description: `"${project.name}" has been removed.`, variant: 'success' });
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
 
@@ -79,7 +92,7 @@ const ProjectsPage: React.FC = () => {
             Scan
           </button>
           <button
-            onClick={handleAddProject}
+            onClick={() => setShowAddDialog(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -94,7 +107,7 @@ const ProjectsPage: React.FC = () => {
           <FolderGit2 className="w-12 h-12 mx-auto text-slate-500 mb-4" />
           <p className="text-slate-400 mb-4">No projects added yet</p>
           <button
-            onClick={handleAddProject}
+            onClick={() => setShowAddDialog(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             Add your first project
@@ -103,9 +116,31 @@ const ProjectsPage: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} onRemove={handleRemoveProject} />
+            <ProjectCard key={project.id} project={project} onRemove={(p) => setConfirmState({ project: p })} />
           ))}
         </div>
+      )}
+
+      <FormDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        title="Add Project"
+        description="Enter the path to a project directory."
+        fields={addProjectFields}
+        onSubmit={handleAddProject}
+        submitLabel="Add"
+      />
+
+      {confirmState && (
+        <ConfirmDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setConfirmState(null); }}
+          title="Remove Project"
+          description={`Are you sure you want to remove "${confirmState.project.name}"? This cannot be undone.`}
+          onConfirm={() => handleRemoveProject(confirmState.project)}
+          confirmLabel="Remove"
+          variant="danger"
+        />
       )}
     </div>
   );
