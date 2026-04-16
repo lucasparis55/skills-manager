@@ -23,7 +23,7 @@ func (a adapter) GuessGlobalSkillsRoot() (string, error) {
 		}
 	}
 
-	// Se nenhum candidato existir, devolvemos o primeiro “default” como sugestão.
+	// Se nenhum candidato existir, devolvemos o primeiro "default" como sugestao.
 	for _, c := range a.candidates {
 		if c != "" {
 			return "", SkillsRootNotFoundError{SuggestedRoot: c}
@@ -38,10 +38,7 @@ func adapters() map[string]IDEAdapter {
 		home = "."
 	}
 
-	winLocalApp := filepath.Join(os.Getenv("LOCALAPPDATA"), "Code")
-	_ = winLocalApp // apenas para evitar warnings quando env for vazio
-
-	// Defaults best-effort. Se não existir, a UI pedirá que o usuário configure.
+	// Defaults best-effort. Se nao existir, a UI pedira que o usuario configure.
 	return map[string]IDEAdapter{
 		"Claude Code CLI": adapter{
 			name: "Claude Code CLI",
@@ -84,9 +81,9 @@ func adapters() map[string]IDEAdapter {
 			name: "Cursor",
 			candidates: []string{
 				filepath.Join(home, ".cursor", "skills"),
+				filepath.Join(home, ".agents", "skills"),
 				filepath.Join(os.Getenv("APPDATA"), "Cursor", "skills"),
 				filepath.Join(os.Getenv("LOCALAPPDATA"), "Cursor", "skills"),
-				filepath.Join(home, ".config", "cursor", "skills"),
 			},
 		},
 	}
@@ -99,4 +96,3 @@ func GetAdapter(name string) (IDEAdapter, error) {
 	}
 	return a, nil
 }
-
