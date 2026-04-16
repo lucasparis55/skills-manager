@@ -38,43 +38,36 @@ func adapters() map[string]IDEAdapter {
 		home = "."
 	}
 
-	// Defaults best-effort. Se nao existir, a UI pedira que o usuario configure.
+	// Defaults based on official documentation:
+	// - Claude Code CLI: ~/.claude/agents (subagents, not skills)
+	// - Codex CLI/Desktop: ~/.agents/skills
+	// - OpenCode: ~/.config/opencode/skills (primary), ~/.claude/skills and ~/.agents/skills (fallback)
+	// - Cursor: ~/.cursor/skills
 	return map[string]IDEAdapter{
 		"Claude Code CLI": adapter{
 			name: "Claude Code CLI",
 			candidates: []string{
-				filepath.Join(home, ".config", "claude-code", "skills"),
-				filepath.Join(home, ".config", "claude", "skills"),
-				filepath.Join(home, ".local", "share", "claude-code", "skills"),
-				filepath.Join(os.Getenv("APPDATA"), "Claude Code", "skills"),
-				filepath.Join(os.Getenv("LOCALAPPDATA"), "Claude Code", "skills"),
+				filepath.Join(home, ".claude", "agents"),
 			},
 		},
 		"Codex CLI": adapter{
 			name: "Codex CLI",
 			candidates: []string{
-				filepath.Join(home, ".config", "codex", "skills"),
-				filepath.Join(home, ".local", "share", "codex", "skills"),
-				filepath.Join(os.Getenv("APPDATA"), "Codex", "skills"),
-				filepath.Join(os.Getenv("LOCALAPPDATA"), "Codex", "skills"),
+				filepath.Join(home, ".agents", "skills"),
 			},
 		},
 		"Codex Desktop": adapter{
 			name: "Codex Desktop",
 			candidates: []string{
-				filepath.Join(home, ".config", "codex-desktop", "skills"),
-				filepath.Join(home, ".config", "codex", "skills"),
-				filepath.Join(os.Getenv("APPDATA"), "Codex", "skills"),
-				filepath.Join(os.Getenv("LOCALAPPDATA"), "Codex", "skills"),
+				filepath.Join(home, ".agents", "skills"),
 			},
 		},
 		"OpenCode": adapter{
 			name: "OpenCode",
 			candidates: []string{
 				filepath.Join(home, ".config", "opencode", "skills"),
-				filepath.Join(home, ".local", "share", "opencode", "skills"),
-				filepath.Join(os.Getenv("APPDATA"), "OpenCode", "skills"),
-				filepath.Join(os.Getenv("LOCALAPPDATA"), "OpenCode", "skills"),
+				filepath.Join(home, ".claude", "skills"),
+				filepath.Join(home, ".agents", "skills"),
 			},
 		},
 		"Cursor": adapter{
@@ -82,8 +75,6 @@ func adapters() map[string]IDEAdapter {
 			candidates: []string{
 				filepath.Join(home, ".cursor", "skills"),
 				filepath.Join(home, ".agents", "skills"),
-				filepath.Join(os.Getenv("APPDATA"), "Cursor", "skills"),
-				filepath.Join(os.Getenv("LOCALAPPDATA"), "Cursor", "skills"),
 			},
 		},
 	}
