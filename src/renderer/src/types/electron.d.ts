@@ -37,6 +37,10 @@ interface SettingsAPI {
   update: (input: any) => Promise<any>;
 }
 
+interface DialogAPI {
+  selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>;
+}
+
 interface ElectronAPI {
   skills: SkillsAPI;
   projects: ProjectsAPI;
@@ -44,6 +48,7 @@ interface ElectronAPI {
   ides: IDEsAPI;
   detection: DetectionAPI;
   settings: SettingsAPI;
+  dialog: DialogAPI;
 }
 
 declare global {

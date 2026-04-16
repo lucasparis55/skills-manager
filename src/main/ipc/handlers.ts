@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog } from 'electron';
 import { SkillService } from '../services/skill.service';
 import { ProjectService } from '../services/project.service';
 import { SymlinkService } from '../services/symlink.service';
@@ -144,5 +144,20 @@ export function registerIPCHandlers(): void {
 
   ipcMain.handle('settings:update', (_event, input: any) => {
     return settingsService.update(input);
+  });
+
+  // Dialog handlers
+  ipcMain.handle('dialog:selectFolder', async (_event, options?: { defaultPath?: string; title?: string }) => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      defaultPath: options?.defaultPath,
+      title: options?.title || 'Select Project Directory',
+    });
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    
+    return result.filePaths[0];
   });
 }

@@ -9,6 +9,11 @@ export interface FormField {
   defaultValue?: string;
   required?: boolean;
   type?: 'text' | 'password';
+  actionButton?: {
+    icon: React.ComponentType<{ className?: string }>;
+    tooltip?: string;
+    onClick?: (fieldName: string) => Promise<string | void>;
+  };
 }
 
 interface FormDialogProps {
@@ -89,15 +94,32 @@ const FormDialog: React.FC<FormDialogProps> = ({
                   {field.label}
                   {field.required && <span className="text-red-400 ml-1">*</span>}
                 </label>
-                <input
-                  type={field.type || 'text'}
-                  placeholder={field.placeholder}
-                  value={values[field.name] ?? ''}
-                  onChange={(e) =>
-                    setValues((prev) => ({ ...prev, [field.name]: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type={field.type || 'text'}
+                    placeholder={field.placeholder}
+                    value={values[field.name] ?? ''}
+                    onChange={(e) =>
+                      setValues((prev) => ({ ...prev, [field.name]: e.target.value }))
+                    }
+                    className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                  {field.actionButton && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const result = await field.actionButton?.onClick?.(field.name);
+                        if (typeof result === 'string') {
+                          setValues((prev) => ({ ...prev, [field.name]: result }));
+                        }
+                      }}
+                      title={field.actionButton.tooltip}
+                      className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      {React.createElement(field.actionButton.icon, { className: 'w-4 h-4' })}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             <div className="flex justify-end gap-3 pt-2">

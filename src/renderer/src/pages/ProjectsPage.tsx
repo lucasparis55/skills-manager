@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FolderGit2, Plus, Scan, Trash2, CheckCircle } from 'lucide-react';
+import { FolderGit2, Plus, Scan, Trash2, CheckCircle, FolderOpen } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
@@ -14,7 +14,20 @@ interface Project {
 }
 
 const addProjectFields: FormField[] = [
-  { name: 'path', label: 'Project Path', placeholder: 'C:\\Users\\...\\my-project', required: true },
+  { 
+    name: 'path', 
+    label: 'Project Path', 
+    placeholder: 'C:\\Users\\...\\my-project', 
+    required: true,
+    actionButton: {
+      icon: FolderOpen,
+      tooltip: 'Browse for project directory',
+      onClick: async () => {
+        const selectedPath = await window.api.dialog.selectFolder();
+        return selectedPath || undefined;
+      },
+    },
+  },
 ];
 
 const ProjectsPage: React.FC = () => {

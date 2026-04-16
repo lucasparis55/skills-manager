@@ -46,4 +46,10 @@ contextBridge.exposeInMainWorld('api', {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (input: any) => ipcRenderer.invoke('settings:update', input),
   },
+
+  // Dialog
+  dialog: {
+    selectFolder: (options?: { defaultPath?: string; title?: string }) => 
+      ipcRenderer.invoke('dialog:selectFolder', options),
+  },
 });
