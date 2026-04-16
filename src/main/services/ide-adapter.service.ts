@@ -14,8 +14,8 @@ export class IDEAdapterService {
       configFormat: 'json',
       mode: 'subagents',
       roots: {
-        primaryGlobal: ['~/.claude/agents'],
-        secondaryGlobal: [],
+        primaryGlobal: ['~/.claude'],
+        secondaryGlobal: ['%APPDATA%/Claude', '%LOCALAPPDATA%/Claude'],
         projectRelative: ['.claude/agents'],
       },
     },
@@ -58,8 +58,8 @@ export class IDEAdapterService {
       configFormat: 'markdown',
       mode: 'rules',
       roots: {
-        primaryGlobal: ['~/.cursor/rules'],
-        secondaryGlobal: [],
+        primaryGlobal: ['~/.cursor'],
+        secondaryGlobal: ['%APPDATA%/Cursor', '%LOCALAPPDATA%/Cursor'],
         projectRelative: ['.cursor/rules'],
       },
     },
