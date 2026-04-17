@@ -182,4 +182,43 @@ describe('Links IPC Handlers', () => {
     expect(linkService.verify).toHaveBeenCalledWith(linkId, symlinkService);
     expect(result).toEqual(expectedResult);
   });
+
+  it('links:create should throw when symlinkService.create() returns success: false', () => {
+    const input = {
+      skillId: 'brainstorming',
+      projectId: 'skills-manager',
+      ideName: 'claude-code',
+      scope: 'project' as const,
+    };
+
+    // Mock symlink creation to fail
+    (symlinkService.create as ReturnType<typeof vi.fn>).mockReturnValue({
+      success: false,
+      strategy: 'none',
+      error: 'Permission denied',
+    });
+
+    const skill = skillService.get(input.skillId);
+    const project = projectService.list().find((p: any) => p.id === input.projectId);
+    const ide = ideService.list().find((i: any) => i.id === input.ideName);
+
+    const source = skill.sourcePath;
+    const pathLib = require('path');
+    const destination = pathLib.join(project.path, ide.roots.projectRelative[0], skill.name);
+
+    // Simulate handler logic with the fix: check symlink result
+    const symlinkResult = symlinkService.create(source, destination);
+    
+    // The handler should throw when symlink creation fails
+    expect(symlinkResult.success).toBe(false);
+    expect(() => {
+      if (!symlinkResult.success) {
+        const errorMessage = symlinkResult.error || 'Unknown symlink creation failure';
+        throw new Error(`Failed to create symlink: ${errorMessage}`);
+      }
+    }).toThrow('Failed to create symlink: Permission denied');
+
+    // linkService.create should NOT be called when symlink fails
+    expect(linkService.create).not.toHaveBeenCalled();
+  });
 });

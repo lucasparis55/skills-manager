@@ -133,13 +133,26 @@ export function registerIPCHandlers(): void {
       throw new Error(`IDE "${input.ideName}" not found`);
     }
 
+    // Pre-check Windows permissions before attempting symlink creation
+    if (process.platform === 'win32') {
+      const permissionCheck = symlinkService.checkPermissions();
+      if (!permissionCheck.canCreate) {
+        throw new Error(permissionCheck.message || 'Cannot create symlinks on Windows');
+      }
+    }
+
     // Determine destination path
     const pathLib = require('path');
     const destRoot = ide.roots.projectRelative[0];
     const destination = pathLib.join(project.path, destRoot, skill.name);
     const source = skill.sourcePath;
 
-    symlinkService.create(source, destination);
+    // Create symlink and check result
+    const symlinkResult = symlinkService.create(source, destination);
+    if (!symlinkResult.success) {
+      const errorMessage = symlinkResult.error || 'Unknown symlink creation failure';
+      throw new Error(`Failed to create symlink: ${errorMessage}`);
+    }
 
     return linkService.create(input, source, destination);
   });
