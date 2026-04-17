@@ -4,8 +4,27 @@ import path from 'path';
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    environment: 'jsdom',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    environmentMatchGlobs: [
+      ['src/main/**/*.test.ts', 'node'],
+      ['src/preload/**/*.test.ts', 'node'],
+    ],
+    setupFiles: ['./vitest.setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
+      include: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'src/renderer/src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/main/vite.config.ts',
+        'src/preload/vite.config.ts',
+        'src/renderer/vite.config.ts',
+        'src/renderer/src/styles/**',
+        'src/renderer/src/test-utils.tsx',
+      ],
+    },
   },
   resolve: {
     alias: {

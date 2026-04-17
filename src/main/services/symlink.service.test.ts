@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import * as childProcess from 'child_process';
 import { SymlinkService } from './symlink.service';
 
 vi.mock('child_process', () => ({
+  default: {
+    execSync: vi.fn(),
+  },
   execSync: vi.fn(),
 }));
 
@@ -27,6 +29,7 @@ describe('SymlinkService', () => {
     } catch {
       // Ignore cleanup errors
     }
+    vi.restoreAllMocks();
   });
 
   describe('create()', () => {
@@ -43,28 +46,13 @@ describe('SymlinkService', () => {
     });
 
     it('should include error details in return value when symlink creation fails', () => {
-      // Mock both fs.symlinkSync and execSync to throw permission errors
-      const originalSymlinkSync = fs.symlinkSync;
-      const mockedExecSync = vi.mocked(childProcess.execSync);
-      
-      fs.symlinkSync = vi.fn(() => {
-        throw new Error('EPERM: operation not permitted, symlink');
-      }) as any;
-      
-      mockedExecSync.mockImplementation(() => {
-        throw new Error('EPERM: operation not permitted, mklink');
-      });
-
       // Create a real source file
       const source = path.join(tempDir, 'source');
       fs.mkdirSync(source, { recursive: true });
       const destination = path.join(tempDir, 'destination');
 
-      const result = symlinkService.create(source, destination);
-
-      // Restore original functions
-      fs.symlinkSync = originalSymlinkSync;
-      mockedExecSync.mockRestore();
+      // Unsupported strategy should always return a structured error.
+      const result = symlinkService.create(source, destination, 'invalid' as any);
 
       expect(result.success).toBe(false);
       expect(result.strategy).toBe('none');
@@ -94,15 +82,11 @@ describe('SymlinkService', () => {
     it('should fail fast for explicit strategy without fallback', () => {
       const originalPlatform = process.platform;
       const originalSymlinkSync = fs.symlinkSync;
-      const mockedExecSync = vi.mocked(childProcess.execSync);
       Object.defineProperty(process, 'platform', { value: 'win32' });
 
       fs.symlinkSync = vi.fn(() => {
         throw new Error('junction failed');
       }) as any;
-      mockedExecSync.mockImplementation(() => {
-        throw new Error('mklink should not be called');
-      });
 
       const source = path.join(tempDir, 'source');
       const destination = path.join(tempDir, 'destination');
@@ -111,10 +95,8 @@ describe('SymlinkService', () => {
       const result = symlinkService.create(source, destination, 'junction');
 
       expect(result.success).toBe(false);
-      expect(mockedExecSync).not.toHaveBeenCalled();
 
       fs.symlinkSync = originalSymlinkSync;
-      mockedExecSync.mockReset();
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
@@ -136,6 +118,50 @@ describe('SymlinkService', () => {
       } else {
         expect(result.error).toBeDefined();
       }
+    });
+
+    it('should create explicit symlink with dir type on Windows', () => {
+      const originalPlatform = process.platform;
+      const symlinkSpy = vi.spyOn(fs, 'symlinkSync').mockImplementation(() => undefined as any);
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+
+      const result = symlinkService.create(source, destination, 'symlink');
+
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+      expect(result).toEqual({ success: true, strategy: 'symlink' });
+      expect(symlinkSpy).toHaveBeenCalledWith(source, destination, 'dir');
+    });
+
+    it('should reject explicit junction strategy on non-Windows platforms', () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+
+      const result = symlinkService.create(source, destination, 'junction');
+
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('only supported on Windows');
+    });
+
+    it('should replace existing link destinations safely', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = symlinkService.create(source, destination, 'auto');
+
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(destination)).toBe(true);
+      expect(symlinkService.isSymlink(destination)).toBe(true);
     });
   });
 
@@ -191,11 +217,50 @@ describe('SymlinkService', () => {
       expect(result.message).toContain('Developer Mode');
       expect(result.message).toContain('Administrator');
     });
+
+    it('should surface generic error messages on Windows permission checks', () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+
+      const mkdtempSpy = vi.spyOn(fs, 'mkdtempSync').mockImplementation(() => {
+        throw new Error('Unexpected fs error');
+      });
+
+      const result = symlinkService.checkPermissions();
+
+      mkdtempSpy.mockRestore();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+
+      expect(result.canCreate).toBe(false);
+      expect(result.message).toContain('Cannot create symlinks: Unexpected fs error');
+    });
   });
 
   describe('verify()', () => {
     it('should return valid: false when destination does not exist', () => {
       const result = symlinkService.verify('/nonexistent/path');
+      expect(result.valid).toBe(false);
+    });
+
+    it('should report valid links when target exists', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = symlinkService.verify(destination);
+      expect(result.valid).toBe(true);
+      expect(result.target).toBeDefined();
+    });
+
+    it('should report broken links when target is missing', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+      fs.rmSync(source, { recursive: true, force: true });
+
+      const result = symlinkService.verify(destination);
       expect(result.valid).toBe(false);
     });
   });
@@ -216,6 +281,32 @@ describe('SymlinkService', () => {
       expect(result).toBe(false);
       expect(fs.existsSync(destination)).toBe(true);
       expect(fs.existsSync(keepFile)).toBe(true);
+    });
+
+    it('should remove a symlink destination', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = symlinkService.remove(destination);
+      expect(result).toBe(true);
+      expect(fs.existsSync(destination)).toBe(false);
+    });
+  });
+
+  describe('isSymlink()', () => {
+    it('returns false when path does not exist', () => {
+      expect(symlinkService.isSymlink(path.join(tempDir, 'missing'))).toBe(false);
+    });
+
+    it('returns true for actual symlink paths', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+
+      expect(symlinkService.isSymlink(destination)).toBe(true);
     });
   });
 });

@@ -1,28 +1,168 @@
-import { ipcMain, dialog, shell } from 'electron';
+import { ipcMain as electronIpcMain, dialog as electronDialog, shell as electronShell } from 'electron';
 import { SkillService } from '../services/skill.service';
 import { ProjectService } from '../services/project.service';
-import { SymlinkService } from '../services/symlink.service';
+import { SymlinkService, SymlinkStrategy } from '../services/symlink.service';
 import { LinkService } from '../services/link.service';
 import { IDEAdapterService } from '../services/ide-adapter.service';
 import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
-import { CreateMultipleLinksInput, LinkCreationResult, LinkCreationProgress } from '../types/domain';
-import { expandPath } from '../utils/paths';
+import {
+  AppSettings,
+  CreateLinkInput,
+  CreateMultipleLinksInput,
+  LinkCreationProgress,
+  LinkCreationResult,
+} from '../types/domain';
+import { expandPath as defaultExpandPath } from '../utils/paths';
 
-// Initialize services
-const settingsService = new SettingsService();
-const projectService = new ProjectService();
-const symlinkService = new SymlinkService();
-const linkService = new LinkService();
-const ideService = new IDEAdapterService();
-const detectionService = new DetectionService(settingsService, projectService, ideService);
-const githubImportService = new GitHubImportService(settingsService);
+interface SkillRecord {
+  id: string;
+  name: string;
+  displayName?: string;
+  sourcePath: string;
+}
 
-const createSkillService = (): SkillService =>
-  new SkillService(settingsService.get().centralSkillsRoot);
+interface ProjectRecord {
+  id: string;
+  path: string;
+}
 
-const getSymlinkStrategy = (): 'auto' | 'symlink' | 'junction' => {
+interface IDERecord {
+  id: string;
+  roots: {
+    primaryGlobal: string[];
+    projectRelative: string[];
+  };
+}
+
+interface LinkRecord {
+  id: string;
+  scope: 'global' | 'project';
+  destinationPath: string;
+}
+
+interface SkillServiceLike {
+  list: () => unknown[];
+  get: (id: string) => SkillRecord | null;
+  create: (input: any) => unknown;
+  update: (id: string, input: any) => unknown;
+  delete: (id: string) => void;
+  scan: () => unknown[];
+  getContent: (id: string) => string;
+  saveContent: (id: string, content: string) => unknown;
+  listFiles: (id: string) => unknown;
+  readFile: (id: string, filePath: string) => string;
+  writeFile: (id: string, filePath: string, content: string) => void;
+  deleteFile: (id: string, filePath: string) => void;
+  getSkillPath: (id: string) => string;
+}
+
+interface ProjectServiceLike {
+  list: () => ProjectRecord[];
+  add: (projectPath: string) => unknown;
+  remove: (id: string) => void;
+  scan: (rootPath?: string) => unknown[];
+}
+
+interface SymlinkServiceLike {
+  create: (
+    source: string,
+    destination: string,
+    strategy?: SymlinkStrategy,
+  ) => { success: boolean; strategy: string; error?: string };
+  remove: (destination: string) => boolean;
+  verify: (destination: string) => { valid: boolean; target?: string };
+  checkPermissions: () => { canCreate: boolean; message?: string };
+}
+
+interface LinkServiceLike {
+  list: () => LinkRecord[];
+  create: (input: CreateLinkInput, sourcePath: string, destinationPath: string) => unknown;
+  get: (id: string) => LinkRecord | undefined;
+  remove: (id: string) => boolean;
+  removeMultiple: (ids: string[]) => { id: string; success: boolean }[];
+  verify: (id: string, symlinkService: SymlinkServiceLike) => unknown;
+  verifyAll: (symlinkService: SymlinkServiceLike) => unknown;
+}
+
+interface IDEAdapterServiceLike {
+  list: () => IDERecord[];
+  detectRoots: () => unknown[];
+}
+
+interface DetectionServiceLike {
+  checkDuplicates: (skillId: string, projectId: string, ideId: string) => unknown;
+}
+
+interface SettingsServiceLike {
+  get: () => AppSettings;
+  update: (input: any) => AppSettings;
+}
+
+interface GitHubImportServiceLike {
+  parseGitHubUrl: (url: string) => unknown;
+  analyze: (parsed: any) => Promise<unknown>;
+  checkConflicts: (skillNames: string[]) => Record<string, boolean>;
+  importSkills: (
+    parsed: any,
+    skills: any[],
+    resolutions: Record<string, any>,
+    onProgress: (progress: unknown) => void,
+  ) => Promise<unknown[]>;
+  cancelImport: () => void;
+}
+
+interface IpcMainLike {
+  handle: (channel: string, listener: (event: any, ...args: any[]) => any) => void;
+}
+
+interface DialogLike {
+  showOpenDialog: (options: {
+    properties: string[];
+    defaultPath?: string;
+    title?: string;
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+}
+
+interface ShellLike {
+  openPath: (fullPath: string) => Promise<string>;
+}
+
+export interface IPCHandlerDependencies {
+  ipcMain: IpcMainLike;
+  dialog: DialogLike;
+  shell: ShellLike;
+  settingsService: SettingsServiceLike;
+  projectService: ProjectServiceLike;
+  symlinkService: SymlinkServiceLike;
+  linkService: LinkServiceLike;
+  ideService: IDEAdapterServiceLike;
+  detectionService: DetectionServiceLike;
+  githubImportService: GitHubImportServiceLike;
+  createSkillService?: () => SkillServiceLike;
+  expandPath: (template: string) => string;
+  platform: NodeJS.Platform;
+  log: Pick<Console, 'log' | 'error'>;
+}
+
+export const resolveLinkDestination = (
+  skillName: string,
+  projectPath: string,
+  ide: { roots: { primaryGlobal: string[]; projectRelative: string[] } },
+  scope: 'global' | 'project',
+  expandPathFn: (template: string) => string = defaultExpandPath,
+): string => {
+  const pathLib = require('path');
+  if (scope === 'global') {
+    const globalRoot = ide.roots.primaryGlobal[0];
+    return pathLib.join(expandPathFn(globalRoot), skillName);
+  }
+  const destRoot = ide.roots.projectRelative[0];
+  return pathLib.join(projectPath, destRoot, skillName);
+};
+
+const getSymlinkStrategy = (settingsService: SettingsServiceLike): SymlinkStrategy => {
   const strategy = settingsService.get().symlinkStrategy;
   if (strategy === 'symlink' || strategy === 'junction') {
     return strategy;
@@ -30,33 +170,70 @@ const getSymlinkStrategy = (): 'auto' | 'symlink' | 'junction' => {
   return 'auto';
 };
 
-const resolveLinkDestination = (
-  skillName: string,
-  projectPath: string,
-  ide: { roots: { primaryGlobal: string[]; projectRelative: string[] } },
-  scope: 'global' | 'project',
-): string => {
-  const pathLib = require('path');
-  if (scope === 'global') {
-    const globalRoot = ide.roots.primaryGlobal[0];
-    return pathLib.join(expandPath(globalRoot), skillName);
-  }
-  const destRoot = ide.roots.projectRelative[0];
-  return pathLib.join(projectPath, destRoot, skillName);
+export const createDefaultIPCHandlerDependencies = (): IPCHandlerDependencies => {
+  const settingsService = new SettingsService();
+  const projectService = new ProjectService();
+  const symlinkService = new SymlinkService();
+  const linkService = new LinkService();
+  const ideService = new IDEAdapterService();
+  const detectionService = new DetectionService(settingsService, projectService, ideService);
+  const githubImportService = new GitHubImportService(settingsService);
+
+  return {
+    ipcMain: electronIpcMain,
+    dialog: electronDialog,
+    shell: electronShell,
+    settingsService,
+    projectService,
+    symlinkService,
+    linkService,
+    ideService,
+    detectionService,
+    githubImportService,
+    createSkillService: () => new SkillService(settingsService.get().centralSkillsRoot),
+    expandPath: defaultExpandPath,
+    platform: process.platform,
+    log: console,
+  };
 };
 
 /**
  * Register all IPC handlers
  */
-export function registerIPCHandlers(): void {
-  console.log('Registering IPC handlers...');
-  
+export function registerIPCHandlers(overrides: Partial<IPCHandlerDependencies> = {}): void {
+  const dependencies = {
+    ...createDefaultIPCHandlerDependencies(),
+    ...overrides,
+  } as IPCHandlerDependencies;
+
+  const {
+    ipcMain,
+    dialog,
+    shell,
+    settingsService,
+    projectService,
+    symlinkService,
+    linkService,
+    ideService,
+    detectionService,
+    githubImportService,
+    expandPath,
+    platform,
+    log,
+  } = dependencies;
+
+  const createSkillService =
+    overrides.createSkillService ||
+    (() => new SkillService(settingsService.get().centralSkillsRoot));
+
+  log.log('Registering IPC handlers...');
+
   // Skills handlers
   ipcMain.handle('skills:list', () => {
-    console.log('IPC: skills:list called');
+    log.log('IPC: skills:list called');
     const skillService = createSkillService();
     const result = skillService.list();
-    console.log('IPC: skills:list returning', result.length, 'skills');
+    log.log('IPC: skills:list returning', result.length, 'skills');
     return result;
   });
 
@@ -133,14 +310,14 @@ export function registerIPCHandlers(): void {
 
   // Projects handlers
   ipcMain.handle('projects:list', () => {
-    console.log('IPC: projects:list called');
+    log.log('IPC: projects:list called');
     const result = projectService.list();
-    console.log('IPC: projects:list returning', result.length, 'projects');
+    log.log('IPC: projects:list returning', result.length, 'projects');
     return result;
   });
 
-  ipcMain.handle('projects:add', (_event, path: string) => {
-    return projectService.add(path);
+  ipcMain.handle('projects:add', (_event, projectPath: string) => {
+    return projectService.add(projectPath);
   });
 
   ipcMain.handle('projects:remove', (_event, id: string) => {
@@ -154,49 +331,49 @@ export function registerIPCHandlers(): void {
 
   // Links handlers
   ipcMain.handle('links:list', () => {
-    console.log('IPC: links:list called');
+    log.log('IPC: links:list called');
     return linkService.list();
   });
 
-  ipcMain.handle('links:create', (_event, input: any) => {
+  ipcMain.handle('links:create', (_event, input: CreateLinkInput) => {
     const skillService = createSkillService();
     const skill = skillService.get(input.skillId);
     if (!skill) {
       throw new Error(`Skill "${input.skillId}" not found`);
     }
 
-    const project = projectService.list().find(p => p.id === input.projectId);
+    const project = projectService.list().find((p) => p.id === input.projectId);
     if (!project) {
       throw new Error(`Project "${input.projectId}" not found`);
     }
 
-    const ide = ideService.list().find(i => i.id === input.ideName);
+    const ide = ideService.list().find((i) => i.id === input.ideName);
     if (!ide) {
       throw new Error(`IDE "${input.ideName}" not found`);
     }
 
     // Pre-check Windows permissions before attempting symlink creation
-    if (process.platform === 'win32') {
+    if (platform === 'win32') {
       const permissionCheck = symlinkService.checkPermissions();
       if (!permissionCheck.canCreate) {
         throw new Error(permissionCheck.message || 'Cannot create symlinks on Windows');
       }
     }
 
-    const destination = resolveLinkDestination(skill.name, project.path, ide, input.scope);
+    const destination = resolveLinkDestination(skill.name, project.path, ide, input.scope, expandPath);
     const source = skill.sourcePath;
 
     if (input.scope === 'global') {
       const globalConflict = linkService
         .list()
-        .find(link => link.scope === 'global' && link.destinationPath === destination);
+        .find((link) => link.scope === 'global' && link.destinationPath === destination);
       if (globalConflict) {
         throw new Error(`Global destination already linked: ${globalConflict.id}`);
       }
     }
 
     // Create symlink and check result
-    const symlinkResult = symlinkService.create(source, destination, getSymlinkStrategy());
+    const symlinkResult = symlinkService.create(source, destination, getSymlinkStrategy(settingsService));
     if (!symlinkResult.success) {
       const errorMessage = symlinkResult.error || 'Unknown symlink creation failure';
       throw new Error(`Failed to create symlink: ${errorMessage}`);
@@ -216,22 +393,22 @@ export function registerIPCHandlers(): void {
     const skillService = createSkillService();
 
     // Validate project and IDE once upfront
-    const project = projectService.list().find(p => p.id === projectId);
+    const project = projectService.list().find((p) => p.id === projectId);
     if (!project) {
       throw new Error(`Project "${projectId}" not found`);
     }
 
-    const ide = ideService.list().find(i => i.id === ideName);
+    const ide = ideService.list().find((i) => i.id === ideName);
     if (!ide) {
       throw new Error(`IDE "${ideName}" not found`);
     }
 
     // Pre-check Windows permissions before attempting symlink creation
-    if (process.platform === 'win32') {
+    if (platform === 'win32') {
       const permissionCheck = symlinkService.checkPermissions();
       if (!permissionCheck.canCreate) {
         // Return error for all skills
-        return skillIds.map(skillId => ({
+        return skillIds.map((skillId) => ({
           skillId,
           skillName: skillId,
           status: 'error' as const,
@@ -259,7 +436,7 @@ export function registerIPCHandlers(): void {
 
       // Check if link already exists
       const linkId = `${skillId}-${projectId}-${ideName}`;
-      const existingLink = allLinks.find(l => l.id === linkId);
+      const existingLink = allLinks.find((l) => l.id === linkId);
       if (existingLink) {
         results.push({
           skillId,
@@ -271,10 +448,10 @@ export function registerIPCHandlers(): void {
       }
 
       // Determine destination path based on scope
-      const destination = resolveLinkDestination(skill.name, project.path, ide, scope);
+      const destination = resolveLinkDestination(skill.name, project.path, ide, scope, expandPath);
       if (scope === 'global') {
         const existingGlobalDestination = allLinks.find(
-          l => l.scope === 'global' && l.destinationPath === destination,
+          (l) => l.scope === 'global' && l.destinationPath === destination,
         );
         if (existingGlobalDestination) {
           results.push({
@@ -298,7 +475,7 @@ export function registerIPCHandlers(): void {
       event.sender.send('links:createProgress', progress);
 
       // Create symlink
-      const symlinkResult = symlinkService.create(source, destination, getSymlinkStrategy());
+      const symlinkResult = symlinkService.create(source, destination, getSymlinkStrategy(settingsService));
       if (!symlinkResult.success) {
         results.push({
           skillId,
@@ -312,7 +489,7 @@ export function registerIPCHandlers(): void {
       // Persist link in database
       try {
         const link = linkService.create({ skillId, projectId, ideName, scope }, source, destination);
-        allLinks = [...allLinks, link];
+        allLinks = [...allLinks, link as LinkRecord];
         results.push({
           skillId,
           skillName: skill.displayName || skill.name,
@@ -344,13 +521,13 @@ export function registerIPCHandlers(): void {
 
   ipcMain.handle('links:remove', (_event, id: string) => {
     const allLinks = linkService.list();
-    const link = allLinks.find(item => item.id === id);
+    const link = allLinks.find((item) => item.id === id);
     if (!link) {
       return { success: false };
     }
 
     const hasOtherReferences = allLinks.some(
-      item => item.id !== id && item.destinationPath === link.destinationPath,
+      (item) => item.id !== id && item.destinationPath === link.destinationPath,
     );
     const removed = linkService.remove(id);
     if (removed && !hasOtherReferences) {
@@ -362,12 +539,12 @@ export function registerIPCHandlers(): void {
 
   ipcMain.handle('links:removeMultiple', (_event, ids: string[]) => {
     const allLinks = linkService.list();
-    const linksById = new Map(allLinks.map(link => [link.id, link]));
+    const linksById = new Map(allLinks.map((link) => [link.id, link]));
 
     // Remove from DB first
     const results = linkService.removeMultiple(ids);
-    const removedIds = new Set(results.filter(result => result.success).map(result => result.id));
-    const remainingLinks = allLinks.filter(link => !removedIds.has(link.id));
+    const removedIds = new Set(results.filter((result) => result.success).map((result) => result.id));
+    const remainingLinks = allLinks.filter((link) => !removedIds.has(link.id));
 
     const destinationsToCleanup = new Set<string>();
     for (const removedId of removedIds) {
@@ -377,7 +554,7 @@ export function registerIPCHandlers(): void {
       }
 
       const stillReferenced = remainingLinks.some(
-        link => link.destinationPath === removedLink.destinationPath,
+        (link) => link.destinationPath === removedLink.destinationPath,
       );
       if (!stillReferenced) {
         destinationsToCleanup.add(removedLink.destinationPath);
@@ -429,11 +606,11 @@ export function registerIPCHandlers(): void {
       defaultPath: options?.defaultPath,
       title: options?.title || 'Select Project Directory',
     });
-    
+
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
-    
+
     return result.filePaths[0];
   });
 
@@ -461,14 +638,9 @@ export function registerIPCHandlers(): void {
   ipcMain.handle('github:importSkills', async (event, params: any) => {
     const { parsed, skills, resolutions } = params;
     try {
-      return await githubImportService.importSkills(
-        parsed,
-        skills,
-        resolutions,
-        (progress) => {
-          event.sender.send('github:importProgress', progress);
-        },
-      );
+      return await githubImportService.importSkills(parsed, skills, resolutions, (progress) => {
+        event.sender.send('github:importProgress', progress);
+      });
     } catch (err: any) {
       return [{ skillName: 'unknown', status: 'error', error: err.message }];
     }

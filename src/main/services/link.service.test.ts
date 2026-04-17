@@ -177,4 +177,77 @@ describe('LinkService', () => {
     const service = new LinkService(tempDir);
     expect(service.list()).toEqual([]);
   });
+
+  it('should ignore non-array payloads from links.json', () => {
+    fs.writeFileSync(path.join(tempDir, 'links.json'), JSON.stringify({ invalid: true }), 'utf-8');
+
+    const service = new LinkService(tempDir);
+    expect(service.list()).toEqual([]);
+  });
+
+  it('should return false entries for removeMultiple when ids do not exist', () => {
+    linkService.create(
+      { skillId: 'skill1', projectId: 'project1', ideName: 'claude-code', scope: 'project' },
+      '/src1',
+      '/dest1',
+    );
+    const results = linkService.removeMultiple(['missing-1', 'missing-2']);
+
+    expect(results).toEqual([
+      { id: 'missing-1', success: false },
+      { id: 'missing-2', success: false },
+    ]);
+    expect(linkService.list()).toHaveLength(1);
+  });
+
+  it('should remove multiple links and persist only successful deletions', () => {
+    linkService.create(
+      { skillId: 'skill1', projectId: 'project1', ideName: 'claude-code', scope: 'project' },
+      '/src1',
+      '/dest1',
+    );
+    linkService.create(
+      { skillId: 'skill2', projectId: 'project1', ideName: 'cursor', scope: 'project' },
+      '/src2',
+      '/dest2',
+    );
+
+    const results = linkService.removeMultiple(['skill1-project1-claude-code', 'missing']);
+
+    expect(results).toEqual([
+      { id: 'skill1-project1-claude-code', success: true },
+      { id: 'missing', success: false },
+    ]);
+    expect(linkService.list()).toHaveLength(1);
+
+    const onDisk = JSON.parse(fs.readFileSync(path.join(tempDir, 'links.json'), 'utf-8'));
+    expect(onDisk).toHaveLength(1);
+    expect(onDisk[0].id).toBe('skill2-project1-cursor');
+  });
+
+  it('should throw when verifying an unknown link id', () => {
+    expect(() => linkService.verify('unknown-link', { verify: () => ({ valid: true }) } as any)).toThrow(
+      'Link "unknown-link" not found',
+    );
+  });
+
+  it('should verify all links and update statuses', () => {
+    linkService.create(
+      { skillId: 'linked', projectId: 'project1', ideName: 'claude-code', scope: 'project' },
+      '/src-linked',
+      '/dest-linked',
+    );
+    linkService.create(
+      { skillId: 'broken', projectId: 'project1', ideName: 'claude-code', scope: 'project' },
+      '/src-broken',
+      '/dest-broken',
+    );
+
+    const verified = linkService.verifyAll({
+      verify: (destination: string) => ({ valid: destination.includes('linked') }),
+    } as any);
+
+    expect(verified.find((link) => link.id === 'linked-project1-claude-code')?.status).toBe('linked');
+    expect(verified.find((link) => link.id === 'broken-project1-claude-code')?.status).toBe('broken');
+  });
 });
