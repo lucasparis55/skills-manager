@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit, Search } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import SkillEditDialog from '../components/ui/SkillEditDialog';
 import { useToast } from '../components/ui/Toast';
 
 interface Skill {
@@ -27,6 +28,8 @@ const SkillsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,6 +79,15 @@ const SkillsPage: React.FC = () => {
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
     }
+  };
+
+  const handleEditSkill = (skill: Skill) => {
+    setEditingSkill(skill);
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    await loadSkills();
   };
 
   const filteredSkills = skills.filter(s =>
@@ -131,7 +143,12 @@ const SkillsPage: React.FC = () => {
       ) : (
         <div className="grid gap-4">
           {filteredSkills.map((skill) => (
-            <SkillCard key={skill.id} skill={skill} onDelete={(s) => setConfirmState({ skill: s })} />
+            <SkillCard
+              key={skill.id}
+              skill={skill}
+              onDelete={(s) => setConfirmState({ skill: s })}
+              onEdit={handleEditSkill}
+            />
           ))}
         </div>
       )}
@@ -144,6 +161,13 @@ const SkillsPage: React.FC = () => {
         fields={createSkillFields}
         onSubmit={handleCreateSkill}
         submitLabel="Create"
+      />
+
+      <SkillEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        skill={editingSkill}
+        onSave={handleSaveEdit}
       />
 
       {confirmState && (
@@ -161,7 +185,11 @@ const SkillsPage: React.FC = () => {
   );
 };
 
-const SkillCard: React.FC<{ skill: Skill; onDelete: (skill: Skill) => void }> = ({ skill, onDelete }) => {
+const SkillCard: React.FC<{
+  skill: Skill;
+  onDelete: (skill: Skill) => void;
+  onEdit: (skill: Skill) => void;
+}> = ({ skill, onDelete, onEdit }) => {
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors">
       <div className="flex items-start justify-between">
@@ -186,8 +214,16 @@ const SkillCard: React.FC<{ skill: Skill; onDelete: (skill: Skill) => void }> = 
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => onEdit(skill)}
+            className="p-2 text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+            title="Edit skill"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => onDelete(skill)}
             className="p-2 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+            title="Delete skill"
           >
             <Trash2 className="w-4 h-4" />
           </button>

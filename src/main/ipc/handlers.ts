@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, shell } from 'electron';
 import { SkillService } from '../services/skill.service';
 import { ProjectService } from '../services/project.service';
 import { SymlinkService } from '../services/symlink.service';
@@ -47,6 +47,43 @@ export function registerIPCHandlers(): void {
 
   ipcMain.handle('skills:scan', () => {
     return skillService.scan();
+  });
+
+  // Skill file operation handlers
+  ipcMain.handle('skills:getContent', (_event, id: string) => {
+    return skillService.getContent(id);
+  });
+
+  ipcMain.handle('skills:saveContent', (_event, id: string, content: string) => {
+    return skillService.saveContent(id, content);
+  });
+
+  ipcMain.handle('skills:listFiles', (_event, id: string) => {
+    return skillService.listFiles(id);
+  });
+
+  ipcMain.handle('skills:readFile', (_event, id: string, filePath: string) => {
+    return skillService.readFile(id, filePath);
+  });
+
+  ipcMain.handle('skills:writeFile', (_event, id: string, filePath: string, content: string) => {
+    skillService.writeFile(id, filePath, content);
+    return { success: true };
+  });
+
+  ipcMain.handle('skills:deleteFile', (_event, id: string, filePath: string) => {
+    skillService.deleteFile(id, filePath);
+    return { success: true };
+  });
+
+  ipcMain.handle('skills:getPath', (_event, id: string) => {
+    return skillService.getSkillPath(id);
+  });
+
+  ipcMain.handle('skills:openFolder', async (_event, id: string) => {
+    const skillPath = skillService.getSkillPath(id);
+    await shell.openPath(skillPath);
+    return { success: true };
   });
 
   // Projects handlers

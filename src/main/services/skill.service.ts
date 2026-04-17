@@ -1,7 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { getSkillsRoot } from '../utils/paths';
+import { getSkillsRoot, isSubDirectory } from '../utils/paths';
 import type { Skill, CreateSkillInput, UpdateSkillInput } from '../types/domain';
+
+export interface SkillFileEntry {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  size: number;
+}
 
 /**
  * Skill Service - Manages skills in the central repository
@@ -80,7 +87,6 @@ tags: [${input.tags?.join(', ') || ''}]
 
 # ${input.displayName}
 
-${input.description}
 `;
 
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), frontmatter, 'utf-8');
@@ -195,5 +201,154 @@ ${input.description}
    */
   scan(): Skill[] {
     return this.list();
+  }
+
+  /**
+   * Get the absolute path to a skill directory
+   */
+  getSkillPath(name: string): string {
+    const skillDir = path.join(this.skillsRoot, name);
+    if (!fs.existsSync(skillDir)) {
+      throw new Error(`Skill "${name}" not found`);
+    }
+    return skillDir;
+  }
+
+  /**
+   * Get the full content of SKILL.md
+   */
+  getContent(name: string): string {
+    const skillDir = path.join(this.skillsRoot, name);
+    const skillMdPath = path.join(skillDir, 'SKILL.md');
+
+    if (!fs.existsSync(skillMdPath)) {
+      throw new Error(`Skill "${name}" not found`);
+    }
+
+    return fs.readFileSync(skillMdPath, 'utf-8');
+  }
+
+  /**
+   * Save the full content of SKILL.md
+   */
+  saveContent(name: string, content: string): Skill {
+    const skillDir = path.join(this.skillsRoot, name);
+    const skillMdPath = path.join(skillDir, 'SKILL.md');
+
+    if (!fs.existsSync(skillMdPath)) {
+      throw new Error(`Skill "${name}" not found`);
+    }
+
+    fs.writeFileSync(skillMdPath, content, 'utf-8');
+    return this.loadSkill(name, skillDir)!;
+  }
+
+  /**
+   * List all files in a skill directory (recursive)
+   */
+  listFiles(name: string): SkillFileEntry[] {
+    const skillDir = path.join(this.skillsRoot, name);
+
+    if (!fs.existsSync(skillDir)) {
+      throw new Error(`Skill "${name}" not found`);
+    }
+
+    const files: SkillFileEntry[] = [];
+    this._listFilesRecursive(skillDir, skillDir, files);
+    return files;
+  }
+
+  /**
+   * Recursive helper for listFiles
+   */
+  private _listFilesRecursive(baseDir: string, currentDir: string, files: SkillFileEntry[]): void {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = path.relative(baseDir, fullPath);
+
+      if (entry.isDirectory()) {
+        files.push({
+          path: relativePath,
+          name: entry.name,
+          isDirectory: true,
+          size: 0,
+        });
+        this._listFilesRecursive(baseDir, fullPath, files);
+      } else {
+        const stat = fs.statSync(fullPath);
+        files.push({
+          path: relativePath,
+          name: entry.name,
+          isDirectory: false,
+          size: stat.size,
+        });
+      }
+    }
+  }
+
+  /**
+   * Read a specific file within the skill directory
+   */
+  readFile(name: string, filePath: string): string {
+    const skillDir = path.join(this.skillsRoot, name);
+    const fullPath = path.normalize(path.join(skillDir, filePath));
+
+    if (!isSubDirectory(fullPath, skillDir)) {
+      throw new Error('Access denied: path traversal detected');
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`File "${filePath}" not found`);
+    }
+
+    if (fs.statSync(fullPath).isDirectory()) {
+      throw new Error(`"${filePath}" is a directory, not a file`);
+    }
+
+    return fs.readFileSync(fullPath, 'utf-8');
+  }
+
+  /**
+   * Write/create/update a file within the skill directory
+   */
+  writeFile(name: string, filePath: string, content: string): void {
+    const skillDir = path.join(this.skillsRoot, name);
+    const fullPath = path.normalize(path.join(skillDir, filePath));
+
+    if (!isSubDirectory(fullPath, skillDir)) {
+      throw new Error('Access denied: path traversal detected');
+    }
+
+    // Create parent directories if needed
+    const parentDir = path.dirname(fullPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    fs.writeFileSync(fullPath, content, 'utf-8');
+  }
+
+  /**
+   * Delete a file from the skill directory
+   */
+  deleteFile(name: string, filePath: string): void {
+    const skillDir = path.join(this.skillsRoot, name);
+    const fullPath = path.normalize(path.join(skillDir, filePath));
+
+    if (!isSubDirectory(fullPath, skillDir)) {
+      throw new Error('Access denied: path traversal detected');
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`File "${filePath}" not found`);
+    }
+
+    if (fs.statSync(fullPath).isDirectory()) {
+      throw new Error(`Cannot delete directory "${filePath}" using this method`);
+    }
+
+    fs.unlinkSync(fullPath);
   }
 }

@@ -11,6 +11,14 @@ contextBridge.exposeInMainWorld('api', {
     update: (id: string, input: any) => ipcRenderer.invoke('skills:update', id, input),
     delete: (id: string) => ipcRenderer.invoke('skills:delete', id),
     scan: () => ipcRenderer.invoke('skills:scan'),
+    getContent: (id: string) => ipcRenderer.invoke('skills:getContent', id),
+    saveContent: (id: string, content: string) => ipcRenderer.invoke('skills:saveContent', id, content),
+    listFiles: (id: string) => ipcRenderer.invoke('skills:listFiles', id),
+    readFile: (id: string, filePath: string) => ipcRenderer.invoke('skills:readFile', id, filePath),
+    writeFile: (id: string, filePath: string, content: string) => ipcRenderer.invoke('skills:writeFile', id, filePath, content),
+    deleteFile: (id: string, filePath: string) => ipcRenderer.invoke('skills:deleteFile', id, filePath),
+    getPath: (id: string) => ipcRenderer.invoke('skills:getPath', id),
+    openFolder: (id: string) => ipcRenderer.invoke('skills:openFolder', id),
   },
 
   // Projects

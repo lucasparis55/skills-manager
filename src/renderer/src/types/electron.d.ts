@@ -1,5 +1,12 @@
 // Type declarations for the Electron IPC API exposed via preload script
 
+interface SkillFileEntry {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  size: number;
+}
+
 interface SkillsAPI {
   list: () => Promise<any[]>;
   get: (id: string) => Promise<any>;
@@ -7,6 +14,14 @@ interface SkillsAPI {
   update: (id: string, input: any) => Promise<any>;
   delete: (id: string) => Promise<any>;
   scan: () => Promise<any[]>;
+  getContent: (id: string) => Promise<string>;
+  saveContent: (id: string, content: string) => Promise<any>;
+  listFiles: (id: string) => Promise<SkillFileEntry[]>;
+  readFile: (id: string, filePath: string) => Promise<string>;
+  writeFile: (id: string, filePath: string, content: string) => Promise<any>;
+  deleteFile: (id: string, filePath: string) => Promise<any>;
+  getPath: (id: string) => Promise<string>;
+  openFolder: (id: string) => Promise<any>;
 }
 
 interface ProjectsAPI {
