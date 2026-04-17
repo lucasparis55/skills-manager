@@ -57,6 +57,7 @@ export interface ImportResult {
   status: 'imported' | 'skipped' | 'renamed' | 'error';
   error?: string;
   originalName?: string;
+  skipReason?: string;
 }
 
 /** Progress update during batch import */

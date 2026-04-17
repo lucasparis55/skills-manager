@@ -309,10 +309,10 @@ export class GitHubImportService {
       }
 
       const skill = skills[i];
-      const resolution = resolutions[skill.name] || { strategy: 'skip' as const };
+      const resolution = resolutions[skill.name] || { strategy: 'import' as const };
 
       if (resolution.strategy === 'skip') {
-        results.push({ skillName: skill.name, status: 'skipped' });
+        results.push({ skillName: skill.name, status: 'skipped', skipReason: 'User chose to skip this skill due to a naming conflict.' });
         continue;
       }
 

@@ -527,7 +527,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                       </div>
                       {skippedCount > 0 && (
                         <div className="flex items-center gap-2">
-                          <Circle className="w-5 h-5 text-slate-400" />
+                          <AlertCircle className="w-5 h-5 text-amber-400" />
                           <span className="text-sm text-slate-300">{skippedCount} skipped</span>
                         </div>
                       )}
@@ -539,22 +539,34 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                       )}
                     </div>
 
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
                       {importResults.map((result, i) => (
-                        <div key={i} className="flex items-center gap-2 py-1">
-                          {result.status === 'imported' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
-                          {result.status === 'renamed' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
-                          {result.status === 'skipped' && <Circle className="w-4 h-4 text-slate-500" />}
-                          {result.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
-                          <span className="text-sm text-slate-300">{result.skillName}</span>
-                          {result.status === 'renamed' && result.originalName && (
-                            <span className="text-xs text-slate-500">(renamed from {result.originalName})</span>
+                        <div key={i} className={`p-3 rounded-lg border ${
+                          result.status === 'imported' || result.status === 'renamed' ? 'bg-green-500/5 border-green-500/20' :
+                          result.status === 'skipped' ? 'bg-amber-500/5 border-amber-500/20' :
+                          'bg-red-500/5 border-red-500/20'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            {result.status === 'imported' && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                            {result.status === 'renamed' && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                            {result.status === 'skipped' && <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />}
+                            {result.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                            <span className="text-sm font-medium text-slate-200">{result.skillName}</span>
+                            {result.status === 'renamed' && result.originalName && (
+                              <span className="text-xs text-slate-400">(renamed from {result.originalName})</span>
+                            )}
+                          </div>
+                          {result.status === 'skipped' && result.skipReason && (
+                            <p className="text-xs text-amber-300/80 ml-6">{result.skipReason}</p>
                           )}
-                          {result.status === 'skipped' && (
-                            <span className="text-xs text-slate-500">— Skipped</span>
+                          {result.status === 'skipped' && !result.skipReason && (
+                            <p className="text-xs text-amber-300/80 ml-6">Skipped — no action taken</p>
                           )}
                           {result.status === 'error' && result.error && (
-                            <span className="text-xs text-red-400">— {result.error}</span>
+                            <p className="text-xs text-red-300 ml-6">{result.error}</p>
+                          )}
+                          {(result.status === 'imported' || result.status === 'renamed') && (
+                            <p className="text-xs text-green-300/80 ml-6">Successfully imported</p>
                           )}
                         </div>
                       ))}
