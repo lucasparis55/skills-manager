@@ -7,6 +7,7 @@ import { IDEAdapterService } from '../services/ide-adapter.service';
 import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
+import { expandPath } from '../utils/paths';
 
 // Initialize services
 const skillService = new SkillService();
@@ -141,10 +142,17 @@ export function registerIPCHandlers(): void {
       }
     }
 
-    // Determine destination path
+    // Determine destination path based on scope
     const pathLib = require('path');
-    const destRoot = ide.roots.projectRelative[0];
-    const destination = pathLib.join(project.path, destRoot, skill.name);
+    
+    let destination: string;
+    if (input.scope === 'global') {
+      const globalRoot = ide.roots.primaryGlobal[0];
+      destination = pathLib.join(expandPath(globalRoot), skill.name);
+    } else {
+      const destRoot = ide.roots.projectRelative[0];
+      destination = pathLib.join(project.path, destRoot, skill.name);
+    }
     const source = skill.sourcePath;
 
     // Create symlink and check result

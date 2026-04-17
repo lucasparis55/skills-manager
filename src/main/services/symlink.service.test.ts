@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import * as childProcess from 'child_process';
 import { SymlinkService } from './symlink.service';
+
+vi.mock('child_process', () => ({
+  execSync: vi.fn(),
+}));
 
 describe('SymlinkService', () => {
   let symlinkService: SymlinkService;
@@ -38,11 +43,17 @@ describe('SymlinkService', () => {
     });
 
     it('should include error details in return value when symlink creation fails', () => {
-      // Mock fs.symlinkSync to throw a permission error
+      // Mock both fs.symlinkSync and execSync to throw permission errors
       const originalSymlinkSync = fs.symlinkSync;
+      const mockedExecSync = vi.mocked(childProcess.execSync);
+      
       fs.symlinkSync = vi.fn(() => {
         throw new Error('EPERM: operation not permitted, symlink');
       }) as any;
+      
+      mockedExecSync.mockImplementation(() => {
+        throw new Error('EPERM: operation not permitted, mklink');
+      });
 
       // Create a real source file
       const source = path.join(tempDir, 'source');
@@ -51,8 +62,9 @@ describe('SymlinkService', () => {
 
       const result = symlinkService.create(source, destination);
 
-      // Restore original function
+      // Restore original functions
       fs.symlinkSync = originalSymlinkSync;
+      mockedExecSync.mockRestore();
 
       expect(result.success).toBe(false);
       expect(result.strategy).toBe('none');
@@ -70,10 +82,16 @@ describe('SymlinkService', () => {
 
       const result = symlinkService.create(source, destination);
 
-      // On Windows without permissions, this might fail, so we just check the return type
+      // Check that the result has the expected structure
       expect(result).toHaveProperty('success');
       expect(result).toHaveProperty('strategy');
-      expect(result).toHaveProperty('error');
+      
+      // On success, there should be no error; on failure, error should be defined
+      if (result.success) {
+        expect(result.strategy).not.toBe('none');
+      } else {
+        expect(result.error).toBeDefined();
+      }
     });
   });
 
