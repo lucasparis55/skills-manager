@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import { getAppDataDir } from '../utils/paths';
 import type { Project } from '../types/domain';
 
 /**
@@ -7,6 +9,20 @@ import type { Project } from '../types/domain';
  */
 export class ProjectService {
   private projects: Map<string, Project> = new Map();
+  private projectPathIndex: Map<string, string> = new Map();
+  private projectsPath: string;
+  private backupPath: string;
+
+  constructor(appDataDir?: string) {
+    const dir = appDataDir || getAppDataDir();
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    this.projectsPath = path.join(dir, 'projects.json');
+    this.backupPath = path.join(dir, 'projects.json.bak');
+    this.load();
+  }
 
   /**
    * List all registered projects
@@ -19,33 +35,20 @@ export class ProjectService {
    * Add a project by path
    */
   add(projectPath: string): Project {
-    const absolutePath = path.resolve(projectPath);
-
-    if (!fs.existsSync(absolutePath)) {
-      throw new Error(`Directory not found: ${absolutePath}`);
+    const absolutePath = this.validateProjectPath(projectPath);
+    const canonicalPath = this.toCanonicalPath(absolutePath);
+    const existingId = this.projectPathIndex.get(canonicalPath);
+    if (existingId) {
+      return this.projects.get(existingId)!;
     }
 
-    const stat = fs.statSync(absolutePath);
-    if (!stat.isDirectory()) {
-      throw new Error(`Not a directory: ${absolutePath}`);
-    }
+    const baseId = path.basename(absolutePath);
+    const id = this.resolveUniqueId(baseId, canonicalPath);
+    const project = this.buildProject(absolutePath, id);
 
-    const id = path.basename(absolutePath);
-    const detectedIDEs = this.detectIDEs(absolutePath);
-
-    const project: Project = {
-      id,
-      name: id,
-      path: absolutePath,
-      detectedIDEs,
-      addedAt: new Date().toISOString(),
-      lastScanned: new Date().toISOString(),
-      metadata: {
-        hasGit: fs.existsSync(path.join(absolutePath, '.git')),
-      },
-    };
-
-    this.projects.set(id, project);
+    this.projects.set(project.id, project);
+    this.projectPathIndex.set(canonicalPath, project.id);
+    this.save();
     return project;
   }
 
@@ -53,7 +56,14 @@ export class ProjectService {
    * Remove a project
    */
   remove(id: string): void {
+    const project = this.projects.get(id);
+    if (!project) {
+      return;
+    }
+
     this.projects.delete(id);
+    this.projectPathIndex.delete(this.toCanonicalPath(project.path));
+    this.save();
   }
 
   /**
@@ -61,15 +71,49 @@ export class ProjectService {
    */
   scan(rootPath?: string): Project[] {
     const scanPath = rootPath || process.env.USERPROFILE || process.env.HOME || '.';
-    const projects: Project[] = [];
+    const foundProjects: Project[] = [];
 
-    this.scanDirectory(scanPath, projects, 2); // Max depth 2
+    this.scanDirectory(scanPath, foundProjects, 2); // Max depth 2
 
-    projects.forEach(p => {
-      this.projects.set(p.id, p);
-    });
+    let hasChanges = false;
+    for (const found of foundProjects) {
+      const canonicalPath = this.toCanonicalPath(found.path);
+      const existingId = this.projectPathIndex.get(canonicalPath);
 
-    return projects;
+      if (existingId) {
+        const existing = this.projects.get(existingId);
+        if (existing) {
+          const updated: Project = {
+            ...existing,
+            detectedIDEs: found.detectedIDEs,
+            lastScanned: new Date().toISOString(),
+            metadata: {
+              ...existing.metadata,
+              hasGit: found.metadata?.hasGit === true,
+            },
+          };
+
+          if (JSON.stringify(existing) !== JSON.stringify(updated)) {
+            this.projects.set(existingId, updated);
+            hasChanges = true;
+          }
+        }
+        continue;
+      }
+
+      const id = this.resolveUniqueId(found.id, canonicalPath);
+      const projectToSave: Project = { ...found, id };
+
+      this.projects.set(projectToSave.id, projectToSave);
+      this.projectPathIndex.set(canonicalPath, projectToSave.id);
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      this.save();
+    }
+
+    return foundProjects;
   }
 
   /**
@@ -109,20 +153,10 @@ export class ProjectService {
       const isProject = this.isProjectDirectory(dir);
 
       if (isProject) {
-        const id = path.basename(dir);
-        const detectedIDEs = this.detectIDEs(dir);
+        const absolutePath = path.resolve(dir);
+        const id = this.toLegacyScanId(absolutePath);
 
-        projects.push({
-          id: `${dir.replace(/[\/\\]/g, '-')}`,
-          name: id,
-          path: dir,
-          detectedIDEs,
-          addedAt: new Date().toISOString(),
-          lastScanned: new Date().toISOString(),
-          metadata: {
-            hasGit: fs.existsSync(path.join(dir, '.git')),
-          },
-        });
+        projects.push(this.buildProject(absolutePath, id));
 
         // Don't scan deeper if this is a project
         return;
@@ -145,5 +179,241 @@ export class ProjectService {
   private isProjectDirectory(dir: string): boolean {
     const indicators = ['.git', 'package.json', 'go.mod', 'Cargo.toml', 'pyproject.toml', 'pom.xml'];
     return indicators.some(indicator => fs.existsSync(path.join(dir, indicator)));
+  }
+
+  /**
+   * Load projects from disk with backup recovery support
+   */
+  private load(): void {
+    const loadedProjects = this.readProjectsFile();
+
+    for (const candidate of loadedProjects) {
+      const project = this.normalizeProject(candidate);
+      if (!project) {
+        continue;
+      }
+
+      const canonicalPath = this.toCanonicalPath(project.path);
+      if (this.projectPathIndex.has(canonicalPath)) {
+        continue;
+      }
+
+      const id = this.resolveUniqueId(project.id, canonicalPath);
+      const stored: Project = id === project.id ? project : { ...project, id };
+
+      this.projects.set(stored.id, stored);
+      this.projectPathIndex.set(canonicalPath, stored.id);
+    }
+  }
+
+  /**
+   * Read project list from primary file, with .bak fallback on corruption
+   */
+  private readProjectsFile(): unknown[] {
+    if (!fs.existsSync(this.projectsPath)) {
+      this.writeProjectsToDisk([], true);
+      return [];
+    }
+
+    try {
+      const raw = fs.readFileSync(this.projectsPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error('projects.json is not an array');
+      }
+      return parsed;
+    } catch {
+      const backup = this.readBackupProjects();
+      if (backup) {
+        this.writeProjectsToDisk(backup, true);
+        return backup;
+      }
+
+      this.writeProjectsToDisk([], true);
+      return [];
+    }
+  }
+
+  /**
+   * Read backup file if available and valid
+   */
+  private readBackupProjects(): unknown[] | null {
+    if (!fs.existsSync(this.backupPath)) {
+      return null;
+    }
+
+    try {
+      const raw = fs.readFileSync(this.backupPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Normalize persisted payload into a safe Project object
+   */
+  private normalizeProject(input: unknown): Project | null {
+    if (!input || typeof input !== 'object') {
+      return null;
+    }
+
+    const raw = input as Record<string, unknown>;
+    if (typeof raw.path !== 'string' || raw.path.trim().length === 0) {
+      return null;
+    }
+
+    const absolutePath = path.resolve(raw.path);
+    const now = new Date().toISOString();
+    const defaultName = path.basename(absolutePath);
+
+    const detectedIDEs = Array.isArray(raw.detectedIDEs)
+      ? raw.detectedIDEs.filter((item): item is string => typeof item === 'string')
+      : [];
+
+    const metadata = raw.metadata && typeof raw.metadata === 'object'
+      ? (raw.metadata as Record<string, unknown>)
+      : {};
+
+    return {
+      id: typeof raw.id === 'string' && raw.id.trim().length > 0 ? raw.id : defaultName,
+      name: typeof raw.name === 'string' && raw.name.trim().length > 0 ? raw.name : defaultName,
+      path: absolutePath,
+      detectedIDEs,
+      addedAt: typeof raw.addedAt === 'string' ? raw.addedAt : now,
+      lastScanned: typeof raw.lastScanned === 'string' ? raw.lastScanned : now,
+      metadata,
+    };
+  }
+
+  /**
+   * Persist current in-memory projects to disk
+   */
+  private save(): void {
+    this.writeProjectsToDisk(Array.from(this.projects.values()), false);
+  }
+
+  /**
+   * Safely write projects file with temp file + backup replacement strategy
+   */
+  private writeProjectsToDisk(projects: unknown[], skipBackup: boolean): void {
+    const tempPath = `${this.projectsPath}.tmp`;
+    const payload = JSON.stringify(projects, null, 2);
+
+    fs.writeFileSync(tempPath, payload, 'utf-8');
+
+    try {
+      if (fs.existsSync(this.projectsPath)) {
+        if (!skipBackup) {
+          fs.copyFileSync(this.projectsPath, this.backupPath);
+        }
+        fs.rmSync(this.projectsPath, { force: true });
+      }
+
+      fs.renameSync(tempPath, this.projectsPath);
+    } catch (error) {
+      if (fs.existsSync(tempPath)) {
+        fs.rmSync(tempPath, { force: true });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Validate project path and return absolute path
+   */
+  private validateProjectPath(projectPath: string): string {
+    const absolutePath = path.resolve(projectPath);
+
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error(`Directory not found: ${absolutePath}`);
+    }
+
+    const stat = fs.statSync(absolutePath);
+    if (!stat.isDirectory()) {
+      throw new Error(`Not a directory: ${absolutePath}`);
+    }
+
+    return absolutePath;
+  }
+
+  /**
+   * Build a new project model for storage
+   */
+  private buildProject(projectPath: string, id: string): Project {
+    const absolutePath = path.resolve(projectPath);
+    const now = new Date().toISOString();
+
+    return {
+      id,
+      name: path.basename(absolutePath),
+      path: absolutePath,
+      detectedIDEs: this.detectIDEs(absolutePath),
+      addedAt: now,
+      lastScanned: now,
+      metadata: {
+        hasGit: fs.existsSync(path.join(absolutePath, '.git')),
+      },
+    };
+  }
+
+  /**
+   * Resolve collisions while preserving compatibility with existing IDs
+   */
+  private resolveUniqueId(baseId: string, canonicalPath: string): string {
+    const existingPathId = this.projectPathIndex.get(canonicalPath);
+    if (existingPathId) {
+      return existingPathId;
+    }
+
+    if (!this.projects.has(baseId)) {
+      return baseId;
+    }
+
+    const baseProject = this.projects.get(baseId);
+    if (baseProject && this.toCanonicalPath(baseProject.path) === canonicalPath) {
+      return baseId;
+    }
+
+    const suffix = this.getPathHash(canonicalPath);
+    let candidate = `${baseId}-${suffix}`;
+    let counter = 1;
+
+    while (this.projects.has(candidate)) {
+      const existing = this.projects.get(candidate);
+      if (existing && this.toCanonicalPath(existing.path) === canonicalPath) {
+        return candidate;
+      }
+      candidate = `${baseId}-${suffix}-${counter}`;
+      counter += 1;
+    }
+
+    return candidate;
+  }
+
+  /**
+   * Legacy scan ID format kept for compatibility
+   */
+  private toLegacyScanId(projectPath: string): string {
+    return projectPath.replace(/[\/\\]/g, '-');
+  }
+
+  /**
+   * Canonical key used for deduplication by path
+   */
+  private toCanonicalPath(inputPath: string): string {
+    const normalized = path.normalize(path.resolve(inputPath));
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  }
+
+  /**
+   * Deterministic short hash for collision suffixes
+   */
+  private getPathHash(canonicalPath: string): string {
+    return crypto.createHash('sha1').update(canonicalPath).digest('hex').slice(0, 8);
   }
 }
