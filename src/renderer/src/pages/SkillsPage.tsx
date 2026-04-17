@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Search } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Download } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SkillEditDialog from '../components/ui/SkillEditDialog';
+import GitHubImportDialog from '../components/ui/GitHubImportDialog';
 import { useToast } from '../components/ui/Toast';
 
 interface Skill {
@@ -30,6 +31,7 @@ const SkillsPage: React.FC = () => {
   const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -116,13 +118,22 @@ const SkillsPage: React.FC = () => {
             />
           </div>
         </div>
-        <button
-          onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Skill
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-slate-300"
+          >
+            <Download className="w-4 h-4" />
+            Import from GitHub
+          </button>
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Skill
+          </button>
+        </div>
       </div>
 
       {/* Skills List */}
@@ -181,6 +192,12 @@ const SkillsPage: React.FC = () => {
           variant="danger"
         />
       )}
+
+      <GitHubImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={loadSkills}
+      />
     </div>
   );
 };

@@ -57,7 +57,23 @@ contextBridge.exposeInMainWorld('api', {
 
   // Dialog
   dialog: {
-    selectFolder: (options?: { defaultPath?: string; title?: string }) => 
+    selectFolder: (options?: { defaultPath?: string; title?: string }) =>
       ipcRenderer.invoke('dialog:selectFolder', options),
+  },
+
+  // GitHub Import
+  githubImport: {
+    parseUrl: (url: string) => ipcRenderer.invoke('github:parseUrl', url),
+    analyze: (parsed: any) => ipcRenderer.invoke('github:analyze', parsed),
+    checkConflicts: (names: string[]) => ipcRenderer.invoke('github:checkConflicts', names),
+    importSkills: (params: any) => ipcRenderer.invoke('github:importSkills', params),
+    cancelImport: () => ipcRenderer.invoke('github:cancelImport'),
+    onProgress: (callback: (progress: any) => void) => {
+      const handler = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('github:importProgress', handler);
+      return () => {
+        ipcRenderer.removeListener('github:importProgress', handler);
+      };
+    },
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, FolderOpen, Monitor } from 'lucide-react';
+import { Settings, FolderOpen, Monitor, Github, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -9,12 +9,15 @@ interface AppSettings {
   autoScanProjects: boolean;
   symlinkStrategy: 'symlink' | 'junction' | 'auto';
   theme: 'light' | 'dark' | 'system';
+  githubToken?: string;
 }
 
 const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPathDialog, setShowPathDialog] = useState(false);
+  const [testingToken, setTestingToken] = useState(false);
+  const [tokenTestResult, setTokenTestResult] = useState<'success' | 'error' | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -47,6 +50,33 @@ const SettingsPage: React.FC = () => {
       toast({ title: 'Settings updated', description: 'Skills root path has been changed.', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
+    }
+  };
+
+  const handleTestToken = async () => {
+    setTestingToken(true);
+    setTokenTestResult(null);
+    try {
+      // Use analyze on a known public repo to test the token
+      const parseResult = await window.api.githubImport.parseUrl('anthropics/skills');
+      if (parseResult.error) {
+        setTokenTestResult('error');
+        toast({ title: 'Connection Failed', description: parseResult.message, variant: 'error' });
+        return;
+      }
+      const analyzeResult = await window.api.githubImport.analyze(parseResult);
+      if (analyzeResult.error) {
+        setTokenTestResult('error');
+        toast({ title: 'Connection Failed', description: analyzeResult.message, variant: 'error' });
+      } else {
+        setTokenTestResult('success');
+        toast({ title: 'Connection OK', description: 'GitHub API is accessible.', variant: 'success' });
+      }
+    } catch (err: any) {
+      setTokenTestResult('error');
+      toast({ title: 'Connection Failed', description: err.message || 'Could not connect to GitHub API.', variant: 'error' });
+    } finally {
+      setTestingToken(false);
     }
   };
 
@@ -156,6 +186,56 @@ const SettingsPage: React.FC = () => {
           IDE configurations are automatically detected based on your system.
           Custom overrides will be supported in a future update.
         </p>
+      </div>
+
+      {/* GitHub Integration */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Github className="w-5 h-5" />
+          GitHub Integration
+        </h3>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              GitHub Personal Access Token
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                value={settings.githubToken || ''}
+                onChange={(e) => {
+                  handleUpdate('githubToken', e.target.value);
+                  setTokenTestResult(null);
+                }}
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleTestToken}
+                disabled={testingToken}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg transition-colors text-sm text-slate-300"
+              >
+                {testingToken ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : tokenTestResult === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : tokenTestResult === 'error' ? (
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                ) : null}
+                Test
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Optional. Without a token: 60 API requests/hour. With a token: 5,000 requests/hour.
+              Also enables access to private repositories.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Create a token at GitHub Settings &gt; Developer settings &gt; Personal access tokens.
+              No special scopes required for public repos.
+            </p>
+          </div>
+        </div>
       </div>
 
       <FormDialog

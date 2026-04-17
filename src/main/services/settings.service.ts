@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   developerModeEnabled: false,
   theme: 'dark',
   ideRootOverrides: {},
+  githubToken: '',
 };
 
 /**

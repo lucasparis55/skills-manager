@@ -5,6 +5,7 @@ import { SymlinkService } from '../services/symlink.service';
 import { IDEAdapterService } from '../services/ide-adapter.service';
 import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
+import { GitHubImportService } from '../services/github-import.service';
 
 // Initialize services
 const skillService = new SkillService();
@@ -13,6 +14,7 @@ const symlinkService = new SymlinkService();
 const ideService = new IDEAdapterService();
 const detectionService = new DetectionService();
 const settingsService = new SettingsService();
+const githubImportService = new GitHubImportService(settingsService);
 
 /**
  * Register all IPC handlers
@@ -196,5 +198,47 @@ export function registerIPCHandlers(): void {
     }
     
     return result.filePaths[0];
+  });
+
+  // GitHub Import handlers
+  ipcMain.handle('github:parseUrl', (_event, url: string) => {
+    try {
+      return githubImportService.parseGitHubUrl(url);
+    } catch (err: any) {
+      return { error: true, message: err.message };
+    }
+  });
+
+  ipcMain.handle('github:analyze', async (_event, parsed: any) => {
+    try {
+      return await githubImportService.analyze(parsed);
+    } catch (err: any) {
+      return { error: true, message: err.message, isRateLimit: err.isRateLimit || false };
+    }
+  });
+
+  ipcMain.handle('github:checkConflicts', (_event, skillNames: string[]) => {
+    return githubImportService.checkConflicts(skillNames);
+  });
+
+  ipcMain.handle('github:importSkills', async (event, params: any) => {
+    const { parsed, skills, resolutions } = params;
+    try {
+      return await githubImportService.importSkills(
+        parsed,
+        skills,
+        resolutions,
+        (progress) => {
+          event.sender.send('github:importProgress', progress);
+        },
+      );
+    } catch (err: any) {
+      return [{ skillName: 'unknown', status: 'error', error: err.message }];
+    }
+  });
+
+  ipcMain.handle('github:cancelImport', () => {
+    githubImportService.cancelImport();
+    return { success: true };
   });
 }

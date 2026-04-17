@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { getSkillsRoot, isSubDirectory } from '../utils/paths';
 import type { Skill, CreateSkillInput, UpdateSkillInput } from '../types/domain';
+import type { ImportFileEntry } from '../types/github';
 
 export interface SkillFileEntry {
   path: string;
@@ -350,5 +351,77 @@ tags: [${input.tags?.join(', ') || ''}]
     }
 
     fs.unlinkSync(fullPath);
+  }
+
+  /**
+   * Import a skill from a buffer of files (used by GitHub import).
+   * Creates the skill directory and writes all files at once.
+   * If a SKILL.md is not in the files list, one is generated from the metadata.
+   */
+  importFromBuffer(
+    name: string,
+    files: ImportFileEntry[],
+    metadata?: Record<string, unknown>,
+  ): Skill {
+    const skillDir = path.join(this.skillsRoot, name);
+
+    if (fs.existsSync(skillDir)) {
+      // If overwriting, remove existing directory
+      fs.rmSync(skillDir, { recursive: true, force: true });
+    }
+
+    fs.mkdirSync(skillDir, { recursive: true });
+
+    const hasSkillMd = files.some(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'));
+
+    // Generate SKILL.md if not provided
+    if (!hasSkillMd && metadata) {
+      const sourceRepo = (metadata.sourceRepo as string) || '';
+      const importedAt = (metadata.importedAt as string) || new Date().toISOString();
+      const frontmatter = `---
+name: ${name}
+displayName: ${(metadata.displayName as string) || name}
+description: ${(metadata.description as string) || ''}
+version: 1.0.0
+targetIDEs: []
+tags: [imported]
+sourceRepo: ${sourceRepo}
+importedAt: ${importedAt}
+---
+
+# ${(metadata.displayName as string) || name}
+
+${(metadata.description as string) || ''}
+
+Imported from [${sourceRepo}](${sourceRepo}).
+`;
+      files.unshift({ path: 'SKILL.md', content: frontmatter });
+    }
+
+    // Write all files
+    for (const file of files) {
+      const fullPath = path.normalize(path.join(skillDir, file.path));
+
+      if (!isSubDirectory(fullPath, skillDir)) {
+        continue; // Skip files that would escape the skill directory
+      }
+
+      const parentDir = path.dirname(fullPath);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+
+      fs.writeFileSync(fullPath, file.content, 'utf-8');
+    }
+
+    return this.loadSkill(name, skillDir)!;
+  }
+
+  /**
+   * Check if a skill with the given name already exists
+   */
+  exists(name: string): boolean {
+    const skillDir = path.join(this.skillsRoot, name);
+    return fs.existsSync(skillDir);
   }
 }

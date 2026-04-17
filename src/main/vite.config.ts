@@ -16,7 +16,7 @@ export default defineConfig({
       fileName: () => 'main.js',
     },
     rollupOptions: {
-      external: ['electron', 'fs', 'path', 'os', 'child_process'],
+      external: ['electron', 'fs', 'path', 'os', 'child_process', 'https', 'node:https'],
     },
   },
   resolve: {

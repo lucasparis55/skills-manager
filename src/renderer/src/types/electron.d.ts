@@ -56,6 +56,15 @@ interface DialogAPI {
   selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>;
 }
 
+interface GitHubImportAPI {
+  parseUrl: (url: string) => Promise<any>;
+  analyze: (parsed: any) => Promise<any>;
+  checkConflicts: (names: string[]) => Promise<Record<string, boolean>>;
+  importSkills: (params: any) => Promise<any[]>;
+  cancelImport: () => Promise<any>;
+  onProgress: (callback: (progress: any) => void) => () => void;
+}
+
 interface ElectronAPI {
   skills: SkillsAPI;
   projects: ProjectsAPI;
@@ -64,6 +73,7 @@ interface ElectronAPI {
   detection: DetectionAPI;
   settings: SettingsAPI;
   dialog: DialogAPI;
+  githubImport: GitHubImportAPI;
 }
 
 declare global {

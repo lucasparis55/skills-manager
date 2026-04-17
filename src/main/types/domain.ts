@@ -67,6 +67,7 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   lastProjectScanPath?: string;
   ideRootOverrides: Record<string, string>;
+  githubToken?: string;
 }
 
 export interface DuplicateReport {
