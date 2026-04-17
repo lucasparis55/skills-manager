@@ -3,29 +3,84 @@ import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
 
+export type SymlinkStrategy = 'auto' | 'symlink' | 'junction';
+
 /**
  * Symlink Service - Cross-platform symlink management
  */
 export class SymlinkService {
+  private isLinkEntry(destination: string, stat?: fs.Stats): boolean {
+    const entryStat = stat || fs.lstatSync(destination);
+
+    if (entryStat.isSymbolicLink()) {
+      return true;
+    }
+
+    // On Windows, directory junctions can appear as directories in some scenarios.
+    if (process.platform === 'win32' && entryStat.isDirectory()) {
+      try {
+        fs.readlinkSync(destination);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  private removeLinkAtPath(destination: string): void {
+    try {
+      fs.unlinkSync(destination);
+    } catch {
+      fs.rmSync(destination, { recursive: false, force: true });
+    }
+  }
+
+  private createJunctionNative(source: string, destination: string): { success: boolean; strategy: string } {
+    fs.symlinkSync(source, destination, 'junction');
+    return { success: true, strategy: 'junction' };
+  }
+
+  private createSymlinkNative(source: string, destination: string): { success: boolean; strategy: string } {
+    if (process.platform === 'win32') {
+      fs.symlinkSync(source, destination, 'dir');
+    } else {
+      fs.symlinkSync(source, destination);
+    }
+    return { success: true, strategy: 'symlink' };
+  }
+
   /**
    * Create a symlink or junction point
    */
-  create(source: string, destination: string): { success: boolean; strategy: string; error?: string } {
+  create(
+    source: string,
+    destination: string,
+    strategy: SymlinkStrategy = 'auto',
+  ): { success: boolean; strategy: string; error?: string } {
     try {
       // Ensure source exists
       if (!fs.existsSync(source)) {
         throw new Error(`Source does not exist: ${source}`);
       }
 
-      // Remove destination if it exists (check if it's a symlink first to avoid ENOENT errors)
+      if (!['auto', 'symlink', 'junction'].includes(strategy)) {
+        throw new Error(`Unsupported symlink strategy: ${strategy}`);
+      }
+
+      // Destination safety gate: only remove if destination is an existing link/junction.
+      let existingStat: fs.Stats | null = null;
       try {
-        const stat = fs.lstatSync(destination);
-        // Only remove if it exists and is a symlink or directory
-        if (stat.isSymbolicLink() || stat.isDirectory()) {
-          fs.rmSync(destination, { recursive: true, force: true });
-        }
+        existingStat = fs.lstatSync(destination);
       } catch {
-        // Destination doesn't exist or can't be accessed, which is fine
+        existingStat = null;
+      }
+      if (existingStat) {
+        if (!this.isLinkEntry(destination, existingStat)) {
+          throw new Error(`Destination already exists and is not a link: ${destination}`);
+        }
+        this.removeLinkAtPath(destination);
       }
 
       // Ensure parent directory exists
@@ -34,30 +89,44 @@ export class SymlinkService {
         fs.mkdirSync(parentDir, { recursive: true });
       }
 
-      // Try native symlink first
-      try {
-        fs.symlinkSync(source, destination, 'junction');
-        return { success: true, strategy: 'junction' };
-      } catch {
-        // Fallback to mklink on Windows
-        if (process.platform === 'win32') {
+      // Explicit strategies are fail-fast.
+      if (strategy === 'junction') {
+        if (process.platform !== 'win32') {
+          throw new Error('Junction strategy is only supported on Windows');
+        }
+        return this.createJunctionNative(source, destination);
+      }
+
+      if (strategy === 'symlink') {
+        return this.createSymlinkNative(source, destination);
+      }
+
+      // Auto strategy: prefer junction on Windows, fallback to symlink.
+      if (process.platform === 'win32') {
+        try {
+          return this.createJunctionNative(source, destination);
+        } catch (junctionErr) {
           try {
-            execSync(`mklink /J "${destination}" "${source}"`);
+            execSync(`cmd /c mklink /J "${destination}" "${source}"`);
             return { success: true, strategy: 'mklink-junction' };
           } catch {
             try {
-              execSync(`mklink /D "${destination}" "${source}"`);
-              return { success: true, strategy: 'mklink-dir' };
-            } catch (e) {
-              throw new Error(`Failed to create symlink: ${e}`);
+              return this.createSymlinkNative(source, destination);
+            } catch {
+              try {
+                execSync(`cmd /c mklink /D "${destination}" "${source}"`);
+                return { success: true, strategy: 'mklink-dir' };
+              } catch (symlinkErr) {
+                throw new Error(
+                  `Failed to create link with auto strategy. Junction error: ${String(junctionErr)}. Symlink error: ${String(symlinkErr)}`
+                );
+              }
             }
           }
         }
-
-        // Unix symlink
-        fs.symlinkSync(source, destination);
-        return { success: true, strategy: 'symlink' };
       }
+
+      return this.createSymlinkNative(source, destination);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Symlink creation failed:', errorMessage);
@@ -79,21 +148,12 @@ export class SymlinkService {
       }
 
       const stat = fs.lstatSync(destination);
-
-      // Only remove if it's a symlink or junction
-      if (stat.isSymbolicLink() || stat.isDirectory()) {
-        // Double-check it's actually a link by reading it
-        try {
-          fs.readlinkSync(destination);
-          fs.rmSync(destination, { recursive: false, force: true });
-          return true;
-        } catch {
-          // Not a symlink, don't remove
-          return false;
-        }
+      if (!this.isLinkEntry(destination, stat)) {
+        return false;
       }
 
-      return false;
+      this.removeLinkAtPath(destination);
+      return true;
     } catch {
       return false;
     }
@@ -109,19 +169,18 @@ export class SymlinkService {
       }
 
       const stat = fs.lstatSync(destination);
-
-      if (stat.isSymbolicLink()) {
-        const target = fs.readlinkSync(destination);
-        const resolved = path.resolve(path.dirname(destination), target);
-
-        if (fs.existsSync(resolved)) {
-          return { valid: true, target };
-        } else {
-          return { valid: false, target };
-        }
+      if (!this.isLinkEntry(destination, stat)) {
+        return { valid: false };
       }
 
-      return { valid: false };
+      const target = fs.readlinkSync(destination);
+      const resolved = path.resolve(path.dirname(destination), target);
+
+      if (fs.existsSync(resolved)) {
+        return { valid: true, target };
+      }
+
+      return { valid: false, target };
     } catch {
       return { valid: false };
     }
@@ -133,7 +192,7 @@ export class SymlinkService {
   isSymlink(p: string): boolean {
     try {
       const stat = fs.lstatSync(p);
-      return stat.isSymbolicLink();
+      return this.isLinkEntry(p, stat);
     } catch {
       return false;
     }
@@ -154,7 +213,7 @@ export class SymlinkService {
       const testSource = path.join(tempDir, 'source');
       const testLink = path.join(tempDir, 'link');
 
-      fs.writeFileSync(testSource, 'test');
+      fs.mkdirSync(testSource, { recursive: true });
 
       try {
         fs.symlinkSync(testSource, testLink, 'junction');
@@ -162,8 +221,8 @@ export class SymlinkService {
       } finally {
         // Clean up
         try {
-          if (fs.existsSync(testLink)) fs.rmSync(testLink, { force: true });
-          if (fs.existsSync(testSource)) fs.rmSync(testSource, { force: true });
+          if (fs.existsSync(testLink)) fs.rmSync(testLink, { recursive: false, force: true });
+          if (fs.existsSync(testSource)) fs.rmSync(testSource, { recursive: true, force: true });
           if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
         } catch {
           // Ignore cleanup errors

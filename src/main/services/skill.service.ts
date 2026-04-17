@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getSkillsRoot, isSubDirectory } from '../utils/paths';
+import { getSkillsRoot } from '../utils/paths';
 import type { Skill, CreateSkillInput, UpdateSkillInput } from '../types/domain';
 import type { ImportFileEntry } from '../types/github';
 
@@ -11,14 +11,20 @@ export interface SkillFileEntry {
   size: number;
 }
 
+const SKILL_NAME_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
+
+export interface ImportFromBufferOptions {
+  overwrite?: boolean;
+}
+
 /**
  * Skill Service - Manages skills in the central repository
  */
 export class SkillService {
-  private skillsRoot: string;
+  private readonly skillsRoot: string;
 
   constructor(skillsRoot?: string) {
-    this.skillsRoot = skillsRoot || getSkillsRoot();
+    this.skillsRoot = path.resolve(skillsRoot || getSkillsRoot());
     this.ensureSkillsRoot();
   }
 
@@ -32,6 +38,76 @@ export class SkillService {
   }
 
   /**
+   * Validate skill names against an allowlist and traversal constraints.
+   */
+  private validateSkillName(rawName: string): string {
+    if (typeof rawName !== 'string') {
+      throw new Error('Invalid skill name');
+    }
+
+    const name = rawName.trim();
+    if (name !== rawName) {
+      throw new Error(`Invalid skill name "${rawName}"`);
+    }
+    if (!SKILL_NAME_REGEX.test(name)) {
+      throw new Error(`Invalid skill name "${rawName}"`);
+    }
+
+    if (name === '.' || name === '..') {
+      throw new Error(`Invalid skill name "${rawName}"`);
+    }
+
+    if (name.includes('/') || name.includes('\\')) {
+      throw new Error(`Invalid skill name "${rawName}"`);
+    }
+
+    return name;
+  }
+
+  /**
+   * Checks if targetPath is inside or equal to parentPath.
+   */
+  private isWithinDirectory(targetPath: string, parentPath: string): boolean {
+    const relative = path.relative(parentPath, targetPath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  }
+
+  /**
+   * Resolve a skill directory safely from its logical name.
+   */
+  private resolveSkillDirectory(rawName: string): { name: string; skillDir: string } {
+    const name = this.validateSkillName(rawName);
+    const skillDir = path.resolve(this.skillsRoot, name);
+
+    if (!this.isWithinDirectory(skillDir, this.skillsRoot)) {
+      throw new Error('Access denied: path traversal detected');
+    }
+
+    return { name, skillDir };
+  }
+
+  /**
+   * Resolve a file path inside a skill directory with traversal checks.
+   */
+  private resolveSkillFilePath(skillDir: string, filePath: string): string {
+    if (typeof filePath !== 'string') {
+      throw new Error('Invalid file path');
+    }
+
+    const normalizedRelative = path.normalize(filePath).trim();
+    if (!normalizedRelative || normalizedRelative === '.' || path.isAbsolute(normalizedRelative)) {
+      throw new Error(`Invalid file path "${filePath}"`);
+    }
+
+    const fullPath = path.resolve(skillDir, normalizedRelative);
+    if (!this.isWithinDirectory(fullPath, skillDir)) {
+      throw new Error('Access denied: path traversal detected');
+    }
+
+    return fullPath;
+  }
+
+  /**
    * List all skills in the central repository
    */
   list(): Skill[] {
@@ -41,7 +117,7 @@ export class SkillService {
     const entries = fs.readdirSync(this.skillsRoot, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (entry.isDirectory()) {
+      if (entry.isDirectory() && SKILL_NAME_REGEX.test(entry.name) && entry.name !== '.' && entry.name !== '..') {
         const skillPath = path.join(this.skillsRoot, entry.name);
         const skill = this.loadSkill(entry.name, skillPath);
         if (skill) {
@@ -57,28 +133,28 @@ export class SkillService {
    * Get a single skill by name
    */
   get(name: string): Skill | null {
-    const skillPath = path.join(this.skillsRoot, name);
-    if (!fs.existsSync(skillPath)) {
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    if (!fs.existsSync(skillDir)) {
       return null;
     }
-    return this.loadSkill(name, skillPath);
+    return this.loadSkill(skillName, skillDir);
   }
 
   /**
    * Create a new skill
    */
   create(input: CreateSkillInput): Skill {
-    const skillDir = path.join(this.skillsRoot, input.name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(input.name);
 
     if (fs.existsSync(skillDir)) {
-      throw new Error(`Skill "${input.name}" already exists`);
+      throw new Error(`Skill "${skillName}" already exists`);
     }
 
     fs.mkdirSync(skillDir, { recursive: true });
 
     // Create SKILL.md with frontmatter
     const frontmatter = `---
-name: ${input.name}
+name: ${skillName}
 displayName: ${input.displayName}
 description: ${input.description}
 version: ${input.version || '1.0.0'}
@@ -92,18 +168,18 @@ tags: [${input.tags?.join(', ') || ''}]
 
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), frontmatter, 'utf-8');
 
-    return this.loadSkill(input.name, skillDir)!;
+    return this.loadSkill(skillName, skillDir)!;
   }
 
   /**
    * Update skill metadata
    */
   update(name: string, input: UpdateSkillInput): Skill {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
     if (!fs.existsSync(skillMdPath)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
 
     const content = fs.readFileSync(skillMdPath, 'utf-8');
@@ -133,17 +209,17 @@ tags: [${input.tags?.join(', ') || ''}]
       fs.writeFileSync(skillMdPath, newContent, 'utf-8');
     }
 
-    return this.loadSkill(name, skillDir)!;
+    return this.loadSkill(skillName, skillDir)!;
   }
 
   /**
    * Delete a skill
    */
   delete(name: string): void {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
 
     if (!fs.existsSync(skillDir)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
 
     fs.rmSync(skillDir, { recursive: true, force: true });
@@ -208,9 +284,9 @@ tags: [${input.tags?.join(', ') || ''}]
    * Get the absolute path to a skill directory
    */
   getSkillPath(name: string): string {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
     if (!fs.existsSync(skillDir)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
     return skillDir;
   }
@@ -219,11 +295,11 @@ tags: [${input.tags?.join(', ') || ''}]
    * Get the full content of SKILL.md
    */
   getContent(name: string): string {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
     if (!fs.existsSync(skillMdPath)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
 
     return fs.readFileSync(skillMdPath, 'utf-8');
@@ -233,25 +309,25 @@ tags: [${input.tags?.join(', ') || ''}]
    * Save the full content of SKILL.md
    */
   saveContent(name: string, content: string): Skill {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
     if (!fs.existsSync(skillMdPath)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
 
     fs.writeFileSync(skillMdPath, content, 'utf-8');
-    return this.loadSkill(name, skillDir)!;
+    return this.loadSkill(skillName, skillDir)!;
   }
 
   /**
    * List all files in a skill directory (recursive)
    */
   listFiles(name: string): SkillFileEntry[] {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
 
     if (!fs.existsSync(skillDir)) {
-      throw new Error(`Skill "${name}" not found`);
+      throw new Error(`Skill "${skillName}" not found`);
     }
 
     const files: SkillFileEntry[] = [];
@@ -293,12 +369,8 @@ tags: [${input.tags?.join(', ') || ''}]
    * Read a specific file within the skill directory
    */
   readFile(name: string, filePath: string): string {
-    const skillDir = path.join(this.skillsRoot, name);
-    const fullPath = path.normalize(path.join(skillDir, filePath));
-
-    if (!isSubDirectory(fullPath, skillDir)) {
-      throw new Error('Access denied: path traversal detected');
-    }
+    const { skillDir } = this.resolveSkillDirectory(name);
+    const fullPath = this.resolveSkillFilePath(skillDir, filePath);
 
     if (!fs.existsSync(fullPath)) {
       throw new Error(`File "${filePath}" not found`);
@@ -315,12 +387,8 @@ tags: [${input.tags?.join(', ') || ''}]
    * Write/create/update a file within the skill directory
    */
   writeFile(name: string, filePath: string, content: string): void {
-    const skillDir = path.join(this.skillsRoot, name);
-    const fullPath = path.normalize(path.join(skillDir, filePath));
-
-    if (!isSubDirectory(fullPath, skillDir)) {
-      throw new Error('Access denied: path traversal detected');
-    }
+    const { skillDir } = this.resolveSkillDirectory(name);
+    const fullPath = this.resolveSkillFilePath(skillDir, filePath);
 
     // Create parent directories if needed
     const parentDir = path.dirname(fullPath);
@@ -335,12 +403,8 @@ tags: [${input.tags?.join(', ') || ''}]
    * Delete a file from the skill directory
    */
   deleteFile(name: string, filePath: string): void {
-    const skillDir = path.join(this.skillsRoot, name);
-    const fullPath = path.normalize(path.join(skillDir, filePath));
-
-    if (!isSubDirectory(fullPath, skillDir)) {
-      throw new Error('Access denied: path traversal detected');
-    }
+    const { skillDir } = this.resolveSkillDirectory(name);
+    const fullPath = this.resolveSkillFilePath(skillDir, filePath);
 
     if (!fs.existsSync(fullPath)) {
       throw new Error(`File "${filePath}" not found`);
@@ -362,17 +426,23 @@ tags: [${input.tags?.join(', ') || ''}]
     name: string,
     files: ImportFileEntry[],
     metadata?: Record<string, unknown>,
+    options: ImportFromBufferOptions = {},
   ): Skill {
-    const skillDir = path.join(this.skillsRoot, name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    const overwrite = options.overwrite === true;
 
     if (fs.existsSync(skillDir)) {
-      // If overwriting, remove existing directory
+      if (!overwrite) {
+        throw new Error(`Skill "${skillName}" already exists`);
+      }
+
       fs.rmSync(skillDir, { recursive: true, force: true });
     }
 
     fs.mkdirSync(skillDir, { recursive: true });
 
-    const hasSkillMd = files.some(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'));
+    const filesToWrite = [...files];
+    const hasSkillMd = filesToWrite.some(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'));
 
     // Generate SKILL.md if not provided
     if (!hasSkillMd && metadata) {
@@ -395,14 +465,15 @@ ${(metadata.description as string) || ''}
 
 Imported from [${sourceRepo}](${sourceRepo}).
 `;
-      files.unshift({ path: 'SKILL.md', content: frontmatter });
+      filesToWrite.unshift({ path: 'SKILL.md', content: frontmatter });
     }
 
     // Write all files
-    for (const file of files) {
-      const fullPath = path.normalize(path.join(skillDir, file.path));
-
-      if (!isSubDirectory(fullPath, skillDir)) {
+    for (const file of filesToWrite) {
+      let fullPath: string;
+      try {
+        fullPath = this.resolveSkillFilePath(skillDir, file.path);
+      } catch {
         continue; // Skip files that would escape the skill directory
       }
 
@@ -414,14 +485,18 @@ Imported from [${sourceRepo}](${sourceRepo}).
       fs.writeFileSync(fullPath, file.content, 'utf-8');
     }
 
-    return this.loadSkill(name, skillDir)!;
+    return this.loadSkill(skillName, skillDir)!;
   }
 
   /**
    * Check if a skill with the given name already exists
    */
   exists(name: string): boolean {
-    const skillDir = path.join(this.skillsRoot, name);
-    return fs.existsSync(skillDir);
+    try {
+      const { skillDir } = this.resolveSkillDirectory(name);
+      return fs.existsSync(skillDir);
+    } catch {
+      return false;
+    }
   }
 }

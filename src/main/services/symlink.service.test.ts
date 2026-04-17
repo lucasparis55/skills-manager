@@ -57,7 +57,7 @@ describe('SymlinkService', () => {
 
       // Create a real source file
       const source = path.join(tempDir, 'source');
-      fs.writeFileSync(source, 'test content');
+      fs.mkdirSync(source, { recursive: true });
       const destination = path.join(tempDir, 'destination');
 
       const result = symlinkService.create(source, destination);
@@ -72,6 +72,50 @@ describe('SymlinkService', () => {
       // The error should contain information about the failure
       expect(typeof result.error).toBe('string');
       expect(result.error!.length).toBeGreaterThan(0);
+    });
+
+    it('should fail when destination is a real directory and keep existing contents', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      const keepFile = path.join(destination, 'keep.txt');
+
+      fs.mkdirSync(source, { recursive: true });
+      fs.mkdirSync(destination, { recursive: true });
+      fs.writeFileSync(keepFile, 'keep', 'utf-8');
+
+      const result = symlinkService.create(source, destination);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not a link');
+      expect(fs.existsSync(destination)).toBe(true);
+      expect(fs.existsSync(keepFile)).toBe(true);
+    });
+
+    it('should fail fast for explicit strategy without fallback', () => {
+      const originalPlatform = process.platform;
+      const originalSymlinkSync = fs.symlinkSync;
+      const mockedExecSync = vi.mocked(childProcess.execSync);
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+
+      fs.symlinkSync = vi.fn(() => {
+        throw new Error('junction failed');
+      }) as any;
+      mockedExecSync.mockImplementation(() => {
+        throw new Error('mklink should not be called');
+      });
+
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+
+      const result = symlinkService.create(source, destination, 'junction');
+
+      expect(result.success).toBe(false);
+      expect(mockedExecSync).not.toHaveBeenCalled();
+
+      fs.symlinkSync = originalSymlinkSync;
+      mockedExecSync.mockReset();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
     it('should successfully create a symlink when source exists', () => {
@@ -160,6 +204,18 @@ describe('SymlinkService', () => {
     it('should return false when destination does not exist', () => {
       const result = symlinkService.remove('/nonexistent/path');
       expect(result).toBe(false);
+    });
+
+    it('should not remove a real directory', () => {
+      const destination = path.join(tempDir, 'real-dir');
+      const keepFile = path.join(destination, 'keep.txt');
+      fs.mkdirSync(destination, { recursive: true });
+      fs.writeFileSync(keepFile, 'keep', 'utf-8');
+
+      const result = symlinkService.remove(destination);
+      expect(result).toBe(false);
+      expect(fs.existsSync(destination)).toBe(true);
+      expect(fs.existsSync(keepFile)).toBe(true);
     });
   });
 });

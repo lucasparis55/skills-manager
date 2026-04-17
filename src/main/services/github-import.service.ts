@@ -27,6 +27,32 @@ export class GitHubImportService {
     this.settingsService = settingsService;
   }
 
+  private resolveSkillsRoot(): string {
+    const configured = this.settingsService.get().centralSkillsRoot;
+    if (typeof configured === 'string' && configured.trim().length > 0) {
+      return configured;
+    }
+    return getSkillsRoot();
+  }
+
+  private createSkillService(): SkillService {
+    return new SkillService(this.resolveSkillsRoot());
+  }
+
+  private getEffectiveParsed(parsed: ParsedGitHubRepo, repoInfo: GitHubRepoInfo): ParsedGitHubRepo {
+    const effectiveParsed = { ...parsed };
+    if (parsed.branch === 'main' && repoInfo.defaultBranch && repoInfo.defaultBranch !== 'main') {
+      effectiveParsed.branch = repoInfo.defaultBranch;
+    }
+    return effectiveParsed;
+  }
+
+  private assertValidFinalName(name: string): void {
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(name) || name === '.' || name === '..' || name.includes('/') || name.includes('\\')) {
+      throw new Error(`Invalid final skill name "${name}"`);
+    }
+  }
+
   /**
    * Parse and validate a GitHub URL, extracting owner, repo, branch, and optional subpath.
    */
@@ -234,12 +260,7 @@ export class GitHubImportService {
    */
   async analyze(parsed: ParsedGitHubRepo): Promise<AnalyzeResult> {
     const repoInfo = await this.fetchRepoInfo(parsed);
-
-    // Use repo's default branch if we still have 'main' and repo specifies different
-    const effectiveParsed = { ...parsed };
-    if (parsed.branch === 'main' && repoInfo.defaultBranch && repoInfo.defaultBranch !== 'main') {
-      effectiveParsed.branch = repoInfo.defaultBranch;
-    }
+    const effectiveParsed = this.getEffectiveParsed(parsed, repoInfo);
 
     const tree = await this.fetchRepoTree(effectiveParsed);
     const skills = this.detectSkillStructures(tree, repoInfo, effectiveParsed.subpath);
@@ -267,7 +288,7 @@ export class GitHubImportService {
    * Check which skill names already exist locally.
    */
   checkConflicts(skillNames: string[]): Record<string, boolean> {
-    const skillService = new SkillService();
+    const skillService = this.createSkillService();
     const conflicts: Record<string, boolean> = {};
 
     for (const name of skillNames) {
@@ -295,7 +316,9 @@ export class GitHubImportService {
   ): Promise<ImportResult[]> {
     this.cancelled = false;
     const results: ImportResult[] = [];
-    const skillService = new SkillService();
+    const skillService = this.createSkillService();
+    const repoInfo = await this.fetchRepoInfo(parsed);
+    const effectiveParsed = this.getEffectiveParsed(parsed, repoInfo);
     const total = skills.length;
 
     for (let i = 0; i < skills.length; i++) {
@@ -309,9 +332,9 @@ export class GitHubImportService {
       }
 
       const skill = skills[i];
-      const resolution = resolutions[skill.name] || { strategy: 'import' as const };
+      const resolution = resolutions[skill.name];
 
-      if (resolution.strategy === 'skip') {
+      if (resolution?.strategy === 'skip') {
         results.push({ skillName: skill.name, status: 'skipped', skipReason: 'User chose to skip this skill due to a naming conflict.' });
         continue;
       }
@@ -327,6 +350,7 @@ export class GitHubImportService {
       try {
         // Fetch all file contents
         const importFiles: ImportFileEntry[] = [];
+        const failedFileFetches: string[] = [];
 
         for (const file of skill.files) {
           if (this.isBinaryFile(file.path)) {
@@ -338,15 +362,28 @@ export class GitHubImportService {
           }
 
           try {
-            const content = await this.fetchFileContent(parsed, file.path);
+            const content = await this.fetchFileContent(effectiveParsed, file.path);
             // Make path relative to the skill's source directory
             const relativePath = skill.sourcePath
               ? file.path.substring(skill.sourcePath.length + 1)
               : file.path;
-            importFiles.push({ path: relativePath, content });
+            if (relativePath) {
+              importFiles.push({ path: relativePath, content });
+            }
           } catch {
-            // Skip files that can't be fetched
+            failedFileFetches.push(file.path);
           }
+        }
+
+        if (importFiles.length === 0) {
+          throw new Error(
+            `No importable text files were downloaded for "${skill.name}". Failed fetches: ${failedFileFetches.length}.`
+          );
+        }
+
+        const importedHasSkillMd = importFiles.some(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'));
+        if (skill.hasSkillMd && !importedHasSkillMd) {
+          throw new Error(`Required SKILL.md could not be downloaded for "${skill.name}"`);
         }
 
         onProgress?.({
@@ -359,8 +396,15 @@ export class GitHubImportService {
 
         // Determine the final skill name
         let finalName = skill.name;
-        if (resolution.strategy === 'rename' && resolution.newName) {
-          finalName = this.slugifyName(resolution.newName);
+        if (resolution?.strategy === 'rename') {
+          finalName = this.slugifyName(resolution.newName || '');
+        }
+        this.assertValidFinalName(finalName);
+
+        const exists = skillService.exists(finalName);
+        const wantsOverwrite = resolution?.strategy === 'overwrite';
+        if (exists && !wantsOverwrite) {
+          throw new Error(`Skill "${finalName}" already exists. Choose overwrite or a different rename.`);
         }
 
         // Write skill via SkillService
@@ -371,12 +415,12 @@ export class GitHubImportService {
           description: skill.description,
         };
 
-        skillService.importFromBuffer(finalName, importFiles, metadata);
+        skillService.importFromBuffer(finalName, importFiles, metadata, { overwrite: wantsOverwrite });
 
         results.push({
           skillName: finalName,
-          status: resolution.strategy === 'rename' ? 'renamed' : 'imported',
-          originalName: resolution.strategy === 'rename' ? skill.name : undefined,
+          status: resolution?.strategy === 'rename' ? 'renamed' : 'imported',
+          originalName: resolution?.strategy === 'rename' ? skill.name : undefined,
         });
       } catch (err: any) {
         results.push({

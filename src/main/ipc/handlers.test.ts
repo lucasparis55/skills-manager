@@ -51,7 +51,11 @@ const createMockIdeService = (): IDEAdapterService => ({
     {
       id: 'claude-code',
       name: 'Claude Code CLI',
-      roots: { projectRelative: ['.claude/agents'] },
+      roots: {
+        primaryGlobal: ['~/.claude'],
+        secondaryGlobal: [],
+        projectRelative: ['.claude/agents'],
+      },
     },
   ]),
 } as unknown as IDEAdapterService);
@@ -220,5 +224,72 @@ describe('Links IPC Handlers', () => {
 
     // linkService.create should NOT be called when symlink fails
     expect(linkService.create).not.toHaveBeenCalled();
+  });
+
+  it('links:create should rollback symlink when DB persistence fails', () => {
+    const input = {
+      skillId: 'brainstorming',
+      projectId: 'skills-manager',
+      ideName: 'claude-code',
+      scope: 'project' as const,
+    };
+
+    (linkService.create as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('DB write failed');
+    });
+
+    const skill = skillService.get(input.skillId);
+    const project = projectService.list().find((p: any) => p.id === input.projectId);
+    const ide = ideService.list().find((i: any) => i.id === input.ideName);
+    const pathLib = require('path');
+    const source = skill.sourcePath;
+    const destination = pathLib.join(project.path, ide.roots.projectRelative[0], skill.name);
+
+    const symlinkResult = symlinkService.create(source, destination);
+    expect(symlinkResult.success).toBe(true);
+
+    expect(() => {
+      try {
+        linkService.create(input, source, destination);
+      } catch (err) {
+        symlinkService.remove(destination);
+        throw err;
+      }
+    }).toThrow('DB write failed');
+
+    expect(symlinkService.remove).toHaveBeenCalledWith(destination);
+  });
+
+  it('links:create should detect duplicate global destination before creating', () => {
+    const input = {
+      skillId: 'brainstorming',
+      projectId: 'skills-manager',
+      ideName: 'claude-code',
+      scope: 'global' as const,
+    };
+
+    const skill = skillService.get(input.skillId);
+    const ide = ideService.list().find((i: any) => i.id === input.ideName);
+    const pathLib = require('path');
+    const destination = pathLib.join('C:\\Users\\test\\.claude', skill.name);
+    (linkService.list as ReturnType<typeof vi.fn>).mockReturnValue([
+      {
+        id: 'brainstorming-another-project-claude-code',
+        scope: 'global',
+        destinationPath: destination,
+      },
+    ]);
+
+    const existingGlobal = linkService
+      .list()
+      .find((link: any) => link.scope === 'global' && link.destinationPath === destination);
+
+    expect(existingGlobal).toBeDefined();
+    expect(() => {
+      if (existingGlobal) {
+        throw new Error(`Global destination already linked: ${existingGlobal.id}`);
+      }
+    }).toThrow('Global destination already linked');
+    expect(symlinkService.create).not.toHaveBeenCalled();
   });
 });

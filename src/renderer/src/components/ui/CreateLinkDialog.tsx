@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { X, ChevronDown, Check, Link2, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { useToast } from './Toast';
 
 interface Skill {
   id: string;
@@ -60,6 +61,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
   const [phase, setPhase] = useState<'form-input' | 'creating' | 'results'>('form-input');
   const [creationResults, setCreationResults] = useState<LinkCreationResult[]>([]);
   const [progress, setProgress] = useState<LinkCreationProgress | null>(null);
+  const { toast } = useToast();
 
   // Subscribe to progress events when in creating phase
   useEffect(() => {
@@ -112,10 +114,14 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
       });
       setCreationResults(results);
       setPhase('results');
-      onSubmit({ skillIds: Array.from(selectedSkills), projectId, ideName, scope });
+      await onSubmit({ skillIds: Array.from(selectedSkills), projectId, ideName, scope });
     } catch (err: any) {
       setPhase('form-input');
-      throw err; // Let parent handle the error
+      toast({
+        title: 'Link creation failed',
+        description: err?.message || 'Could not create selected links.',
+        variant: 'error',
+      });
     }
   };
 
