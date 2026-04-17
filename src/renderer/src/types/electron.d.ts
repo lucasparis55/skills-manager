@@ -7,6 +7,25 @@ interface SkillFileEntry {
   size: number;
 }
 
+interface Link {
+  id: string;
+  skillId: string;
+  projectId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+  sourcePath: string;
+  destinationPath: string;
+  status: 'linked' | 'broken' | 'conflict';
+  createdAt: string;
+}
+
+interface CreateLinkInput {
+  skillId: string;
+  projectId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+}
+
 interface SkillsAPI {
   list: () => Promise<any[]>;
   get: (id: string) => Promise<any>;
@@ -32,10 +51,11 @@ interface ProjectsAPI {
 }
 
 interface LinksAPI {
-  list: () => Promise<any[]>;
-  create: (input: any) => Promise<any>;
-  remove: (id: string) => Promise<any>;
-  verify: (id: string) => Promise<any>;
+  list: () => Promise<Link[]>;
+  create: (input: CreateLinkInput) => Promise<Link>;
+  remove: (id: string) => Promise<{ success: boolean }>;
+  verify: (id: string) => Promise<{ valid: boolean; link: Link }>;
+  verifyAll: () => Promise<Link[]>;
 }
 
 interface IDEsAPI {

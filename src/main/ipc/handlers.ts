@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell } from 'electron';
 import { SkillService } from '../services/skill.service';
 import { ProjectService } from '../services/project.service';
 import { SymlinkService } from '../services/symlink.service';
+import { LinkService } from '../services/link.service';
 import { IDEAdapterService } from '../services/ide-adapter.service';
 import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
@@ -11,6 +12,7 @@ import { GitHubImportService } from '../services/github-import.service';
 const skillService = new SkillService();
 const projectService = new ProjectService();
 const symlinkService = new SymlinkService();
+const linkService = new LinkService();
 const ideService = new IDEAdapterService();
 const detectionService = new DetectionService();
 const settingsService = new SettingsService();
@@ -112,7 +114,7 @@ export function registerIPCHandlers(): void {
   // Links handlers
   ipcMain.handle('links:list', () => {
     console.log('IPC: links:list called');
-    return []; // Simplified - would load from storage in full implementation
+    return linkService.list();
   });
 
   ipcMain.handle('links:create', (_event, input: any) => {
@@ -132,34 +134,30 @@ export function registerIPCHandlers(): void {
     }
 
     // Determine destination path
-    const os = require('os');
     const pathLib = require('path');
     const destRoot = ide.roots.projectRelative[0];
     const destination = pathLib.join(project.path, destRoot, skill.name);
     const source = skill.sourcePath;
 
-    const result = symlinkService.create(source, destination);
+    symlinkService.create(source, destination);
 
-    return {
-      id: `${input.skillId}-${input.projectId}-${input.ideName}`,
-      skillId: input.skillId,
-      projectId: input.projectId,
-      ideName: input.ideName,
-      scope: input.scope,
-      sourcePath: source,
-      destinationPath: destination,
-      status: result.success ? 'linked' : 'broken',
-      createdAt: new Date().toISOString(),
-    };
+    return linkService.create(input, source, destination);
   });
 
   ipcMain.handle('links:remove', (_event, id: string) => {
-    // Simplified - would remove symlink in full implementation
-    return { success: true };
+    const link = linkService.get(id);
+    if (link) {
+      symlinkService.remove(link.destinationPath);
+    }
+    return { success: linkService.remove(id) };
   });
 
   ipcMain.handle('links:verify', (_event, id: string) => {
-    return { valid: true };
+    return linkService.verify(id, symlinkService);
+  });
+
+  ipcMain.handle('links:verifyAll', () => {
+    return linkService.verifyAll(symlinkService);
   });
 
   // IDEs handlers

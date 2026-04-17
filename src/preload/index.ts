@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
     create: (input: any) => ipcRenderer.invoke('links:create', input),
     remove: (id: string) => ipcRenderer.invoke('links:remove', id),
     verify: (id: string) => ipcRenderer.invoke('links:verify', id),
+    verifyAll: () => ipcRenderer.invoke('links:verifyAll'),
   },
 
   // IDEs
