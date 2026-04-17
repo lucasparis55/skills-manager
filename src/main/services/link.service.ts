@@ -108,6 +108,25 @@ export class LinkService {
   }
 
   /**
+   * Remove multiple links by ids
+   */
+  removeMultiple(ids: string[]): { id: string; success: boolean }[] {
+    const results: { id: string; success: boolean }[] = [];
+    let changed = false;
+    for (const id of ids) {
+      if (this.links.has(id)) {
+        this.links.delete(id);
+        results.push({ id, success: true });
+        changed = true;
+      } else {
+        results.push({ id, success: false });
+      }
+    }
+    if (changed) this.save();
+    return results;
+  }
+
+  /**
    * Verify a single link and update its status
    */
   verify(id: string, symlinkService: SymlinkService): { valid: boolean; link: Link } {

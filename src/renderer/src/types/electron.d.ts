@@ -26,6 +26,28 @@ interface CreateLinkInput {
   scope: 'global' | 'project';
 }
 
+interface CreateMultipleLinksInput {
+  skillIds: string[];
+  projectId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+}
+
+interface LinkCreationResult {
+  skillId: string;
+  skillName: string;
+  status: 'created' | 'error' | 'skipped';
+  error?: string;
+  link?: Link;
+}
+
+interface LinkCreationProgress {
+  current: number;
+  total: number;
+  currentSkillName: string;
+  percentComplete: number;
+}
+
 interface SkillsAPI {
   list: () => Promise<any[]>;
   get: (id: string) => Promise<any>;
@@ -53,7 +75,10 @@ interface ProjectsAPI {
 interface LinksAPI {
   list: () => Promise<Link[]>;
   create: (input: CreateLinkInput) => Promise<Link>;
+  createMultiple: (input: CreateMultipleLinksInput) => Promise<LinkCreationResult[]>;
+  onCreateProgress: (callback: (progress: LinkCreationProgress) => void) => () => void;
   remove: (id: string) => Promise<{ success: boolean }>;
+  removeMultiple: (ids: string[]) => Promise<{ id: string; success: boolean }[]>;
   verify: (id: string) => Promise<{ valid: boolean; link: Link }>;
   verifyAll: () => Promise<Link[]>;
 }

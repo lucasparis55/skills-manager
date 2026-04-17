@@ -102,3 +102,25 @@ export interface CreateLinkInput {
   ideName: string;
   scope: 'global' | 'project';
 }
+
+export interface CreateMultipleLinksInput {
+  skillIds: string[];
+  projectId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+}
+
+export interface LinkCreationResult {
+  skillId: string;
+  skillName: string;
+  status: 'created' | 'error' | 'skipped';
+  error?: string;
+  link?: Link;
+}
+
+export interface LinkCreationProgress {
+  current: number;
+  total: number;
+  currentSkillName: string;
+  percentComplete: number;
+}

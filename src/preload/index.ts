@@ -33,7 +33,14 @@ contextBridge.exposeInMainWorld('api', {
   links: {
     list: () => ipcRenderer.invoke('links:list'),
     create: (input: any) => ipcRenderer.invoke('links:create', input),
+    createMultiple: (input: any) => ipcRenderer.invoke('links:createMultiple', input),
+    onCreateProgress: (callback: (progress: any) => void) => {
+      const handler = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('links:createProgress', handler);
+      return () => { ipcRenderer.removeListener('links:createProgress', handler); };
+    },
     remove: (id: string) => ipcRenderer.invoke('links:remove', id),
+    removeMultiple: (ids: string[]) => ipcRenderer.invoke('links:removeMultiple', ids),
     verify: (id: string) => ipcRenderer.invoke('links:verify', id),
     verifyAll: () => ipcRenderer.invoke('links:verifyAll'),
   },
