@@ -68,9 +68,11 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
         autoScanProjects: true,
         symlinkStrategy: 'auto',
         theme: 'dark',
-        githubToken: '',
+        hasGithubToken: false,
       })),
       update: vi.fn(async () => ({})),
+      setGithubToken: vi.fn(async () => ({ success: true })),
+      clearGithubToken: vi.fn(async () => ({ success: true })),
       ...(partial.settings || {}),
     },
     dialog: {

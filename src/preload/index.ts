@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('api', {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (input: any) => ipcRenderer.invoke('settings:update', input),
+    setGithubToken: (token: string) => ipcRenderer.invoke('settings:setGithubToken', token),
+    clearGithubToken: () => ipcRenderer.invoke('settings:clearGithubToken'),
   },
 
   // Dialog

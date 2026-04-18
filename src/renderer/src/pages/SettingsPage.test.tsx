@@ -23,7 +23,7 @@ describe('SettingsPage', () => {
           autoScanProjects: false,
           symlinkStrategy: 'auto',
           theme: 'dark',
-          githubToken: '',
+          hasGithubToken: true,
         })),
         update: vi.fn(async () => ({})),
       },
@@ -49,6 +49,17 @@ describe('SettingsPage', () => {
       expect(api.settings.update).toHaveBeenCalledWith({ checkForUpdates: false });
     });
 
+    await userEvent.type(screen.getByPlaceholderText('ghp_xxxxxxxxxxxxxxxxxxxx'), 'ghp_secure_value');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(api.settings.setGithubToken).toHaveBeenCalledWith('ghp_secure_value');
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => {
+      expect(api.settings.clearGithubToken).toHaveBeenCalledTimes(1);
+    });
+
     await userEvent.click(screen.getByRole('button', { name: 'Test' }));
     expect(await screen.findByText('Connection OK')).toBeInTheDocument();
   });
@@ -62,7 +73,7 @@ describe('SettingsPage', () => {
           autoScanProjects: true,
           symlinkStrategy: 'auto',
           theme: 'dark',
-          githubToken: '',
+          hasGithubToken: false,
         })),
       },
       githubImport: {

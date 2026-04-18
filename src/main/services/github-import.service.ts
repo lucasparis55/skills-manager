@@ -449,10 +449,9 @@ export class GitHubImportService {
   /**
    * Make an authenticated request to the GitHub API using Node.js https module.
    */
-  private makeGitHubRequest<T>(endpoint: string): Promise<T> {
+  private async makeGitHubRequest<T>(endpoint: string): Promise<T> {
+    const token = await this.resolveGithubToken();
     return new Promise((resolve, reject) => {
-      const token = this.settingsService.get().githubToken;
-
       const options: https.RequestOptions = {
         hostname: 'api.github.com',
         path: endpoint,
@@ -550,6 +549,16 @@ export class GitHubImportService {
 
       req.end();
     });
+  }
+
+  private async resolveGithubToken(): Promise<string> {
+    if (typeof (this.settingsService as any).getGithubToken === 'function') {
+      return (await (this.settingsService as any).getGithubToken()) || '';
+    }
+
+    // Backward-compat path for tests and older settings service stubs.
+    const settings = this.settingsService.get();
+    return (settings as any).githubToken || '';
   }
 
   /**

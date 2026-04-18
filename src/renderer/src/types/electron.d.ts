@@ -93,8 +93,19 @@ interface DetectionAPI {
 }
 
 interface SettingsAPI {
-  get: () => Promise<any>;
+  get: () => Promise<{
+    centralSkillsRoot: string;
+    checkForUpdates: boolean;
+    autoScanProjects: boolean;
+    symlinkStrategy: 'symlink' | 'junction' | 'auto';
+    developerModeEnabled?: boolean;
+    theme: 'light' | 'dark' | 'system';
+    ideRootOverrides?: Record<string, string>;
+    hasGithubToken: boolean;
+  }>;
   update: (input: any) => Promise<any>;
+  setGithubToken: (token: string) => Promise<{ success: boolean }>;
+  clearGithubToken: () => Promise<{ success: boolean }>;
 }
 
 interface DialogAPI {

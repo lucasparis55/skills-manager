@@ -9,7 +9,7 @@ interface AppSettings {
   autoScanProjects: boolean;
   symlinkStrategy: 'symlink' | 'junction' | 'auto';
   theme: 'light' | 'dark' | 'system';
-  githubToken?: string;
+  hasGithubToken: boolean;
 }
 
 const SettingsPage: React.FC = () => {
@@ -17,6 +17,8 @@ const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showPathDialog, setShowPathDialog] = useState(false);
   const [testingToken, setTestingToken] = useState(false);
+  const [savingToken, setSavingToken] = useState(false);
+  const [githubTokenInput, setGithubTokenInput] = useState('');
   const [tokenTestResult, setTokenTestResult] = useState<'success' | 'error' | null>(null);
   const { toast } = useToast();
 
@@ -77,6 +79,42 @@ const SettingsPage: React.FC = () => {
       toast({ title: 'Connection Failed', description: err.message || 'Could not connect to GitHub API.', variant: 'error' });
     } finally {
       setTestingToken(false);
+    }
+  };
+
+  const handleSaveToken = async () => {
+    const token = githubTokenInput.trim();
+    if (!token) {
+      toast({ title: 'Missing token', description: 'Paste a GitHub token before saving.', variant: 'error' });
+      return;
+    }
+
+    setSavingToken(true);
+    try {
+      await window.api.settings.setGithubToken(token);
+      setGithubTokenInput('');
+      setTokenTestResult(null);
+      await loadSettings();
+      toast({ title: 'Token saved', description: 'Stored securely on this device.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Failed to save token', description: err.message || 'Could not store token securely.', variant: 'error' });
+    } finally {
+      setSavingToken(false);
+    }
+  };
+
+  const handleClearToken = async () => {
+    setSavingToken(true);
+    try {
+      await window.api.settings.clearGithubToken();
+      setGithubTokenInput('');
+      setTokenTestResult(null);
+      await loadSettings();
+      toast({ title: 'Token removed', description: 'Stored GitHub token was cleared.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Failed to clear token', description: err.message || 'Could not clear token.', variant: 'error' });
+    } finally {
+      setSavingToken(false);
     }
   };
 
@@ -203,14 +241,31 @@ const SettingsPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <input
                 type="password"
-                value={settings.githubToken || ''}
+                value={githubTokenInput}
                 onChange={(e) => {
-                  handleUpdate('githubToken', e.target.value);
+                  setGithubTokenInput(e.target.value);
                   setTokenTestResult(null);
                 }}
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                 className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
               />
+              <button
+                onClick={handleSaveToken}
+                disabled={savingToken}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded-lg transition-colors text-sm text-slate-100"
+              >
+                {savingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save
+              </button>
+              {settings.hasGithubToken ? (
+                <button
+                  onClick={handleClearToken}
+                  disabled={savingToken}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg transition-colors text-sm text-slate-300"
+                >
+                  Clear
+                </button>
+              ) : null}
               <button
                 onClick={handleTestToken}
                 disabled={testingToken}
@@ -226,6 +281,11 @@ const SettingsPage: React.FC = () => {
                 Test
               </button>
             </div>
+            {settings.hasGithubToken ? (
+              <p className="text-xs text-emerald-400 mt-2">A GitHub token is currently stored securely.</p>
+            ) : (
+              <p className="text-xs text-slate-500 mt-2">No GitHub token is currently stored.</p>
+            )}
             <p className="text-xs text-slate-500 mt-2">
               Optional. Without a token: 60 API requests/hour. With a token: 5,000 requests/hour.
               Also enables access to private repositories.

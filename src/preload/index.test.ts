@@ -73,6 +73,8 @@ describe('preload bridge', () => {
 
     await api.settings.get();
     await api.settings.update({ theme: 'dark' });
+    await api.settings.setGithubToken('ghp_secure');
+    await api.settings.clearGithubToken();
 
     await api.githubImport.parseUrl('owner/repo');
     await api.githubImport.analyze({ owner: 'owner', repo: 'repo' });
@@ -121,6 +123,8 @@ describe('preload bridge', () => {
 
     expect(invoke).toHaveBeenCalledWith('settings:get');
     expect(invoke).toHaveBeenCalledWith('settings:update', { theme: 'dark' });
+    expect(invoke).toHaveBeenCalledWith('settings:setGithubToken', 'ghp_secure');
+    expect(invoke).toHaveBeenCalledWith('settings:clearGithubToken');
 
     expect(invoke).toHaveBeenCalledWith('github:parseUrl', 'owner/repo');
     expect(invoke).toHaveBeenCalledWith('github:analyze', { owner: 'owner', repo: 'repo' });
