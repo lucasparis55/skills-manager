@@ -4,7 +4,6 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import CreateLinkDialog from '../components/ui/CreateLinkDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
-import { buildIdeCounts, reconcileSelectedIds } from './links-page.utils';
 
 interface LinkData {
   id: string;
@@ -119,12 +118,10 @@ const LinksPage: React.FC = () => {
   }, [links]);
 
   const ideCounts = useMemo(() => {
-    return buildIdeCounts(links);
+    const counts: Record<string, number> = {};
+    links.forEach(l => { counts[l.ideName] = (counts[l.ideName] || 0) + 1; });
+    return counts;
   }, [links]);
-
-  useEffect(() => {
-    setSelectedIds((prev) => reconcileSelectedIds(prev, filteredLinks.map(link => link.id)));
-  }, [filteredLinks]);
 
   // Selection handlers
   const toggleSelection = (id: string) => {
@@ -149,14 +146,7 @@ const LinksPage: React.FC = () => {
   const handleBulkRemove = async () => {
     try {
       setBulkRemoving(true);
-      const visibleIds = new Set(filteredLinks.map(link => link.id));
-      const ids = Array.from(selectedIds).filter(id => visibleIds.has(id));
-      if (ids.length === 0) {
-        setShowBulkConfirm(false);
-        setSelectedIds(new Set());
-        toast({ title: 'No visible links selected', description: 'Selection was cleared after filtering.', variant: 'info' });
-        return;
-      }
+      const ids = Array.from(selectedIds);
       const results = await window.api.links.removeMultiple(ids);
       await loadData();
       setSelectedIds(new Set());
@@ -338,7 +328,7 @@ const LinksPage: React.FC = () => {
                     </SelectPrimitive.Item>
                     {ides.map(ide => (
                       <SelectPrimitive.Item key={ide.id} value={ide.id} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700">
-                        <SelectPrimitive.ItemText>{ide.name} ({ideCounts[ide.id] || 0})</SelectPrimitive.ItemText>
+                        <SelectPrimitive.ItemText>{ide.name} ({ideCounts[ide.name] || 0})</SelectPrimitive.ItemText>
                         <SelectPrimitive.ItemIndicator><Check className="w-4 h-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
                       </SelectPrimitive.Item>
                     ))}
