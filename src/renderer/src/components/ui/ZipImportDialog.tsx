@@ -1,20 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
-  X,
-  Loader2,
-  CheckCircle2,
   AlertCircle,
-  Circle,
-  ChevronRight,
-  Info,
   AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Loader2,
+  X,
 } from 'lucide-react';
-import { useToast } from './Toast';
 
-// ─── Types ───────────────────────────────────────────────────────────
-
-interface DetectedSkill {
+interface DetectedZipSkill {
   name: string;
   displayName: string;
   description: string;
@@ -22,12 +17,17 @@ interface DetectedSkill {
   hasSkillMd: boolean;
   fileCount: number;
   structure: 'folder-per-skill' | 'single-skill' | 'non-standard';
-  repoInfo: {
-    fullName: string;
-    htmlUrl: string;
-    description: string;
-    starsCount: number;
+  archiveInfo: {
+    zipPath: string;
+    fileName: string;
+    fileCount: number;
+    rootPrefix?: string;
   };
+  files: Array<{
+    path: string;
+    archivePath: string;
+    size: number;
+  }>;
 }
 
 interface ConflictResolution {
@@ -47,51 +47,53 @@ interface ImportProgress {
   current: number;
   total: number;
   currentSkillName: string;
-  phase: 'fetching' | 'writing';
+  phase: 'fetching' | 'reading' | 'writing';
   percentComplete: number;
 }
 
-type Phase = 'url-input' | 'preview' | 'conflicts' | 'importing' | 'results';
+type Phase = 'file-select' | 'preview' | 'conflicts' | 'importing' | 'results';
 
-interface GitHubImportDialogProps {
+interface ZipImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImportComplete?: () => void;
 }
 
-// ─── Component ───────────────────────────────────────────────────────
-
-const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
+const ZipImportDialog: React.FC<ZipImportDialogProps> = ({
   open,
   onOpenChange,
   onImportComplete,
 }) => {
-  const [phase, setPhase] = useState<Phase>('url-input');
-  const [url, setUrl] = useState('');
-  const [parsed, setParsed] = useState<any>(null);
-  const [repoInfo, setRepoInfo] = useState<any>(null);
-  const [detectedSkills, setDetectedSkills] = useState<DetectedSkill[]>([]);
+  const [phase, setPhase] = useState<Phase>('file-select');
+  const [zipPath, setZipPath] = useState('');
+  const [archiveInfo, setArchiveInfo] = useState<DetectedZipSkill['archiveInfo'] | null>(null);
+  const [detectedSkills, setDetectedSkills] = useState<DetectedZipSkill[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [conflicts, setConflicts] = useState<Record<string, boolean>>({});
   const [resolutions, setResolutions] = useState<Record<string, ConflictResolution>>({});
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  useToast();
 
-  // Reset state when dialog opens/closes
   useEffect(() => {
     if (open) {
       resetState();
     }
   }, [open]);
 
+  useEffect(() => {
+    if (phase === 'importing') {
+      return window.api.zipImport.onProgress((nextProgress: ImportProgress) => {
+        setProgress(nextProgress);
+      });
+    }
+  }, [phase]);
+
   const resetState = () => {
-    setPhase('url-input');
-    setUrl('');
-    setParsed(null);
-    setRepoInfo(null);
+    setPhase('file-select');
+    setZipPath('');
+    setArchiveInfo(null);
     setDetectedSkills([]);
     setSelectedSkills(new Set());
     setConflicts({});
@@ -102,64 +104,39 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     setLoading(false);
   };
 
-  // Subscribe to import progress
-  useEffect(() => {
-    if (phase === 'importing') {
-      const unsubscribe = window.api.githubImport.onProgress((p: ImportProgress) => {
-        setProgress(p);
-      });
-      return unsubscribe;
-    }
-  }, [phase]);
-
-  // ─── URL validation ──────────────────────────────────────────────
-
-  const isValidUrl = useCallback((value: string): boolean => {
-    const trimmed = value.trim();
-    // Shorthand: owner/repo
-    if (/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(trimmed)) return true;
-    // Full GitHub URL
-    if (/^https?:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/.test(trimmed)) return true;
-    return false;
-  }, []);
-
-  // ─── Phase 1: Analyze ────────────────────────────────────────────
-
-  const handleAnalyze = async () => {
-    setError('');
+  const handleChooseZip = async () => {
     setLoading(true);
+    setError('');
+
     try {
-      const parseResult = await window.api.githubImport.parseUrl(url.trim());
-      if (parseResult.error) {
-        setError(parseResult.message);
+      const selectedPath = await window.api.dialog.selectFile({
+        title: 'Select Skill ZIP Archive',
+        filters: [{ name: 'ZIP Archives', extensions: ['zip'] }],
+      });
+
+      if (!selectedPath) {
         setLoading(false);
         return;
       }
-      setParsed(parseResult);
 
-      const analyzeResult = await window.api.githubImport.analyze(parseResult);
+      setZipPath(selectedPath);
+      const analyzeResult = await window.api.zipImport.analyze(selectedPath);
       if (analyzeResult.error) {
-        setError(analyzeResult.message);
+        setError(analyzeResult.message || 'Failed to analyze ZIP archive');
         setLoading(false);
         return;
       }
 
-      setRepoInfo(analyzeResult.repoInfo);
+      setArchiveInfo(analyzeResult.archiveInfo);
       setDetectedSkills(analyzeResult.skills);
-
-      // Select all skills by default
-      const allNames = new Set(analyzeResult.skills.map((s: DetectedSkill) => s.name));
-      setSelectedSkills(allNames);
-
+      setSelectedSkills(new Set(analyzeResult.skills.map((skill: DetectedZipSkill) => skill.name)));
       setPhase('preview');
     } catch (err: any) {
-      setError(err.message || 'Failed to analyze repository');
+      setError(err.message || 'Failed to select ZIP archive');
     } finally {
       setLoading(false);
     }
   };
-
-  // ─── Phase 2: Selection → check conflicts ────────────────────────
 
   const handleImportSelected = async () => {
     const selectedNames = Array.from(selectedSkills);
@@ -168,12 +145,11 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     setLoading(true);
     setError('');
     try {
-      const conflictMap = await window.api.githubImport.checkConflicts(selectedNames);
+      const conflictMap = await window.api.zipImport.checkConflicts(selectedNames);
       setConflicts(conflictMap);
 
       const hasConflicts = Object.values(conflictMap).some(Boolean);
       if (hasConflicts) {
-        // Initialize default resolutions for conflicts (skip)
         const defaultResolutions: Record<string, ConflictResolution> = {};
         for (const [name, exists] of Object.entries(conflictMap)) {
           if (exists) {
@@ -183,7 +159,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
         setResolutions(defaultResolutions);
         setPhase('conflicts');
       } else {
-        startImport({});
+        await startImport({});
       }
     } catch (err: any) {
       setError(err.message || 'Failed to check conflicts');
@@ -192,18 +168,15 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     }
   };
 
-  // ─── Phase 3/4: Import execution ─────────────────────────────────
-
   const startImport = async (resolutionsMap: Record<string, ConflictResolution>) => {
     setPhase('importing');
     setProgress(null);
     setError('');
 
-    const selected = detectedSkills.filter(s => selectedSkills.has(s.name));
-
     try {
-      const results = await window.api.githubImport.importSkills({
-        parsed,
+      const selected = detectedSkills.filter((skill) => selectedSkills.has(skill.name));
+      const results = await window.api.zipImport.importSkills({
+        zipPath,
         skills: selected,
         resolutions: resolutionsMap,
       });
@@ -216,13 +189,11 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
   };
 
   const handleCancelImport = async () => {
-    await window.api.githubImport.cancelImport();
+    await window.api.zipImport.cancelImport();
   };
 
-  // ─── Selection helpers ───────────────────────────────────────────
-
   const toggleSkill = (name: string) => {
-    setSelectedSkills(prev => {
+    setSelectedSkills((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
@@ -230,29 +201,9 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     });
   };
 
-  const selectAll = () => {
-    setSelectedSkills(new Set(detectedSkills.map(s => s.name)));
-  };
-
-  const deselectAll = () => {
-    setSelectedSkills(new Set());
-  };
-
-  // ─── Conflict resolution handler ─────────────────────────────────
-
-  const handleResolutionChange = (name: string, resolution: ConflictResolution) => {
-    setResolutions(prev => ({ ...prev, [name]: resolution }));
-  };
-
-  const handleProceedFromConflicts = () => {
-    startImport(resolutions);
-  };
-
-  // ─── Results summary ─────────────────────────────────────────────
-
-  const importedCount = importResults.filter(r => r.status === 'imported' || r.status === 'renamed').length;
-  const skippedCount = importResults.filter(r => r.status === 'skipped').length;
-  const errorCount = importResults.filter(r => r.status === 'error').length;
+  const importedCount = importResults.filter((result) => result.status === 'imported' || result.status === 'renamed').length;
+  const skippedCount = importResults.filter((result) => result.status === 'skipped').length;
+  const errorCount = importResults.filter((result) => result.status === 'error').length;
 
   const handleClose = () => {
     if (importedCount > 0) {
@@ -261,35 +212,20 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     onOpenChange(false);
   };
 
-  // ─── Render helpers ──────────────────────────────────────────────
-
-  const getStructureLabel = (structure: string) => {
-    switch (structure) {
-      case 'folder-per-skill': return 'Folder-per-skill';
-      case 'single-skill': return 'Single skill';
-      case 'non-standard': return 'Non-standard';
-      default: return structure;
-    }
-  };
-
-  // ─── Render ──────────────────────────────────────────────────────
-
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
         <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[85vh] shadow-xl data-[state=open]:animate-contentShow focus:outline-none flex flex-col">
-          {/* Header */}
           <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-700">
             <DialogPrimitive.Title className="text-lg font-semibold text-white">
-              Import from GitHub
+              Import from ZIP
             </DialogPrimitive.Title>
             <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
               <X className="w-5 h-5" />
             </DialogPrimitive.Close>
           </div>
 
-          {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {error && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
@@ -298,43 +234,11 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               </div>
             )}
 
-            {/* ── Phase 1: URL Input ── */}
-            {phase === 'url-input' && (
+            {phase === 'file-select' && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    GitHub Repository URL <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="https://github.com/owner/repo"
-                    value={url}
-                    onChange={(e) => { setUrl(e.target.value); setError(''); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && isValidUrl(url) && !loading) handleAnalyze();
-                    }}
-                    className={`w-full px-3 py-2 bg-slate-900 border rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none ${
-                      url && !isValidUrl(url) ? 'border-red-500' :
-                      url && isValidUrl(url) ? 'border-green-500' :
-                      'border-slate-700 focus:border-blue-500'
-                    }`}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="text-xs text-slate-500 space-y-1">
-                  <p>Supported formats:</p>
-                  <ul className="list-disc list-inside pl-2 space-y-0.5">
-                    <li>https://github.com/owner/repo</li>
-                    <li>https://github.com/owner/repo/tree/branch/path</li>
-                    <li>owner/repo</li>
-                  </ul>
-                </div>
-
-                <div className="flex items-start gap-2 p-3 bg-slate-700/30 rounded-lg border border-slate-700">
-                  <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-slate-400">
-                    Add a GitHub token in Settings for higher rate limits (5,000/hr vs 60/hr) and private repo access.
+                <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+                  <p className="text-sm text-slate-300">
+                    Choose a local `.zip` archive containing one or more Codex-style skills.
                   </p>
                 </div>
 
@@ -346,8 +250,8 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                     Cancel
                   </button>
                   <button
-                    onClick={handleAnalyze}
-                    disabled={!isValidUrl(url) || loading}
+                    onClick={handleChooseZip}
+                    disabled={loading}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                   >
                     {loading ? (
@@ -358,7 +262,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                     ) : (
                       <>
                         <ChevronRight className="w-4 h-4" />
-                        Analyze
+                        Select ZIP
                       </>
                     )}
                   </button>
@@ -366,27 +270,15 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               </div>
             )}
 
-            {/* ── Phase 2: Preview & Selection ── */}
-            {phase === 'preview' && (
+            {phase === 'preview' && archiveInfo && (
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-white font-medium">{repoInfo?.fullName}</h3>
-                  <p className="text-sm text-slate-400 mt-1">
-                    {repoInfo?.description || 'No description'}
-                  </p>
+                  <h3 className="text-white font-medium">{archiveInfo.fileName}</h3>
+                  <p className="text-sm text-slate-400 mt-1 break-all">{archiveInfo.zipPath}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                    <span>Structure: {detectedSkills.length > 0 ? getStructureLabel(detectedSkills[0].structure) : 'Unknown'}</span>
                     <span>{detectedSkills.length} skill{detectedSkills.length !== 1 ? 's' : ''} detected</span>
+                    <span>{archiveInfo.fileCount} file{archiveInfo.fileCount !== 1 ? 's' : ''} indexed</span>
                   </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={selectAll} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors">
-                    Select All
-                  </button>
-                  <button onClick={deselectAll} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors">
-                    Deselect All
-                  </button>
                 </div>
 
                 <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -410,7 +302,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                           <span className="text-sm font-medium text-white">{skill.displayName}</span>
                           <span className="text-xs text-slate-500">{skill.fileCount} files</span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate">
+                        <p className="text-xs text-slate-400 mt-0.5">
                           {skill.description || 'No description'}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
@@ -433,7 +325,10 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                   </span>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { setPhase('url-input'); setError(''); }}
+                      onClick={() => {
+                        setPhase('file-select');
+                        setError('');
+                      }}
                       className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
                     >
                       Back
@@ -457,7 +352,6 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               </div>
             )}
 
-            {/* ── Phase 3: Conflict Resolution ── */}
             {phase === 'conflicts' && (
               <div className="space-y-4">
                 <div>
@@ -468,25 +362,32 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  {Object.entries(conflicts).filter(([, exists]) => exists).map(([name, _]) => (
-                    <ConflictCard
-                      key={name}
-                      name={name}
-                      resolution={resolutions[name] || { strategy: 'skip' }}
-                      onChange={(resolution) => handleResolutionChange(name, resolution)}
-                    />
-                  ))}
+                  {Object.entries(conflicts)
+                    .filter(([, exists]) => exists)
+                    .map(([name]) => (
+                      <ConflictCard
+                        key={name}
+                        name={name}
+                        resolution={resolutions[name] || { strategy: 'skip' }}
+                        onChange={(resolution) => {
+                          setResolutions((prev) => ({ ...prev, [name]: resolution }));
+                        }}
+                      />
+                    ))}
                 </div>
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button
-                    onClick={() => { setPhase('preview'); setError(''); }}
+                    onClick={() => {
+                      setPhase('preview');
+                      setError('');
+                    }}
                     className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
                   >
                     Back
                   </button>
                   <button
-                    onClick={handleProceedFromConflicts}
+                    onClick={() => startImport(resolutions)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                   >
                     Proceed with Import
@@ -495,7 +396,6 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               </div>
             )}
 
-            {/* ── Phase 4: Import Progress & Results ── */}
             {(phase === 'importing' || phase === 'results') && (
               <div className="space-y-4">
                 {phase === 'importing' && progress && (
@@ -507,7 +407,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                       />
                     </div>
                     <p className="text-sm text-slate-400">
-                      {progress.phase === 'fetching' ? 'Fetching' : 'Writing'} {progress.currentSkillName}... ({progress.current}/{progress.total})
+                      {progress.phase === 'reading' ? 'Reading' : 'Writing'} {progress.currentSkillName}... ({progress.current}/{progress.total})
                     </p>
                   </>
                 )}
@@ -541,27 +441,33 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                     </div>
 
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {importResults.map((result, i) => (
-                        <div key={i} className={`p-3 rounded-lg border ${
-                          result.status === 'imported' || result.status === 'renamed' ? 'bg-green-500/5 border-green-500/20' :
-                          result.status === 'skipped' ? 'bg-amber-500/5 border-amber-500/20' :
-                          'bg-red-500/5 border-red-500/20'
-                        }`}>
+                      {importResults.map((result, index) => (
+                        <div
+                          key={index}
+                          className={`p-3 rounded-lg border ${
+                            result.status === 'imported' || result.status === 'renamed'
+                              ? 'bg-green-500/5 border-green-500/20'
+                              : result.status === 'skipped'
+                                ? 'bg-amber-500/5 border-amber-500/20'
+                                : 'bg-red-500/5 border-red-500/20'
+                          }`}
+                        >
                           <div className="flex items-center gap-2 mb-1">
-                            {result.status === 'imported' && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
-                            {result.status === 'renamed' && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
-                            {result.status === 'skipped' && <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />}
-                            {result.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                            {(result.status === 'imported' || result.status === 'renamed') && (
+                              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                            )}
+                            {(result.status === 'skipped' || result.status === 'error') && (
+                              <AlertCircle className={`w-4 h-4 flex-shrink-0 ${result.status === 'skipped' ? 'text-amber-400' : 'text-red-400'}`} />
+                            )}
                             <span className="text-sm font-medium text-slate-200">{result.skillName}</span>
                             {result.status === 'renamed' && result.originalName && (
                               <span className="text-xs text-slate-400">(renamed from {result.originalName})</span>
                             )}
                           </div>
-                          {result.status === 'skipped' && result.skipReason && (
-                            <p className="text-xs text-amber-300/80 ml-6">{result.skipReason}</p>
-                          )}
-                          {result.status === 'skipped' && !result.skipReason && (
-                            <p className="text-xs text-amber-300/80 ml-6">Skipped — no action taken</p>
+                          {result.status === 'skipped' && (
+                            <p className="text-xs text-amber-300/80 ml-6">
+                              {result.skipReason || 'Skipped — no action taken'}
+                            </p>
                           )}
                           {result.status === 'error' && result.error && (
                             <p className="text-xs text-red-300 ml-6">{result.error}</p>
@@ -601,8 +507,6 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     </DialogPrimitive.Root>
   );
 };
-
-// ─── Conflict Card Sub-component ─────────────────────────────────────
 
 const ConflictCard: React.FC<{
   name: string;
@@ -666,18 +570,9 @@ const ConflictCard: React.FC<{
           />
           <span className="text-sm text-slate-300">Overwrite existing skill</span>
         </label>
-
-        {resolution.strategy === 'overwrite' && (
-          <div className="flex items-start gap-2 ml-6 p-2 bg-red-500/10 rounded border border-red-500/20">
-            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-300">
-              Overwriting will replace all files in the existing skill directory. This cannot be undone.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-export default GitHubImportDialog;
+export default ZipImportDialog;

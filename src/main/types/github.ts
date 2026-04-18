@@ -1,3 +1,7 @@
+import type { ConflictResolution, ImportFileEntry, ImportProgress, ImportResult, SkillStructure } from './import';
+
+export type { ConflictResolution, ImportFileEntry, ImportProgress, ImportResult, SkillStructure };
+
 /**
  * Type definitions for GitHub skill import feature
  */
@@ -29,9 +33,6 @@ export interface GitHubTreeEntry {
   size?: number;
 }
 
-/** Detected skill structure type */
-export type SkillStructure = 'folder-per-skill' | 'single-skill' | 'non-standard';
-
 /** A skill detected within a GitHub repository */
 export interface DetectedSkill {
   name: string;
@@ -45,30 +46,6 @@ export interface DetectedSkill {
   repoInfo: GitHubRepoInfo;
 }
 
-/** How to resolve a name conflict during import */
-export interface ConflictResolution {
-  strategy: 'skip' | 'rename' | 'overwrite';
-  newName?: string;
-}
-
-/** Result of importing a single skill */
-export interface ImportResult {
-  skillName: string;
-  status: 'imported' | 'skipped' | 'renamed' | 'error';
-  error?: string;
-  originalName?: string;
-  skipReason?: string;
-}
-
-/** Progress update during batch import */
-export interface ImportProgress {
-  current: number;
-  total: number;
-  currentSkillName: string;
-  phase: 'fetching' | 'writing';
-  percentComplete: number;
-}
-
 /** Typed error from GitHub API interactions */
 export interface GitHubApiError {
   status: number;
@@ -76,12 +53,6 @@ export interface GitHubApiError {
   isRateLimit: boolean;
   rateLimitReset?: number;
   rateLimitRemaining?: number;
-}
-
-/** File entry for bulk skill import */
-export interface ImportFileEntry {
-  path: string;
-  content: string;
 }
 
 /** Response from GitHub repo analysis */

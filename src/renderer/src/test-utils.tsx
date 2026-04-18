@@ -13,6 +13,7 @@ type ApiMock = {
   settings: Record<string, ReturnType<typeof vi.fn>>;
   dialog: Record<string, ReturnType<typeof vi.fn>>;
   githubImport: Record<string, ReturnType<typeof vi.fn>>;
+  zipImport: Record<string, ReturnType<typeof vi.fn>>;
 };
 
 export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
@@ -77,6 +78,7 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
     },
     dialog: {
       selectFolder: vi.fn(async () => 'C:/project'),
+      selectFile: vi.fn(async () => 'C:/skills.zip'),
       ...(partial.dialog || {}),
     },
     githubImport: {
@@ -87,6 +89,14 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
       cancelImport: vi.fn(async () => ({ success: true })),
       onProgress: vi.fn(() => () => {}),
       ...(partial.githubImport || {}),
+    },
+    zipImport: {
+      analyze: vi.fn(async () => ({ archiveInfo: { fileName: 'skills.zip', zipPath: 'C:/skills.zip', fileCount: 1 }, skills: [] })),
+      checkConflicts: vi.fn(async () => ({})),
+      importSkills: vi.fn(async () => []),
+      cancelImport: vi.fn(async () => ({ success: true })),
+      onProgress: vi.fn(() => () => {}),
+      ...(partial.zipImport || {}),
     },
   };
 

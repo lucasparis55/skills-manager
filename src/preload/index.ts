@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('api', {
   dialog: {
     selectFolder: (options?: { defaultPath?: string; title?: string }) =>
       ipcRenderer.invoke('dialog:selectFolder', options),
+    selectFile: (options?: { defaultPath?: string; title?: string; filters?: { name: string; extensions: string[] }[] }) =>
+      ipcRenderer.invoke('dialog:selectFile', options),
   },
 
   // GitHub Import
@@ -83,6 +85,21 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('github:importProgress', handler);
       return () => {
         ipcRenderer.removeListener('github:importProgress', handler);
+      };
+    },
+  },
+
+  // ZIP Import
+  zipImport: {
+    analyze: (zipPath: string) => ipcRenderer.invoke('zip:analyze', zipPath),
+    checkConflicts: (names: string[]) => ipcRenderer.invoke('zip:checkConflicts', names),
+    importSkills: (params: any) => ipcRenderer.invoke('zip:importSkills', params),
+    cancelImport: () => ipcRenderer.invoke('zip:cancelImport'),
+    onProgress: (callback: (progress: any) => void) => {
+      const handler = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('zip:importProgress', handler);
+      return () => {
+        ipcRenderer.removeListener('zip:importProgress', handler);
       };
     },
   },

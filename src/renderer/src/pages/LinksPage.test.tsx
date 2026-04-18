@@ -146,6 +146,6 @@ describe('LinksPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'complete-create' }));
 
     expect(await screen.findByText('Links created')).toBeInTheDocument();
-    expect(screen.getByText(/1 link created successfully, 1 skipped/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/1 link created successfully, 1 skipped/i)[0]).toBeInTheDocument();
   });
 });

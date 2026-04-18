@@ -40,6 +40,15 @@ vi.mock('../components/ui/GitHubImportDialog', () => ({
     ) : null,
 }));
 
+vi.mock('../components/ui/ZipImportDialog', () => ({
+  default: (props: any) =>
+    props.open ? (
+      <div>
+        <button onClick={props.onImportComplete}>zip-import-complete</button>
+      </div>
+    ) : null,
+}));
+
 describe('SkillsPage', () => {
   it('loads skills, filters by search, creates skill, and refreshes after import callback', async () => {
     const api = createApiMock({
@@ -88,10 +97,18 @@ describe('SkillsPage', () => {
     });
     expect(await screen.findByText('Skill created')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Import from GitHub' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'From GitHub' }));
     await userEvent.click(screen.getByRole('button', { name: 'import-complete' }));
     await waitFor(() => {
       expect(api.skills.list).toHaveBeenCalledTimes(3);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'From ZIP' }));
+    await userEvent.click(screen.getByRole('button', { name: 'zip-import-complete' }));
+    await waitFor(() => {
+      expect(api.skills.list).toHaveBeenCalledTimes(4);
     });
   });
 });

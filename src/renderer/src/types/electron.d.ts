@@ -110,11 +110,26 @@ interface SettingsAPI {
 
 interface DialogAPI {
   selectFolder: (options?: { defaultPath?: string; title?: string }) => Promise<string | null>;
+  selectFile: (
+    options?: {
+      defaultPath?: string;
+      title?: string;
+      filters?: { name: string; extensions: string[] }[];
+    }
+  ) => Promise<string | null>;
 }
 
 interface GitHubImportAPI {
   parseUrl: (url: string) => Promise<any>;
   analyze: (parsed: any) => Promise<any>;
+  checkConflicts: (names: string[]) => Promise<Record<string, boolean>>;
+  importSkills: (params: any) => Promise<any[]>;
+  cancelImport: () => Promise<any>;
+  onProgress: (callback: (progress: any) => void) => () => void;
+}
+
+interface ZipImportAPI {
+  analyze: (zipPath: string) => Promise<any>;
   checkConflicts: (names: string[]) => Promise<Record<string, boolean>>;
   importSkills: (params: any) => Promise<any[]>;
   cancelImport: () => Promise<any>;
@@ -130,6 +145,7 @@ interface ElectronAPI {
   settings: SettingsAPI;
   dialog: DialogAPI;
   githubImport: GitHubImportAPI;
+  zipImport: ZipImportAPI;
 }
 
 declare global {

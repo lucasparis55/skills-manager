@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Search, Download } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Download, ChevronDown } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SkillEditDialog from '../components/ui/SkillEditDialog';
 import GitHubImportDialog from '../components/ui/GitHubImportDialog';
+import ZipImportDialog from '../components/ui/ZipImportDialog';
 import { useToast } from '../components/ui/Toast';
 
 interface Skill {
@@ -31,7 +32,9 @@ const SkillsPage: React.FC = () => {
   const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  const [showGithubImportDialog, setShowGithubImportDialog] = useState(false);
+  const [showZipImportDialog, setShowZipImportDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -119,13 +122,38 @@ const SkillsPage: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImportDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-slate-300"
-          >
-            <Download className="w-4 h-4" />
-            Import from GitHub
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowImportMenu((prev) => !prev)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-slate-300"
+            >
+              <Download className="w-4 h-4" />
+              Import
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {showImportMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-slate-700 bg-slate-800 shadow-xl z-10 overflow-hidden">
+                <button
+                  onClick={() => {
+                    setShowImportMenu(false);
+                    setShowGithubImportDialog(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+                >
+                  From GitHub
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportMenu(false);
+                    setShowZipImportDialog(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+                >
+                  From ZIP
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowCreateDialog(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -194,8 +222,14 @@ const SkillsPage: React.FC = () => {
       )}
 
       <GitHubImportDialog
-        open={showImportDialog}
-        onOpenChange={setShowImportDialog}
+        open={showGithubImportDialog}
+        onOpenChange={setShowGithubImportDialog}
+        onImportComplete={loadSkills}
+      />
+
+      <ZipImportDialog
+        open={showZipImportDialog}
+        onOpenChange={setShowZipImportDialog}
         onImportComplete={loadSkills}
       />
     </div>

@@ -115,6 +115,12 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
       importSkills: vi.fn(async () => []),
       cancelImport: vi.fn(),
     },
+    zipImportService: {
+      analyze: vi.fn(async () => ({ skills: [] })),
+      checkConflicts: vi.fn(() => ({})),
+      importSkills: vi.fn(async () => []),
+      cancelImport: vi.fn(),
+    },
     createSkillService: vi.fn(() => skillService),
     expandPath: vi.fn((input: string) => input.replace('~', 'C:/Users/test')),
     platform: 'linux',
@@ -198,7 +204,9 @@ describe('registerIPCHandlers', () => {
     expect(handlers.has('links:create')).toBe(true);
     expect(handlers.has('links:createMultiple')).toBe(true);
     expect(handlers.has('dialog:selectFolder')).toBe(true);
+    expect(handlers.has('dialog:selectFile')).toBe(true);
     expect(handlers.has('github:analyze')).toBe(true);
+    expect(handlers.has('zip:analyze')).toBe(true);
   });
 
   it('returns null for canceled folder dialog', async () => {
@@ -240,6 +248,29 @@ describe('registerIPCHandlers', () => {
       properties: ['openDirectory'],
       defaultPath: 'C:/base',
       title: 'Pick folder',
+    });
+  });
+
+  it('returns selected file when file dialog succeeds', async () => {
+    const harness = createHarness({
+      dialog: {
+        showOpenDialog: vi.fn(async () => ({ canceled: false, filePaths: ['C:/skills.zip'] })),
+      },
+    });
+
+    await expect(
+      harness.invoke('dialog:selectFile', {
+        defaultPath: 'C:/downloads',
+        title: 'Pick ZIP',
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      }),
+    ).resolves.toBe('C:/skills.zip');
+
+    expect(harness.deps.dialog.showOpenDialog).toHaveBeenCalledWith({
+      properties: ['openFile'],
+      defaultPath: 'C:/downloads',
+      title: 'Pick ZIP',
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
     });
   });
 
@@ -635,6 +666,14 @@ describe('registerIPCHandlers', () => {
         importSkills: vi.fn(async () => []),
         cancelImport: vi.fn(),
       },
+      zipImportService: {
+        analyze: vi.fn(async () => {
+          throw new Error('Bad ZIP');
+        }),
+        checkConflicts: vi.fn(() => ({})),
+        importSkills: vi.fn(async () => []),
+        cancelImport: vi.fn(),
+      },
     });
 
     await expect(harness.invoke('github:parseUrl', 'not-a-url')).resolves.toEqual({
@@ -646,6 +685,11 @@ describe('registerIPCHandlers', () => {
       error: true,
       message: 'Rate limited',
       isRateLimit: true,
+    });
+
+    await expect(harness.invoke('zip:analyze', 'C:/skills.zip')).resolves.toEqual({
+      error: true,
+      message: 'Bad ZIP',
     });
   });
 
@@ -761,6 +805,12 @@ describe('registerIPCHandlers', () => {
         importSkills: vi.fn(async () => [{ skillName: 'x', status: 'imported' }]),
         cancelImport: vi.fn(),
       },
+      zipImportService: {
+        analyze: vi.fn(async () => ({ skills: [] })),
+        checkConflicts: vi.fn(() => ({ beta: true })),
+        importSkills: vi.fn(async () => [{ skillName: 'zip-skill', status: 'imported' }]),
+        cancelImport: vi.fn(),
+      },
     });
 
     await expect(harness.invoke('skills:list')).resolves.toEqual([
@@ -809,10 +859,20 @@ describe('registerIPCHandlers', () => {
       { parsed: {}, skills: [], resolutions: {} },
     );
     await harness.invoke('github:cancelImport');
+    await harness.invoke('dialog:selectFile', { title: 'Pick ZIP' });
+    await harness.invoke('zip:analyze', 'C:/skills.zip');
+    await harness.invoke('zip:checkConflicts', ['beta']);
+    await harness.invokeWithSender(
+      'zip:importSkills',
+      { send: vi.fn() },
+      { zipPath: 'C:/skills.zip', skills: [], resolutions: {} },
+    );
+    await harness.invoke('zip:cancelImport');
 
     expect(harness.deps.shell.openPath).toHaveBeenCalled();
     expect(harness.deps.settingsService.update).toHaveBeenCalledWith({ theme: 'light' });
     expect(harness.deps.githubImportService.cancelImport).toHaveBeenCalledTimes(1);
+    expect(harness.deps.zipImportService.cancelImport).toHaveBeenCalledTimes(1);
   });
 
   it('handles remove dedupe and github import error fallback payload', async () => {
@@ -840,6 +900,14 @@ describe('registerIPCHandlers', () => {
         }),
         cancelImport: vi.fn(),
       },
+      zipImportService: {
+        analyze: vi.fn(async () => ({ skills: [] })),
+        checkConflicts: vi.fn(() => ({})),
+        importSkills: vi.fn(async () => {
+          throw new Error('zip failed');
+        }),
+        cancelImport: vi.fn(),
+      },
       symlinkService: {
         create: vi.fn(() => ({ success: true, strategy: 'junction' })),
         remove: vi.fn(() => true),
@@ -858,6 +926,12 @@ describe('registerIPCHandlers', () => {
       harness.invokeWithSender('github:importSkills', sender, { parsed: {}, skills: [], resolutions: {} }),
     ).resolves.toEqual([
       { skillName: 'unknown', status: 'error', error: 'download failed' },
+    ]);
+
+    await expect(
+      harness.invokeWithSender('zip:importSkills', sender, { zipPath: 'C:/skills.zip', skills: [], resolutions: {} }),
+    ).resolves.toEqual([
+      { skillName: 'unknown', status: 'error', error: 'zip failed' },
     ]);
   });
 
@@ -885,6 +959,33 @@ describe('registerIPCHandlers', () => {
     expect(result).toEqual([{ skillName: 'S1', status: 'imported' }]);
     expect(sender.send).toHaveBeenCalledWith(
       'github:importProgress',
+      expect.objectContaining({ current: 1, total: 1 }),
+    );
+  });
+
+  it('forwards zip import progress events while importing', async () => {
+    const sender = { send: vi.fn() };
+    const harness = createHarness({
+      zipImportService: {
+        analyze: vi.fn(async () => ({ skills: [] })),
+        checkConflicts: vi.fn(() => ({})),
+        importSkills: vi.fn(async (_zipPath: string, _skills: any[], _resolutions: Record<string, any>, onProgress: (progress: any) => void) => {
+          onProgress({ current: 1, total: 1, phase: 'reading', currentSkillName: 'ZipSkill' });
+          return [{ skillName: 'ZipSkill', status: 'imported' }];
+        }),
+        cancelImport: vi.fn(),
+      },
+    });
+
+    const result = await harness.invokeWithSender(
+      'zip:importSkills',
+      sender,
+      { zipPath: 'C:/skills.zip', skills: [{ name: 'zip-skill' }], resolutions: {} },
+    );
+
+    expect(result).toEqual([{ skillName: 'ZipSkill', status: 'imported' }]);
+    expect(sender.send).toHaveBeenCalledWith(
+      'zip:importProgress',
       expect.objectContaining({ current: 1, total: 1 }),
     );
   });

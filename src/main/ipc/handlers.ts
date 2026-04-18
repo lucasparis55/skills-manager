@@ -7,6 +7,7 @@ import { IDEAdapterService } from '../services/ide-adapter.service';
 import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
+import { ZipImportService } from '../services/zip-import.service';
 import { expandPath } from '../utils/paths';
 import type {
   AppSettings,
@@ -45,6 +46,10 @@ type GitHubImportServiceLike = Pick<
   GitHubImportService,
   'parseGitHubUrl' | 'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
 >;
+type ZipImportServiceLike = Pick<
+  ZipImportService,
+  'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
+>;
 
 type LinkScope = 'global' | 'project';
 type IdeRootsShape = {
@@ -65,6 +70,7 @@ export interface IPCHandlerDependencies {
   ideService: IdeServiceLike;
   detectionService: DetectionServiceLike;
   githubImportService: GitHubImportServiceLike;
+  zipImportService: ZipImportServiceLike;
   createSkillService: () => SkillServiceLike;
   expandPath: (input: string) => string;
   platform: NodeJS.Platform | string;
@@ -79,6 +85,7 @@ const defaultIdeService = new IDEAdapterService();
 const defaultDetectionService = new DetectionService();
 const defaultSettingsService = new SettingsService();
 const defaultGithubImportService = new GitHubImportService(defaultSettingsService);
+const defaultZipImportService = new ZipImportService(defaultSettingsService);
 
 const defaultDeps: IPCHandlerDependencies = {
   ipcMain,
@@ -91,6 +98,7 @@ const defaultDeps: IPCHandlerDependencies = {
   ideService: defaultIdeService,
   detectionService: defaultDetectionService,
   githubImportService: defaultGithubImportService,
+  zipImportService: defaultZipImportService,
   createSkillService: () => defaultSkillService,
   expandPath,
   platform: process.platform,
@@ -461,6 +469,20 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
     return result.filePaths[0];
   });
 
+  deps.ipcMain.handle('dialog:selectFile', async (_event, options?: { defaultPath?: string; title?: string; filters?: any[] }) => {
+    const result = await deps.dialog.showOpenDialog({
+      properties: ['openFile'],
+      defaultPath: options?.defaultPath,
+      title: options?.title || 'Select File',
+      filters: options?.filters,
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  });
+
   deps.ipcMain.handle('github:parseUrl', (_event, url: string) => {
     try {
       return deps.githubImportService.parseGitHubUrl(url);
@@ -494,6 +516,34 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
 
   deps.ipcMain.handle('github:cancelImport', () => {
     deps.githubImportService.cancelImport();
+    return { success: true };
+  });
+
+  deps.ipcMain.handle('zip:analyze', async (_event, zipPath: string) => {
+    try {
+      return await deps.zipImportService.analyze(zipPath);
+    } catch (err: any) {
+      return { error: true, message: err.message };
+    }
+  });
+
+  deps.ipcMain.handle('zip:checkConflicts', (_event, skillNames: string[]) =>
+    deps.zipImportService.checkConflicts(skillNames),
+  );
+
+  deps.ipcMain.handle('zip:importSkills', async (event, params: any) => {
+    const { zipPath, skills, resolutions } = params;
+    try {
+      return await deps.zipImportService.importSkills(zipPath, skills, resolutions, (progress: any) => {
+        event.sender.send('zip:importProgress', progress);
+      });
+    } catch (err: any) {
+      return [{ skillName: 'unknown', status: 'error', error: err.message }];
+    }
+  });
+
+  deps.ipcMain.handle('zip:cancelImport', () => {
+    deps.zipImportService.cancelImport();
     return { success: true };
   });
 }

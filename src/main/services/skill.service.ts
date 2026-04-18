@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { getSkillsRoot } from '../utils/paths';
 import type { Skill, CreateSkillInput, UpdateSkillInput } from '../types/domain';
-import type { ImportFileEntry } from '../types/github';
+import type { BinaryImportFileEntry, ImportFileEntry } from '../types/import';
 
 export interface SkillFileEntry {
   path: string;
@@ -16,6 +16,8 @@ const SKILL_NAME_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
 export interface ImportFromBufferOptions {
   overwrite?: boolean;
 }
+
+type ImportableFileEntry = ImportFileEntry | BinaryImportFileEntry;
 
 /**
  * Skill Service - Manages skills in the central repository
@@ -428,6 +430,27 @@ tags: [${input.tags?.join(', ') || ''}]
     metadata?: Record<string, unknown>,
     options: ImportFromBufferOptions = {},
   ): Skill {
+    return this.importFiles(name, files, metadata, options);
+  }
+
+  /**
+   * Import a skill from raw archive files while preserving binary file contents.
+   */
+  importFromArchiveFiles(
+    name: string,
+    files: BinaryImportFileEntry[],
+    metadata?: Record<string, unknown>,
+    options: ImportFromBufferOptions = {},
+  ): Skill {
+    return this.importFiles(name, files, metadata, options);
+  }
+
+  private importFiles(
+    name: string,
+    files: ImportableFileEntry[],
+    metadata?: Record<string, unknown>,
+    options: ImportFromBufferOptions = {},
+  ): Skill {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
     const overwrite = options.overwrite === true;
 
@@ -447,7 +470,13 @@ tags: [${input.tags?.join(', ') || ''}]
     // Generate SKILL.md if not provided
     if (!hasSkillMd && metadata) {
       const sourceRepo = (metadata.sourceRepo as string) || '';
+      const sourceArchive = (metadata.sourceArchive as string) || '';
       const importedAt = (metadata.importedAt as string) || new Date().toISOString();
+      const importSourceLine = sourceRepo
+        ? `Imported from [${sourceRepo}](${sourceRepo}).`
+        : sourceArchive
+          ? `Imported from archive "${sourceArchive}".`
+          : 'Imported from an external source.';
       const frontmatter = `---
 name: ${name}
 displayName: ${(metadata.displayName as string) || name}
@@ -456,6 +485,7 @@ version: 1.0.0
 targetIDEs: []
 tags: [imported]
 sourceRepo: ${sourceRepo}
+sourceArchive: ${sourceArchive}
 importedAt: ${importedAt}
 ---
 
@@ -463,9 +493,9 @@ importedAt: ${importedAt}
 
 ${(metadata.description as string) || ''}
 
-Imported from [${sourceRepo}](${sourceRepo}).
+${importSourceLine}
 `;
-      filesToWrite.unshift({ path: 'SKILL.md', content: frontmatter });
+      filesToWrite.unshift({ path: 'SKILL.md', content: Buffer.from(frontmatter, 'utf-8') });
     }
 
     // Write all files
@@ -482,7 +512,11 @@ Imported from [${sourceRepo}](${sourceRepo}).
         fs.mkdirSync(parentDir, { recursive: true });
       }
 
-      fs.writeFileSync(fullPath, file.content, 'utf-8');
+      if (Buffer.isBuffer(file.content)) {
+        fs.writeFileSync(fullPath, file.content);
+      } else {
+        fs.writeFileSync(fullPath, file.content, 'utf-8');
+      }
     }
 
     return this.loadSkill(skillName, skillDir)!;

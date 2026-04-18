@@ -31,6 +31,7 @@ describe('preload bridge', () => {
         settings: expect.any(Object),
         dialog: expect.any(Object),
         githubImport: expect.any(Object),
+        zipImport: expect.any(Object),
       }),
     );
   });
@@ -82,6 +83,11 @@ describe('preload bridge', () => {
     await api.githubImport.importSkills({ parsed: {}, skills: [], resolutions: {} });
     await api.githubImport.cancelImport();
     await api.dialog.selectFolder({ defaultPath: 'C:/', title: 'Pick' });
+    await api.dialog.selectFile({ defaultPath: 'C:/', title: 'Pick file', filters: [{ name: 'ZIP', extensions: ['zip'] }] });
+    await api.zipImport.analyze('C:/skills.zip');
+    await api.zipImport.checkConflicts(['s1']);
+    await api.zipImport.importSkills({ zipPath: 'C:/skills.zip', skills: [], resolutions: {} });
+    await api.zipImport.cancelImport();
 
     expect(invoke).toHaveBeenCalledWith('skills:list');
     expect(invoke).toHaveBeenCalledWith('skills:get', 's1');
@@ -135,6 +141,14 @@ describe('preload bridge', () => {
       'dialog:selectFolder',
       { defaultPath: 'C:/', title: 'Pick' },
     );
+    expect(invoke).toHaveBeenCalledWith(
+      'dialog:selectFile',
+      { defaultPath: 'C:/', title: 'Pick file', filters: [{ name: 'ZIP', extensions: ['zip'] }] },
+    );
+    expect(invoke).toHaveBeenCalledWith('zip:analyze', 'C:/skills.zip');
+    expect(invoke).toHaveBeenCalledWith('zip:checkConflicts', ['s1']);
+    expect(invoke).toHaveBeenCalledWith('zip:importSkills', { zipPath: 'C:/skills.zip', skills: [], resolutions: {} });
+    expect(invoke).toHaveBeenCalledWith('zip:cancelImport');
   });
 
   it('subscribes and unsubscribes from progress channels', async () => {
@@ -157,5 +171,13 @@ describe('preload bridge', () => {
     expect(callback).toHaveBeenCalledWith({ phase: 'fetching' });
     unsubscribeGithub();
     expect(removeListener).toHaveBeenCalledWith('github:importProgress', githubHandler);
+
+    const unsubscribeZip = api.zipImport.onProgress(callback);
+    expect(on).toHaveBeenCalledWith('zip:importProgress', expect.any(Function));
+    const zipHandler = on.mock.calls[2][1];
+    zipHandler({}, { phase: 'reading' });
+    expect(callback).toHaveBeenCalledWith({ phase: 'reading' });
+    unsubscribeZip();
+    expect(removeListener).toHaveBeenCalledWith('zip:importProgress', zipHandler);
   });
 });
