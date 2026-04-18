@@ -5,9 +5,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -16,6 +13,8 @@ jobs:
   release:
     if: github.actor == github.repository_owner && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -23,11 +22,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify release context
+        shell: pwsh
+        run: |
+          git fetch --force origin main --tags
+          $remoteHead = git rev-parse origin/main
+          $currentSha = "${{ github.sha }}"
+
+          if ($remoteHead -ne $currentSha) {
+            throw "Refusing to publish from stale commit $currentSha. Current main head is $remoteHead."
+          }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -38,10 +49,17 @@ jobs:
         run: |
           $package = Get-Content package.json | ConvertFrom-Json
           $currentVersion = $package.version
+          $existingTag = git tag --points-at HEAD --list "v*" | Select-Object -First 1
           $latestTag = git tag --list "v*" --sort=-version:refname | Select-Object -First 1
 
-          if ([string]::IsNullOrWhiteSpace($latestTag)) {
+          if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+            $nextVersion = $existingTag.TrimStart('v')
+            $tag = $existingTag
+            $needsBump = 'false'
+          } elseif ([string]::IsNullOrWhiteSpace($latestTag)) {
             $nextVersion = $currentVersion
+            $tag = "v$nextVersion"
+            $needsBump = if ($currentVersion -ne $nextVersion) { 'true' } else { 'false' }
           } else {
             $parts = $latestTag.TrimStart('v').Split('.')
             if ($parts.Length -ne 3) {
@@ -52,13 +70,13 @@ jobs:
             $minor = [int]$parts[1]
             $patch = [int]$parts[2] + 1
             $nextVersion = "$major.$minor.$patch"
+            $tag = "v$nextVersion"
+            $needsBump = if ($currentVersion -ne $nextVersion) { 'true' } else { 'false' }
           }
-
-          $needsBump = if ($currentVersion -ne $nextVersion) { 'true' } else { 'false' }
 
           "current=$currentVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "version=$nextVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "tag=v$nextVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "needs_bump=$needsBump" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Bump package version
@@ -97,14 +115,33 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json
-          git commit -m "chore(release): ${{ steps.version.outputs.tag }} [skip ci]"
-          git push origin HEAD:main
+          if (git diff --cached --quiet) {
+            Write-Host "Version files already match ${{ steps.version.outputs.tag }}."
+          } else {
+            git commit -m "chore(release): ${{ steps.version.outputs.tag }} [skip ci]"
+            git push origin HEAD:main
+          }
 
       - name: Create and push tag
         shell: pwsh
         run: |
-          git tag ${{ steps.version.outputs.tag }}
-          git push origin ${{ steps.version.outputs.tag }}
+          $tag = "${{ steps.version.outputs.tag }}"
+          $remoteTag = git ls-remote --tags origin "refs/tags/$tag"
+
+          if (-not [string]::IsNullOrWhiteSpace($remoteTag)) {
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            $tagCommit = git rev-list -n 1 $tag
+            $headCommit = git rev-parse HEAD
+
+            if ($tagCommit -ne $headCommit) {
+              throw "Tag $tag already exists on $tagCommit, not on current HEAD $headCommit."
+            }
+
+            Write-Host "Tag $tag already points to the current commit."
+          } else {
+            git tag $tag
+            git push origin $tag
+          }
 
       - name: Create or update GitHub release
         shell: pwsh
