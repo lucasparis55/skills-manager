@@ -74,4 +74,47 @@ describe('ProjectsPage', () => {
 
     expect(api.projects.remove).not.toHaveBeenCalled();
   });
+
+  it('selects all projects and removes selected items with partial failure feedback', async () => {
+    const api = createApiMock({
+      projects: {
+        list: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Repo 1',
+            path: 'C:/repo1',
+            detectedIDEs: [],
+            addedAt: '2024-01-01',
+            metadata: { hasGit: true },
+          },
+          {
+            id: 'p2',
+            name: 'Repo 2',
+            path: 'C:/repo2',
+            detectedIDEs: [],
+            addedAt: '2024-01-01',
+            metadata: { hasGit: false },
+          },
+        ]),
+        remove: vi
+          .fn()
+          .mockResolvedValueOnce({ success: true })
+          .mockRejectedValueOnce(new Error('remove failed')),
+      },
+    });
+
+    renderWithProviders(<ProjectsPage />);
+
+    expect(await screen.findByText('2 Projects')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Select all'));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Selected' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => {
+      expect(api.projects.remove).toHaveBeenCalledTimes(2);
+    });
+    expect(api.projects.remove).toHaveBeenNthCalledWith(1, 'p1');
+    expect(api.projects.remove).toHaveBeenNthCalledWith(2, 'p2');
+    expect(await screen.findByText('Partial removal')).toBeInTheDocument();
+  });
 });

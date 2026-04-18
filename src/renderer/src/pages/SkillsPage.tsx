@@ -35,6 +35,9 @@ const SkillsPage: React.FC = () => {
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [showGithubImportDialog, setShowGithubImportDialog] = useState(false);
   const [showZipImportDialog, setShowZipImportDialog] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,6 +83,14 @@ const SkillsPage: React.FC = () => {
       await window.api.skills.delete(skill.id);
       await loadSkills();
       setConfirmState(null);
+      setSelectedIds(prev => {
+        if (!prev.has(skill.id)) {
+          return prev;
+        }
+        const next = new Set(prev);
+        next.delete(skill.id);
+        return next;
+      });
       toast({ title: 'Skill deleted', description: `"${skill.displayName}" has been removed.`, variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
@@ -100,6 +111,72 @@ const SkillsPage: React.FC = () => {
     s.displayName.toLowerCase().includes(search.toLowerCase()) ||
     s.description.toLowerCase().includes(search.toLowerCase())
   );
+
+  const selectedVisibleCount = filteredSkills.filter(skill => selectedIds.has(skill.id)).length;
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(filteredSkills.map(skill => skill.id)));
+  const deselectAll = () => setSelectedIds(new Set());
+  const toggleSelectAll = () => {
+    if (selectedVisibleCount === filteredSkills.length && filteredSkills.length > 0) {
+      deselectAll();
+    } else {
+      selectAll();
+    }
+  };
+
+  const handleBulkDeleteSkills = async () => {
+    try {
+      setBulkDeleting(true);
+      const ids = Array.from(selectedIds);
+      const results = await Promise.all(
+        ids.map(async id => {
+          try {
+            await window.api.skills.delete(id);
+            return { id, success: true };
+          } catch {
+            return { id, success: false };
+          }
+        }),
+      );
+
+      await loadSkills();
+      setSelectedIds(new Set());
+      setShowBulkConfirm(false);
+
+      const succeeded = results.filter(result => result.success).length;
+      const failed = results.filter(result => !result.success).length;
+
+      if (failed === 0) {
+        toast({
+          title: 'Skills deleted',
+          description: `${succeeded} skill${succeeded !== 1 ? 's' : ''} removed successfully.`,
+          variant: 'success',
+        });
+      } else {
+        toast({
+          title: 'Partial removal',
+          description: `${succeeded} removed, ${failed} failed.`,
+          variant: 'warning',
+        });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'error' });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   if (loading) {
     return <div className="text-center py-12">Loading skills...</div>;
@@ -164,6 +241,20 @@ const SkillsPage: React.FC = () => {
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 border border-slate-700 rounded-lg bg-slate-800/50 p-3">
+          <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+          <button
+            onClick={() => setShowBulkConfirm(true)}
+            disabled={bulkDeleting}
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg text-sm transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Remove Selected
+          </button>
+        </div>
+      )}
+
       {/* Skills List */}
       {filteredSkills.length === 0 ? (
         <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
@@ -181,12 +272,32 @@ const SkillsPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid gap-4">
+          <div className="flex items-center gap-3 px-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedVisibleCount === filteredSkills.length && filteredSkills.length > 0}
+                ref={(el) => {
+                  if (el) {
+                    el.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < filteredSkills.length;
+                  }
+                }}
+                onChange={toggleSelectAll}
+                className="accent-blue-500 w-4 h-4"
+              />
+              <span className="text-sm text-slate-400">
+                {selectedVisibleCount > 0 ? `${selectedVisibleCount} of ${filteredSkills.length} selected` : 'Select all'}
+              </span>
+            </label>
+          </div>
           {filteredSkills.map((skill) => (
             <SkillCard
               key={skill.id}
               skill={skill}
               onDelete={(s) => setConfirmState({ skill: s })}
               onEdit={handleEditSkill}
+              selected={selectedIds.has(skill.id)}
+              onToggleSelect={() => toggleSelection(skill.id)}
             />
           ))}
         </div>
@@ -221,6 +332,22 @@ const SkillsPage: React.FC = () => {
         />
       )}
 
+      {showBulkConfirm && (
+        <ConfirmDialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open && !bulkDeleting) {
+              setShowBulkConfirm(false);
+            }
+          }}
+          title={`Delete ${selectedIds.size} Skills`}
+          description={`Are you sure you want to delete ${selectedIds.size} skill${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`}
+          onConfirm={handleBulkDeleteSkills}
+          confirmLabel={bulkDeleting ? 'Deleting...' : 'Delete'}
+          variant="danger"
+        />
+      )}
+
       <GitHubImportDialog
         open={showGithubImportDialog}
         onOpenChange={setShowGithubImportDialog}
@@ -240,44 +367,59 @@ const SkillCard: React.FC<{
   skill: Skill;
   onDelete: (skill: Skill) => void;
   onEdit: (skill: Skill) => void;
-}> = ({ skill, onDelete, onEdit }) => {
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}> = ({ skill, onDelete, onEdit, selected = false, onToggleSelect }) => {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-white">{skill.displayName}</h3>
-          <p className="text-sm text-slate-400 mt-1">{skill.description || 'No description'}</p>
-          <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
-            <span>v{skill.version}</span>
-            {skill.targetIDEs.length > 0 && (
-              <span>IDEs: {skill.targetIDEs.join(', ')}</span>
+    <div className={`border rounded-lg p-4 transition-colors ${
+      selected ? 'border-blue-500/50 bg-blue-500/5' : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+    }`}>
+      <div className="flex items-start gap-2">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Select ${skill.displayName}`}
+            className="accent-blue-500 w-4 h-4 mt-1 flex-shrink-0"
+          />
+        )}
+        <div className="flex items-start justify-between flex-1">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-white">{skill.displayName}</h3>
+            <p className="text-sm text-slate-400 mt-1">{skill.description || 'No description'}</p>
+            <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
+              <span>v{skill.version}</span>
+              {skill.targetIDEs.length > 0 && (
+                <span>IDEs: {skill.targetIDEs.join(', ')}</span>
+              )}
+            </div>
+            {skill.tags.length > 0 && (
+              <div className="flex gap-2 mt-2">
+                {skill.tags.map((tag, i) => (
+                  <span key={i} className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
-          {skill.tags.length > 0 && (
-            <div className="flex gap-2 mt-2">
-              {skill.tags.map((tag, i) => (
-                <span key={i} className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onEdit(skill)}
-            className="p-2 text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
-            title="Edit skill"
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onDelete(skill)}
-            className="p-2 text-red-400 hover:bg-red-500/10 rounded transition-colors"
-            title="Delete skill"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(skill)}
+              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+              title="Edit skill"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onDelete(skill)}
+              className="p-2 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+              title="Delete skill"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
