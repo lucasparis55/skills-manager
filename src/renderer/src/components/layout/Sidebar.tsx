@@ -39,8 +39,7 @@ const Sidebar: React.FC = () => {
 
       <div className="p-4 border-t border-slate-700">
         <div className="text-xs text-slate-500">
-          <p>v1.0.0</p>
-          <p className="mt-1">Electron + React</p>
+          <p>v{__APP_VERSION__}</p>
         </div>
       </div>
     </aside>

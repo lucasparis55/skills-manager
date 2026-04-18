@@ -14,11 +14,11 @@ const config: ForgeConfig = {
       build: [
         {
           entry: 'src/main/index.ts',
-          outDir: '.vite/build',
+          config: 'src/main/vite.config.ts',
         },
         {
           entry: 'src/preload/index.ts',
-          outDir: '.vite/build',
+          config: 'src/preload/vite.config.ts',
         },
       ],
       renderer: [

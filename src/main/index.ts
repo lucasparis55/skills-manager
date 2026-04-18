@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import electronSquirrelStartup from 'electron-squirrel-startup';
 import path from 'path';
 import { registerIPCHandlers } from './ipc/handlers';
 
@@ -7,7 +8,7 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string | undefined;
 
 // Handle creating/removing shortcuts on windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
+if (electronSquirrelStartup) {
   app.quit();
 }
 
@@ -35,12 +36,19 @@ const createWindow = (): void => {
     show: false,
   });
 
+  if (app.isPackaged) {
+    mainWindow.setMenu(null);
+  }
+
   // Load the dev server or built HTML
   const isDev = MAIN_WINDOW_VITE_DEV_SERVER_URL !== undefined;
+  const shouldOpenDevTools = isDev || !app.isPackaged;
   
   if (isDev) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL!);
-    mainWindow.webContents.openDevTools();
+    if (shouldOpenDevTools) {
+      mainWindow.webContents.openDevTools();
+    }
   } else {
     // Production: try multiple possible paths for the renderer
     const fs = require('fs');
@@ -71,7 +79,9 @@ const createWindow = (): void => {
     
     console.log('Loading renderer from:', rendererPath);
     mainWindow.loadFile(rendererPath);
-    mainWindow.webContents.openDevTools(); // Open DevTools to debug renderer issues
+    if (shouldOpenDevTools) {
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   // Log any renderer errors

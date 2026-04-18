@@ -1,5 +1,7 @@
 // Type declarations for the Electron IPC API exposed via preload script
 
+declare const __APP_VERSION__: string;
+
 interface SkillFileEntry {
   path: string;
   name: string;

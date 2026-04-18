@@ -1,5 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const createWindowInstance = () => ({
+  loadURL: vi.fn(),
+  loadFile: vi.fn(),
+  setMenu: vi.fn(),
+  show: vi.fn(),
+  once: vi.fn(),
+  on: vi.fn(),
+  webContents: {
+    openDevTools: vi.fn(),
+    on: vi.fn(),
+    session: {
+      webRequest: {
+        onCompleted: vi.fn(),
+        onErrorOccurred: vi.fn(),
+      },
+    },
+  },
+});
+
 describe('main bootstrap', () => {
   afterEach(() => {
     vi.resetModules();
@@ -9,25 +28,10 @@ describe('main bootstrap', () => {
 
   it('creates window in dev mode and loads Vite URL', async () => {
     const registerIPCHandlers = vi.fn();
-    const windowInstance = {
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      show: vi.fn(),
-      once: vi.fn((event: string, cb: () => void) => {
-        if (event === 'ready-to-show') cb();
-      }),
-      on: vi.fn(),
-      webContents: {
-        openDevTools: vi.fn(),
-        on: vi.fn(),
-        session: {
-          webRequest: {
-            onCompleted: vi.fn(),
-            onErrorOccurred: vi.fn(),
-          },
-        },
-      },
-    };
+    const windowInstance = createWindowInstance();
+    windowInstance.once.mockImplementation((event: string, cb: () => void) => {
+      if (event === 'ready-to-show') cb();
+    });
 
     const BrowserWindow = vi.fn(function BrowserWindowMock() {
       return windowInstance as any;
@@ -38,6 +42,7 @@ describe('main bootstrap', () => {
       whenReady: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
       quit: vi.fn(),
+      isPackaged: false,
     };
 
     vi.doMock('electron', () => ({
@@ -45,7 +50,7 @@ describe('main bootstrap', () => {
       BrowserWindow,
       ipcMain: { handle: vi.fn() },
     }));
-    vi.doMock('electron-squirrel-startup', () => false);
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
 
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
@@ -58,27 +63,12 @@ describe('main bootstrap', () => {
     expect(BrowserWindow).toHaveBeenCalledTimes(1);
     expect(windowInstance.loadURL).toHaveBeenCalledWith('http://localhost:5173');
     expect(windowInstance.webContents.openDevTools).toHaveBeenCalled();
+    expect(windowInstance.setMenu).not.toHaveBeenCalled();
   });
 
-  it('loads renderer file in production mode when html exists', async () => {
+  it('loads renderer file in packaged production mode and hides native menu', async () => {
     const registerIPCHandlers = vi.fn();
-    const windowInstance = {
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      show: vi.fn(),
-      once: vi.fn(),
-      on: vi.fn(),
-      webContents: {
-        openDevTools: vi.fn(),
-        on: vi.fn(),
-        session: {
-          webRequest: {
-            onCompleted: vi.fn(),
-            onErrorOccurred: vi.fn(),
-          },
-        },
-      },
-    };
+    const windowInstance = createWindowInstance();
 
     const BrowserWindow = vi.fn(function BrowserWindowMock() {
       return windowInstance as any;
@@ -89,6 +79,7 @@ describe('main bootstrap', () => {
       whenReady: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
       quit: vi.fn(),
+      isPackaged: true,
     };
 
     vi.doMock('electron', () => ({
@@ -96,7 +87,7 @@ describe('main bootstrap', () => {
       BrowserWindow,
       ipcMain: { handle: vi.fn() },
     }));
-    vi.doMock('electron-squirrel-startup', () => false);
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
     vi.doMock('fs', () => ({
       existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
@@ -109,28 +100,13 @@ describe('main bootstrap', () => {
     await Promise.resolve();
 
     expect(windowInstance.loadFile).toHaveBeenCalledTimes(1);
-    expect(windowInstance.webContents.openDevTools).toHaveBeenCalled();
+    expect(windowInstance.webContents.openDevTools).not.toHaveBeenCalled();
+    expect(windowInstance.setMenu).toHaveBeenCalledWith(null);
   });
 
-  it('falls back to root renderer index.html in production', async () => {
+  it('falls back to root renderer index.html in local production test mode', async () => {
     const registerIPCHandlers = vi.fn();
-    const windowInstance = {
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      show: vi.fn(),
-      once: vi.fn(),
-      on: vi.fn(),
-      webContents: {
-        openDevTools: vi.fn(),
-        on: vi.fn(),
-        session: {
-          webRequest: {
-            onCompleted: vi.fn(),
-            onErrorOccurred: vi.fn(),
-          },
-        },
-      },
-    };
+    const windowInstance = createWindowInstance();
 
     const BrowserWindow = vi.fn(function BrowserWindowMock() {
       return windowInstance as any;
@@ -141,6 +117,7 @@ describe('main bootstrap', () => {
       whenReady: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
       quit: vi.fn(),
+      isPackaged: false,
     };
 
     vi.doMock('electron', () => ({
@@ -148,7 +125,7 @@ describe('main bootstrap', () => {
       BrowserWindow,
       ipcMain: { handle: vi.fn() },
     }));
-    vi.doMock('electron-squirrel-startup', () => false);
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
     vi.doMock('fs', () => ({
       existsSync: vi.fn((candidate: string) => !candidate.includes('main_window') && candidate.includes('index.html')),
@@ -161,6 +138,45 @@ describe('main bootstrap', () => {
     await Promise.resolve();
 
     expect(windowInstance.loadFile).toHaveBeenCalledTimes(1);
+    expect(windowInstance.webContents.openDevTools).toHaveBeenCalled();
+    expect(windowInstance.setMenu).not.toHaveBeenCalled();
+  });
+
+  it('keeps native menu in local production test mode', async () => {
+    const registerIPCHandlers = vi.fn();
+    const windowInstance = createWindowInstance();
+
+    const BrowserWindow = vi.fn(function BrowserWindowMock() {
+      return windowInstance as any;
+    }) as any;
+    (BrowserWindow as any).getAllWindows = vi.fn(() => []);
+
+    const app = {
+      whenReady: vi.fn(() => Promise.resolve()),
+      on: vi.fn(),
+      quit: vi.fn(),
+      isPackaged: false,
+    };
+
+    vi.doMock('electron', () => ({
+      app,
+      BrowserWindow,
+      ipcMain: { handle: vi.fn() },
+    }));
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
+    vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
+    vi.doMock('fs', () => ({
+      existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
+    }));
+
+    vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', undefined);
+    vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
+
+    await import('./index');
+    await Promise.resolve();
+
+    expect(windowInstance.loadFile).toHaveBeenCalledTimes(1);
+    expect(windowInstance.setMenu).not.toHaveBeenCalled();
   });
 
   it('quits app on non-darwin when all windows close', async () => {
@@ -172,24 +188,9 @@ describe('main bootstrap', () => {
         appHandlers[event] = handler;
       }),
       quit: vi.fn(),
+      isPackaged: false,
     };
-    const windowInstance = {
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      show: vi.fn(),
-      once: vi.fn(),
-      on: vi.fn(),
-      webContents: {
-        openDevTools: vi.fn(),
-        on: vi.fn(),
-        session: {
-          webRequest: {
-            onCompleted: vi.fn(),
-            onErrorOccurred: vi.fn(),
-          },
-        },
-      },
-    };
+    const windowInstance = createWindowInstance();
     const BrowserWindow = vi.fn(function BrowserWindowMock() {
       return windowInstance as any;
     }) as any;
@@ -203,7 +204,7 @@ describe('main bootstrap', () => {
       BrowserWindow,
       ipcMain: { handle: vi.fn() },
     }));
-    vi.doMock('electron-squirrel-startup', () => false);
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
 
@@ -224,24 +225,9 @@ describe('main bootstrap', () => {
         appHandlers[event] = handler;
       }),
       quit: vi.fn(),
+      isPackaged: false,
     };
-    const windowInstance = {
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      show: vi.fn(),
-      once: vi.fn(),
-      on: vi.fn(),
-      webContents: {
-        openDevTools: vi.fn(),
-        on: vi.fn(),
-        session: {
-          webRequest: {
-            onCompleted: vi.fn(),
-            onErrorOccurred: vi.fn(),
-          },
-        },
-      },
-    };
+    const windowInstance = createWindowInstance();
     const BrowserWindow = vi.fn(function BrowserWindowMock() {
       return windowInstance as any;
     }) as any;
@@ -252,7 +238,7 @@ describe('main bootstrap', () => {
       BrowserWindow,
       ipcMain: { handle: vi.fn() },
     }));
-    vi.doMock('electron-squirrel-startup', () => false);
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
 

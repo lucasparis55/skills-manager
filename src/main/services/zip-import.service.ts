@@ -1,12 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import * as yauzl from 'yauzl';
 import { getSkillsRoot } from '../utils/paths';
 import { SkillService } from './skill.service';
 import { SettingsService } from './settings.service';
 import type { BinaryImportFileEntry, ConflictResolution, ImportProgress, ImportResult } from '../types/import';
 import type { DetectedZipSkill, ZipAnalyzeResult, ZipArchiveInfo, ZipFileEntry } from '../types/zip';
-
-const yauzl = require('yauzl');
 
 interface IndexedZipFile extends ZipFileEntry {
   content?: Buffer;
