@@ -7,6 +7,7 @@ import Sidebar from './Sidebar';
 import StatusBar from './StatusBar';
 import { createApiMock } from '../../test-utils';
 
+
 describe('layout components', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -23,7 +24,7 @@ describe('layout components', () => {
     expect(screen.getByText('Skills Manager')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Skills' })).toHaveClass('bg-blue-600');
-    expect(screen.getByText('v1.0.0')).toBeInTheDocument();
+    expect(screen.getByText(`v${__APP_VERSION__}`)).toBeInTheDocument();
     expect(screen.queryByText('Electron + React')).not.toBeInTheDocument();
   });
 
