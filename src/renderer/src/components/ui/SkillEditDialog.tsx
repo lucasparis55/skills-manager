@@ -113,7 +113,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
     { name: 'displayName', label: 'Display Name', placeholder: 'My Skill', required: true },
     { name: 'description', label: 'Description', placeholder: 'What this skill does...', type: 'textarea', rows: 3 },
     { name: 'version', label: 'Version', placeholder: '1.0.0' },
-    { name: 'targetIDEs', label: 'Target IDEs', placeholder: 'claude-code, cursor, opencode (comma-separated)' },
+    { name: 'targetIDEs', label: 'Target IDEs', placeholder: 'claude-code, cursor, opencode, kimi-cli (comma-separated)' },
     { name: 'tags', label: 'Tags', placeholder: 'Add tags...', type: 'tags' },
   ];
 

@@ -64,6 +64,17 @@ export class IDEAdapterService {
       },
     },
     {
+      id: 'kimi-cli',
+      name: 'Kimi Code CLI',
+      configFormat: 'markdown',
+      mode: 'skills',
+      roots: {
+        primaryGlobal: ['~/.kimi/skills'],
+        secondaryGlobal: ['~/.kimi', '~/.config/agents/skills', '~/.agents/skills'],
+        projectRelative: ['.kimi/skills', '.agents/skills'],
+      },
+    },
+    {
       id: 'cursor',
       name: 'Cursor',
       configFormat: 'markdown',

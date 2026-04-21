@@ -137,4 +137,26 @@ describe('ProjectService', () => {
     expect(second.id.startsWith('app-')).toBe(true);
     expect(service.list()).toHaveLength(2);
   });
+
+  it('detects kimi-cli IDE when .kimi directory exists', () => {
+    const projectPath = path.join(workspaceDir, 'kimi-project');
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.mkdirSync(path.join(projectPath, '.kimi'), { recursive: true });
+
+    const service = new ProjectService(appDataDir);
+    const ides = service.detectIDEs(projectPath);
+
+    expect(ides).toContain('kimi-cli');
+  });
+
+  it('detects kimi-cli IDE when .agents directory exists', () => {
+    const projectPath = path.join(workspaceDir, 'agents-project');
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.mkdirSync(path.join(projectPath, '.agents'), { recursive: true });
+
+    const service = new ProjectService(appDataDir);
+    const ides = service.detectIDEs(projectPath);
+
+    expect(ides).toContain('kimi-cli');
+  });
 });

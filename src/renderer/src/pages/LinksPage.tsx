@@ -48,6 +48,7 @@ const ideColors: Record<string, string> = {
   'opencode': 'bg-green-500/20 text-green-400',
   'codex-cli': 'bg-yellow-500/20 text-yellow-400',
   'codex-desktop': 'bg-yellow-500/20 text-yellow-400',
+  'kimi-cli': 'bg-red-500/20 text-red-400',
 };
 
 const statusConfig: Record<string, { icon: React.ElementType; color: string; label: string }> = {

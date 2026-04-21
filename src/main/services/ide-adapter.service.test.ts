@@ -11,9 +11,9 @@ describe('IDEAdapterService', () => {
     const service = new IDEAdapterService();
     const ides = service.list();
 
-    expect(ides.length).toBeGreaterThanOrEqual(5);
+    expect(ides.length).toBeGreaterThanOrEqual(6);
     expect(ides.map((ide) => ide.id)).toEqual(
-      expect.arrayContaining(['claude-code', 'codex-cli', 'codex-desktop', 'opencode', 'cursor']),
+      expect.arrayContaining(['claude-code', 'codex-cli', 'codex-desktop', 'opencode', 'cursor', 'kimi-cli']),
     );
   });
 
@@ -30,6 +30,20 @@ describe('IDEAdapterService', () => {
     expect(roots.some((root) => root.isPrimary)).toBe(true);
     expect(roots.some((root) => root.exists)).toBe(true);
     expect(roots.every((root) => typeof root.root === 'string')).toBe(true);
+  });
+
+  it('detects kimi-cli when ~/.kimi directory exists without skills subdir', () => {
+    vi.spyOn(fs, 'existsSync').mockImplementation((candidate) => {
+      const normalized = String(candidate).toLowerCase();
+      return normalized.endsWith('.kimi');
+    });
+
+    const service = new IDEAdapterService();
+    const roots = service.detectRoots();
+
+    const kimiRoots = roots.filter((r) => r.ideId === 'kimi-cli');
+    expect(kimiRoots.some((r) => r.exists)).toBe(true);
+    expect(kimiRoots.some((r) => r.root.toLowerCase().endsWith('.kimi'))).toBe(true);
   });
 
   it('returns exists=false when fs lookup throws', () => {

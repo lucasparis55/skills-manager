@@ -130,6 +130,8 @@ export class ProjectService {
       { dir: '.agents', ide: 'codex-desktop' },
       { dir: '.codex', ide: 'codex-cli' },
       { dir: '.codex', ide: 'codex-desktop' },
+      { dir: '.kimi', ide: 'kimi-cli' },
+      { dir: '.agents', ide: 'kimi-cli' },
     ];
 
     for (const { dir, ide } of checks) {
