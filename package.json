@@ -1,6 +1,6 @@
 {
   "name": "skills-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Desktop application for managing LLM skills across multiple IDEs with symlink-based organization",
   "main": ".vite/build/main.js",
   "author": "lucasparis55",
