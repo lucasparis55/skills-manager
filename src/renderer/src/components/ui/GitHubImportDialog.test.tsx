@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import GitHubImportDialog from './GitHubImportDialog';
@@ -151,12 +151,14 @@ describe('GitHubImportDialog', () => {
     expect(await screen.findByText('Starting import...')).toBeInTheDocument();
     expect(api.githubImport.onProgress).toHaveBeenCalledTimes(1);
 
-    progressListener?.({
-      current: 1,
-      total: 2,
-      currentSkillName: 'Skill 1',
-      phase: 'fetching',
-      percentComplete: 50,
+    act(() => {
+      progressListener?.({
+        current: 1,
+        total: 2,
+        currentSkillName: 'Skill 1',
+        phase: 'fetching',
+        percentComplete: 50,
+      });
     });
     expect(await screen.findByText('Fetching Skill 1... (1/2)')).toBeInTheDocument();
 

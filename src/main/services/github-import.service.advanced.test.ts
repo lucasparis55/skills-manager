@@ -9,7 +9,7 @@ const { requestMock } = vi.hoisted(() => ({
   requestMock: vi.fn(),
 }));
 
-vi.mock('node:https', () => ({
+vi.mock('https', () => ({
   default: {
     request: requestMock,
   },
@@ -66,6 +66,9 @@ describe('GitHubImportService advanced', () => {
 
   beforeEach(() => {
     requestMock.mockReset();
+    requestMock.mockImplementation(() => {
+      throw new Error('https.request called without a queued response');
+    });
     tempSkillsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'github-import-advanced-'));
     service = new GitHubImportService({
       get: () => ({

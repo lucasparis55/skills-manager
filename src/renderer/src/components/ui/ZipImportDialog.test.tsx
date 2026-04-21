@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ZipImportDialog from './ZipImportDialog';
@@ -140,12 +140,14 @@ describe('ZipImportDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Proceed with Import' }));
 
     expect(await screen.findByText('Starting import...')).toBeInTheDocument();
-    progressListener?.({
-      current: 1,
-      total: 2,
-      currentSkillName: 'skill-1',
-      phase: 'reading',
-      percentComplete: 50,
+    act(() => {
+      progressListener?.({
+        current: 1,
+        total: 2,
+        currentSkillName: 'skill-1',
+        phase: 'reading',
+        percentComplete: 50,
+      });
     });
     expect(await screen.findByText('Reading skill-1... (1/2)')).toBeInTheDocument();
 

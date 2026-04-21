@@ -1,4 +1,4 @@
-import https from 'node:https';
+import https from 'https';
 import { getSkillsRoot } from '../utils/paths';
 import { SkillService } from './skill.service';
 import { SettingsService } from './settings.service';
