@@ -127,6 +127,9 @@ export class ProjectService {
       { dir: '.cursor', ide: 'cursor' },
       { dir: '.opencode', ide: 'opencode' },
       { dir: '.agents', ide: 'codex-cli' },
+      { dir: '.agents', ide: 'codex-desktop' },
+      { dir: '.codex', ide: 'codex-cli' },
+      { dir: '.codex', ide: 'codex-desktop' },
     ];
 
     for (const { dir, ide } of checks) {

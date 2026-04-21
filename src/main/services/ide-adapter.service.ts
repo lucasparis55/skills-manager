@@ -36,9 +36,15 @@ export class IDEAdapterService {
       configFormat: 'json',
       mode: 'skills',
       roots: {
-        primaryGlobal: ['~/.agents/skills'],
-        secondaryGlobal: ['%APPDATA%/Codex/skills'],
-        projectRelative: ['.agents/skills'],
+        primaryGlobal: ['~/.codex', '~/.codex/skills', '~/.agents/skills'],
+        secondaryGlobal: [
+          '%APPDATA%/Codex',
+          '%LOCALAPPDATA%/Codex',
+          '%APPDATA%/Codex/skills',
+          '%LOCALAPPDATA%/Codex/skills',
+          '%LOCALAPPDATA%/Programs/Codex',
+        ],
+        projectRelative: ['.codex', '.agents/skills'],
       },
     },
     {
@@ -48,7 +54,12 @@ export class IDEAdapterService {
       mode: 'skills',
       roots: {
         primaryGlobal: ['~/.config/opencode/skills'],
-        secondaryGlobal: ['~/.claude/skills', '~/.agents/skills'],
+        secondaryGlobal: [
+          '~/.claude/skills',
+          '~/.agents/skills',
+          '%APPDATA%/opencode',
+          '%LOCALAPPDATA%/opencode',
+        ],
         projectRelative: ['.opencode/skills', '.claude/skills'],
       },
     },

@@ -80,8 +80,24 @@ export class DetectionService {
       }
     }
 
-    // Check global paths
+    // Check primary global paths
     for (const globRoot of ideRoots.roots.primaryGlobal) {
+      const expandedRoot = expandPath(globRoot);
+      const checkPath = path.join(expandedRoot, skill.name);
+
+      if (fs.existsSync(checkPath)) {
+        return {
+          hasDuplicate: true,
+          existingPath: checkPath,
+          existingType: 'global-skill',
+          severity: 'warning',
+          message: `A skill with the same name already exists globally at ${checkPath}`,
+        };
+      }
+    }
+
+    // Check secondary global paths
+    for (const globRoot of ideRoots.roots.secondaryGlobal) {
       const expandedRoot = expandPath(globRoot);
       const checkPath = path.join(expandedRoot, skill.name);
 
