@@ -107,7 +107,7 @@ export const InlineForm: React.FC<InlineFormProps> = ({
           placeholder={field.placeholder}
           value={value}
           onChange={(e) => updateValue(field.name, e.target.value)}
-          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
+          className="w-full px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
         />
       );
     }
@@ -134,13 +134,13 @@ export const InlineForm: React.FC<InlineFormProps> = ({
             {tags.map((tag, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2 py-1 bg-slate-700 rounded text-xs text-slate-300"
+                className="inline-flex items-center gap-1 px-2 py-1 glass rounded text-xs text-white/70"
               >
                 {tag}
                 <button
                   type="button"
                   onClick={() => removeTag(tag)}
-                  className="text-slate-500 hover:text-red-400"
+                  className="text-white/40 hover:text-red-400"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -159,12 +159,12 @@ export const InlineForm: React.FC<InlineFormProps> = ({
                   addTag();
                 }
               }}
-              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+              className="flex-1 px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 text-sm"
             />
             <button
               type="button"
               onClick={addTag}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+              className="px-3 py-2 glass hover:bg-white/[0.10] rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -181,7 +181,7 @@ export const InlineForm: React.FC<InlineFormProps> = ({
           placeholder={field.placeholder}
           value={value}
           onChange={(e) => updateValue(field.name, e.target.value)}
-          className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+          className="flex-1 px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500"
         />
         {field.actionButton && (
           <button
@@ -193,7 +193,7 @@ export const InlineForm: React.FC<InlineFormProps> = ({
               }
             }}
             title={field.actionButton.tooltip}
-            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors flex-shrink-0"
+            className="px-3 py-2 glass hover:bg-white/[0.10] rounded-lg transition-colors flex-shrink-0"
           >
             {React.createElement(field.actionButton.icon, { className: 'w-4 h-4' })}
           </button>
@@ -206,7 +206,7 @@ export const InlineForm: React.FC<InlineFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {fields.map((field) => (
         <div key={field.name}>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
+          <label className="block text-sm font-medium text-white/70 mb-1">
             {field.label}
             {field.required && <span className="text-red-400 ml-1">*</span>}
           </label>
@@ -218,7 +218,7 @@ export const InlineForm: React.FC<InlineFormProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+            className="px-4 py-2 text-white/45 hover:text-white transition-colors"
           >
             Cancel
           </button>
@@ -251,17 +251,17 @@ const FormDialog: React.FC<FormDialogProps> = ({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
+        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
           <div className="flex items-center justify-between mb-4">
             <DialogPrimitive.Title className="text-lg font-semibold text-white">
               {title}
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
+            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-4 h-4" />
             </DialogPrimitive.Close>
           </div>
           {description && (
-            <DialogPrimitive.Description className="text-sm text-slate-400 mb-4">
+            <DialogPrimitive.Description className="text-sm text-white/45 mb-4">
               {description}
             </DialogPrimitive.Description>
           )}

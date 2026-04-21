@@ -112,7 +112,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="glass-panel p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
         <div className="flex gap-4">
           <button
@@ -133,7 +133,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* IDE Health Check */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="glass-panel p-6">
         <h3 className="text-lg font-semibold text-white mb-4">IDE Status</h3>
         <IDEHealthCheck />
       </div>
@@ -202,11 +202,11 @@ const IDEHealthCheck: React.FC = () => {
         const hasExisting = ideRoots.some(r => r.exists);
 
         return (
-          <div key={ide.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded">
+          <div key={ide.id} className="flex items-center justify-between p-3 glass-card">
             <span className="font-medium">{ide.name}</span>
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${hasExisting ? 'bg-green-400' : 'bg-slate-500'}`} />
-              <span className="text-sm text-slate-400">
+              <span className={`w-2 h-2 rounded-full ${hasExisting ? 'bg-green-400' : 'bg-white/20'}`} />
+              <span className="text-sm text-white/45">
                 {hasExisting ? 'Detected' : 'Not found'}
               </span>
             </div>

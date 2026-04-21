@@ -57,20 +57,20 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             onOpenChange={(open) => {
               if (!open) removeToast(t.id);
             }}
-            className={`bg-slate-800 border border-slate-700 border-l-4 ${variantStyles[t.variant]} rounded-lg p-4 shadow-lg flex items-start gap-3 data-[state=open]:animate-slideIn data-[state=closed]:animate-slideOut`}
+            className={`glass border-l-4 ${variantStyles[t.variant]} rounded-lg p-4 shadow-lg flex items-start gap-3 data-[state=open]:animate-slideIn data-[state=closed]:animate-slideOut`}
           >
             {variantIcons[t.variant]}
             <div className="flex-1 min-w-0">
-              <ToastPrimitive.Title className="text-sm font-semibold text-slate-100">
+              <ToastPrimitive.Title className="text-sm font-semibold text-white">
                 {t.title}
               </ToastPrimitive.Title>
               {t.description && (
-                <ToastPrimitive.Description className="text-sm text-slate-400 mt-1">
+                <ToastPrimitive.Description className="text-sm text-white/45 mt-1">
                   {t.description}
                 </ToastPrimitive.Description>
               )}
             </div>
-            <ToastPrimitive.Close className="text-slate-500 hover:text-slate-300 shrink-0">
+            <ToastPrimitive.Close className="text-white/40 hover:text-white/80 shrink-0">
               <X className="w-4 h-4" />
             </ToastPrimitive.Close>
           </ToastPrimitive.Root>

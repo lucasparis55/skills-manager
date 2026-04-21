@@ -32,7 +32,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
+        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               {variant === 'danger' && (
@@ -42,18 +42,18 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 {title}
               </DialogPrimitive.Title>
             </div>
-            <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
+            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-4 h-4" />
             </DialogPrimitive.Close>
           </div>
-          <DialogPrimitive.Description className="text-sm text-slate-400 mb-6">
+          <DialogPrimitive.Description className="text-sm text-white/45 mb-6">
             {description}
           </DialogPrimitive.Description>
           <div className="flex justify-end gap-3">
             <DialogPrimitive.Close asChild>
               <button
                 type="button"
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-white/45 hover:text-white transition-colors"
               >
                 {cancelLabel}
               </button>

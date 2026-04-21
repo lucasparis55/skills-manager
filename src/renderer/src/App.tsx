@@ -13,7 +13,7 @@ import { ToastProvider } from './components/ui/Toast';
 const App: React.FC = () => {
   return (
     <ToastProvider>
-      <div className="flex h-screen w-screen bg-slate-900 text-slate-100">
+      <div className="flex h-screen w-screen bg-black text-white">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header />

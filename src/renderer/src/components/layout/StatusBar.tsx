@@ -25,7 +25,7 @@ const StatusBar: React.FC = () => {
   }, []);
 
   return (
-    <footer className="bg-slate-800 border-t border-slate-700 px-6 py-2 text-sm text-slate-400 flex gap-6">
+    <footer className="glass-statusbar px-6 py-2 text-sm text-white/45 flex gap-6">
       <span>{stats.skills} skills</span>
       <span>{stats.projects} projects</span>
       <span>{stats.links} links</span>

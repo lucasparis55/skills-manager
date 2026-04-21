@@ -188,13 +188,13 @@ const SkillsPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 flex-1">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/45" />
             <input
               type="text"
               placeholder="Search skills..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 glass-input rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -202,20 +202,20 @@ const SkillsPage: React.FC = () => {
           <div className="relative">
             <button
               onClick={() => setShowImportMenu((prev) => !prev)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-slate-300"
+              className="flex items-center gap-2 px-4 py-2 glass hover:bg-white/10 rounded-lg transition-colors text-white/70"
             >
               <Download className="w-4 h-4" />
               Import
               <ChevronDown className="w-4 h-4" />
             </button>
             {showImportMenu && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-slate-700 bg-slate-800 shadow-xl z-10 overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-white/[0.08] glass-dialog shadow-xl z-10 overflow-hidden">
                 <button
                   onClick={() => {
                     setShowImportMenu(false);
                     setShowGithubImportDialog(true);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] transition-colors"
                 >
                   From GitHub
                 </button>
@@ -224,7 +224,7 @@ const SkillsPage: React.FC = () => {
                     setShowImportMenu(false);
                     setShowZipImportDialog(true);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] transition-colors"
                 >
                   From ZIP
                 </button>
@@ -242,8 +242,8 @@ const SkillsPage: React.FC = () => {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 border border-slate-700 rounded-lg bg-slate-800/50 p-3">
-          <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+        <div className="flex items-center gap-3 border border-white/[0.08] rounded-lg glass p-3">
+          <span className="text-sm text-white/45">{selectedIds.size} selected</span>
           <button
             onClick={() => setShowBulkConfirm(true)}
             disabled={bulkDeleting}
@@ -257,8 +257,8 @@ const SkillsPage: React.FC = () => {
 
       {/* Skills List */}
       {filteredSkills.length === 0 ? (
-        <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
-          <p className="text-slate-400 mb-4">
+        <div className="text-center py-12 glass-panel">
+          <p className="text-white/45 mb-4">
             {search ? 'No skills match your search' : 'No skills yet'}
           </p>
           {!search && (
@@ -285,7 +285,7 @@ const SkillsPage: React.FC = () => {
                 onChange={toggleSelectAll}
                 className="accent-blue-500 w-4 h-4"
               />
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-white/45">
                 {selectedVisibleCount > 0 ? `${selectedVisibleCount} of ${filteredSkills.length} selected` : 'Select all'}
               </span>
             </label>
@@ -372,7 +372,7 @@ const SkillCard: React.FC<{
 }> = ({ skill, onDelete, onEdit, selected = false, onToggleSelect }) => {
   return (
     <div className={`border rounded-lg p-4 transition-colors ${
-      selected ? 'border-blue-500/50 bg-blue-500/5' : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+      selected ? 'border-blue-500/50 bg-blue-500/5' : 'glass-card'
     }`}>
       <div className="flex items-start gap-2">
         {onToggleSelect && (
@@ -387,8 +387,8 @@ const SkillCard: React.FC<{
         <div className="flex items-start justify-between flex-1">
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-white">{skill.displayName}</h3>
-            <p className="text-sm text-slate-400 mt-1">{skill.description || 'No description'}</p>
-            <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
+            <p className="text-sm text-white/45 mt-1">{skill.description || 'No description'}</p>
+            <div className="flex items-center gap-4 mt-3 text-sm text-white/40">
               <span>v{skill.version}</span>
               {skill.targetIDEs.length > 0 && (
                 <span>IDEs: {skill.targetIDEs.join(', ')}</span>
@@ -397,7 +397,7 @@ const SkillCard: React.FC<{
             {skill.tags.length > 0 && (
               <div className="flex gap-2 mt-2">
                 {skill.tags.map((tag, i) => (
-                  <span key={i} className="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300">
+                  <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs text-white/70">
                     {tag}
                   </span>
                 ))}

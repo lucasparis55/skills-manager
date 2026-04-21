@@ -14,7 +14,7 @@ const Header: React.FC = () => {
   const title = pageTitles[location.pathname] || 'Skills Manager';
 
   return (
-    <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
+    <header className="glass-header px-6 py-4">
       <h2 className="text-2xl font-semibold text-white">{title}</h2>
     </header>
   );

@@ -278,13 +278,13 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[85vh] shadow-xl data-[state=open]:animate-contentShow focus:outline-none flex flex-col">
+        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl w-full max-w-2xl max-h-[85vh] shadow-xl data-[state=open]:animate-contentShow focus:outline-none flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-700">
+          <div className="flex items-center justify-between p-6 pb-4 border-b border-white/[0.08]">
             <DialogPrimitive.Title className="text-lg font-semibold text-white">
               Import from GitHub
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
+            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-5 h-5" />
             </DialogPrimitive.Close>
           </div>
@@ -302,7 +302,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
             {phase === 'url-input' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-white/70 mb-1">
                     GitHub Repository URL <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -313,16 +313,16 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && isValidUrl(url) && !loading) handleAnalyze();
                     }}
-                    className={`w-full px-3 py-2 bg-slate-900 border rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none ${
+                    className={`w-full px-3 py-2 glass-input border rounded-lg text-white placeholder:text-white/35 focus:outline-none ${
                       url && !isValidUrl(url) ? 'border-red-500' :
                       url && isValidUrl(url) ? 'border-green-500' :
-                      'border-slate-700 focus:border-blue-500'
+                      'border-white/[0.08] focus:border-blue-500'
                     }`}
                     autoFocus
                   />
                 </div>
 
-                <div className="text-xs text-slate-500 space-y-1">
+                <div className="text-xs text-white/40 space-y-1">
                   <p>Supported formats:</p>
                   <ul className="list-disc list-inside pl-2 space-y-0.5">
                     <li>https://github.com/owner/repo</li>
@@ -331,9 +331,9 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                   </ul>
                 </div>
 
-                <div className="flex items-start gap-2 p-3 bg-slate-700/30 rounded-lg border border-slate-700">
+                <div className="flex items-start gap-2 p-3 bg-white/[0.06] rounded-lg border border-white/[0.08]">
                   <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-white/45">
                     Add a GitHub token in Settings for higher rate limits (5,000/hr vs 60/hr) and private repo access.
                   </p>
                 </div>
@@ -341,7 +341,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     onClick={() => onOpenChange(false)}
-                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                    className="px-4 py-2 text-white/45 hover:text-white transition-colors"
                   >
                     Cancel
                   </button>
@@ -371,20 +371,20 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               <div className="space-y-4">
                 <div>
                   <h3 className="text-white font-medium">{repoInfo?.fullName}</h3>
-                  <p className="text-sm text-slate-400 mt-1">
+                  <p className="text-sm text-white/45 mt-1">
                     {repoInfo?.description || 'No description'}
                   </p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-3 mt-2 text-xs text-white/40">
                     <span>Structure: {detectedSkills.length > 0 ? getStructureLabel(detectedSkills[0].structure) : 'Unknown'}</span>
                     <span>{detectedSkills.length} skill{detectedSkills.length !== 1 ? 's' : ''} detected</span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={selectAll} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors">
+                  <button onClick={selectAll} className="px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-xs text-white/70 transition-colors">
                     Select All
                   </button>
-                  <button onClick={deselectAll} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors">
+                  <button onClick={deselectAll} className="px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-xs text-white/70 transition-colors">
                     Deselect All
                   </button>
                 </div>
@@ -396,7 +396,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                       className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         selectedSkills.has(skill.name)
                           ? 'bg-blue-500/10 border-blue-500/30'
-                          : 'bg-slate-900 border-slate-700 hover:border-slate-600'
+                          : 'glass-input border-white/[0.08] hover:border-white/[0.12]'
                       }`}
                     >
                       <input
@@ -408,13 +408,13 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-white">{skill.displayName}</span>
-                          <span className="text-xs text-slate-500">{skill.fileCount} files</span>
+                          <span className="text-xs text-white/40">{skill.fileCount} files</span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate">
+                        <p className="text-xs text-white/45 mt-0.5 truncate">
                           {skill.description || 'No description'}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-slate-500">Source: {skill.sourcePath || '/'}</span>
+                          <span className="text-xs text-white/40">Source: {skill.sourcePath || '/'}</span>
                           {!skill.hasSkillMd && (
                             <span className="text-xs text-amber-400 flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3" />
@@ -428,13 +428,13 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 </div>
 
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-white/40">
                     {selectedSkills.size} of {detectedSkills.length} selected
                   </span>
                   <div className="flex gap-3">
                     <button
                       onClick={() => { setPhase('url-input'); setError(''); }}
-                      className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                      className="px-4 py-2 text-white/45 hover:text-white transition-colors"
                     >
                       Back
                     </button>
@@ -462,7 +462,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               <div className="space-y-4">
                 <div>
                   <h3 className="text-white font-medium">Resolve Conflicts</h3>
-                  <p className="text-sm text-slate-400 mt-1">
+                  <p className="text-sm text-white/45 mt-1">
                     Some skills have the same name as existing skills. Choose how to handle each conflict.
                   </p>
                 </div>
@@ -481,7 +481,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     onClick={() => { setPhase('preview'); setError(''); }}
-                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                    className="px-4 py-2 text-white/45 hover:text-white transition-colors"
                   >
                     Back
                   </button>
@@ -500,13 +500,13 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
               <div className="space-y-4">
                 {phase === 'importing' && progress && (
                   <>
-                    <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className="w-full bg-white/10 rounded-full h-2">
                       <div
                         className="bg-blue-500 h-2 rounded-full transition-all"
                         style={{ width: `${progress.percentComplete}%` }}
                       />
                     </div>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-white/45">
                       {progress.phase === 'fetching' ? 'Fetching' : 'Writing'} {progress.currentSkillName}... ({progress.current}/{progress.total})
                     </p>
                   </>
@@ -515,7 +515,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 {phase === 'importing' && !progress && (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                    <span className="ml-2 text-slate-400">Starting import...</span>
+                    <span className="ml-2 text-white/45">Starting import...</span>
                   </div>
                 )}
 
@@ -524,18 +524,18 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                     <div className="flex gap-4">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-green-400" />
-                        <span className="text-sm text-slate-300">{importedCount} imported</span>
+                        <span className="text-sm text-white/70">{importedCount} imported</span>
                       </div>
                       {skippedCount > 0 && (
                         <div className="flex items-center gap-2">
                           <AlertCircle className="w-5 h-5 text-amber-400" />
-                          <span className="text-sm text-slate-300">{skippedCount} skipped</span>
+                          <span className="text-sm text-white/70">{skippedCount} skipped</span>
                         </div>
                       )}
                       {errorCount > 0 && (
                         <div className="flex items-center gap-2">
                           <AlertCircle className="w-5 h-5 text-red-400" />
-                          <span className="text-sm text-slate-300">{errorCount} errors</span>
+                          <span className="text-sm text-white/70">{errorCount} errors</span>
                         </div>
                       )}
                     </div>
@@ -552,9 +552,9 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                             {result.status === 'renamed' && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
                             {result.status === 'skipped' && <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />}
                             {result.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
-                            <span className="text-sm font-medium text-slate-200">{result.skillName}</span>
+                            <span className="text-sm font-medium text-white/80">{result.skillName}</span>
                             {result.status === 'renamed' && result.originalName && (
-                              <span className="text-xs text-slate-400">(renamed from {result.originalName})</span>
+                              <span className="text-xs text-white/45">(renamed from {result.originalName})</span>
                             )}
                           </div>
                           {result.status === 'skipped' && result.skipReason && (
@@ -612,7 +612,7 @@ const ConflictCard: React.FC<{
   const [renameValue, setRenameValue] = useState(`${name}-2`);
 
   return (
-    <div className="p-4 bg-slate-900 border border-amber-500/30 rounded-lg">
+    <div className="p-4 glass-input border border-amber-500/30 rounded-lg">
       <p className="text-sm text-amber-300 font-medium mb-3">
         A skill named &quot;{name}&quot; already exists.
       </p>
@@ -626,7 +626,7 @@ const ConflictCard: React.FC<{
             onChange={() => onChange({ strategy: 'skip' })}
             className="accent-blue-500"
           />
-          <span className="text-sm text-slate-300">Skip this skill</span>
+          <span className="text-sm text-white/70">Skip this skill</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer">
@@ -637,7 +637,7 @@ const ConflictCard: React.FC<{
             onChange={() => onChange({ strategy: 'rename', newName: renameValue })}
             className="accent-blue-500"
           />
-          <span className="text-sm text-slate-300">Rename to:</span>
+          <span className="text-sm text-white/70">Rename to:</span>
           <input
             type="text"
             value={renameValue}
@@ -652,7 +652,7 @@ const ConflictCard: React.FC<{
                 onChange({ strategy: 'rename', newName: renameValue });
               }
             }}
-            className="flex-1 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+            className="flex-1 px-2 py-1 glass border-white/[0.12] rounded text-sm text-white focus:outline-none focus:border-blue-500"
           />
         </label>
 
@@ -664,7 +664,7 @@ const ConflictCard: React.FC<{
             onChange={() => onChange({ strategy: 'overwrite' })}
             className="accent-blue-500"
           />
-          <span className="text-sm text-slate-300">Overwrite existing skill</span>
+          <span className="text-sm text-white/70">Overwrite existing skill</span>
         </label>
 
         {resolution.strategy === 'overwrite' && (

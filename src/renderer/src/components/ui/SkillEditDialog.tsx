@@ -135,27 +135,27 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[85vh] shadow-xl data-[state=open]:animate-contentShow focus:outline-none flex flex-col">
+        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl w-full max-w-3xl max-h-[85vh] shadow-xl data-[state=open]:animate-contentShow focus:outline-none flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-700">
+          <div className="flex items-center justify-between p-6 pb-4 border-b border-white/[0.08]">
             <DialogPrimitive.Title className="text-lg font-semibold text-white">
               Edit Skill: {skill.displayName}
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
+            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-5 h-5" />
             </DialogPrimitive.Close>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 px-6 pt-2 border-b border-slate-700">
+          <div className="flex gap-1 px-6 pt-2 border-b border-white/[0.08]">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/45 hover:text-white hover:bg-white/[0.06]'
                 }`}
               >
                 {tab.label}
@@ -180,7 +180,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                    <span className="ml-2 text-slate-400">Loading...</span>
+                    <span className="ml-2 text-white/45">Loading...</span>
                   </div>
                 ) : (
                   <>
@@ -188,7 +188,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Edit SKILL.md content..."
-                      className="w-full h-96 px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
+                      className="w-full h-96 px-4 py-3 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
                       onKeyDown={(e) => {
                         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                           e.preventDefault();
@@ -197,7 +197,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
                       }}
                     />
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-white/40">
                         {content.length} characters | {content.split('\n').length} lines
                       </span>
                       <button

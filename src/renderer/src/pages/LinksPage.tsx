@@ -254,7 +254,7 @@ const LinksPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-slate-400">Loading links...</div>;
+    return <div className="text-center py-12 text-white/45">Loading links...</div>;
   }
 
   return (
@@ -285,26 +285,26 @@ const LinksPage: React.FC = () => {
 
       {/* Filter Bar + Bulk Actions */}
       {(hasActiveFilters || selectedIds.size > 0) && (
-        <div className="flex items-center gap-3 flex-wrap bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+        <div className="flex items-center gap-3 flex-wrap glass border-white/[0.08] rounded-lg p-3">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap flex-1">
-            <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <Filter className="w-4 h-4 text-white/45 flex-shrink-0" />
             
             {/* Project Filter */}
             <SelectPrimitive.Root value={filterProjectId} onValueChange={setFilterProjectId}>
-              <SelectPrimitive.Trigger className="flex items-center justify-between min-w-[160px] px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500">
+              <SelectPrimitive.Trigger className="flex items-center justify-between min-w-[160px] px-3 py-1.5 glass-input text-sm text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
                 <SelectPrimitive.Value placeholder="All Projects" />
-                <SelectPrimitive.Icon><ChevronDown className="w-4 h-4 text-slate-400" /></SelectPrimitive.Icon>
+                <SelectPrimitive.Icon><ChevronDown className="w-4 h-4 text-white/45" /></SelectPrimitive.Icon>
               </SelectPrimitive.Trigger>
               <SelectPrimitive.Portal>
-                <SelectPrimitive.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
+                <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
                   <SelectPrimitive.Viewport>
-                    <SelectPrimitive.Item value="__all__" className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700">
+                    <SelectPrimitive.Item value="__all__" className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]">
                       <SelectPrimitive.ItemText>All Projects ({links.length})</SelectPrimitive.ItemText>
                       <SelectPrimitive.ItemIndicator><Check className="w-4 h-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
                     </SelectPrimitive.Item>
                     {projects.map(p => (
-                      <SelectPrimitive.Item key={p.id} value={p.id} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700">
+                      <SelectPrimitive.Item key={p.id} value={p.id} className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]">
                         <SelectPrimitive.ItemText>{p.name} ({projectCounts[p.id] || 0})</SelectPrimitive.ItemText>
                         <SelectPrimitive.ItemIndicator><Check className="w-4 h-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
                       </SelectPrimitive.Item>
@@ -316,19 +316,19 @@ const LinksPage: React.FC = () => {
 
             {/* IDE Filter */}
             <SelectPrimitive.Root value={filterIdeName} onValueChange={setFilterIdeName}>
-              <SelectPrimitive.Trigger className="flex items-center justify-between min-w-[160px] px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500">
+              <SelectPrimitive.Trigger className="flex items-center justify-between min-w-[160px] px-3 py-1.5 glass-input text-sm text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
                 <SelectPrimitive.Value placeholder="All IDEs" />
-                <SelectPrimitive.Icon><ChevronDown className="w-4 h-4 text-slate-400" /></SelectPrimitive.Icon>
+                <SelectPrimitive.Icon><ChevronDown className="w-4 h-4 text-white/45" /></SelectPrimitive.Icon>
               </SelectPrimitive.Trigger>
               <SelectPrimitive.Portal>
-                <SelectPrimitive.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
+                <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
                   <SelectPrimitive.Viewport>
-                    <SelectPrimitive.Item value="__all__" className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700">
+                    <SelectPrimitive.Item value="__all__" className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]">
                       <SelectPrimitive.ItemText>All IDEs ({links.length})</SelectPrimitive.ItemText>
                       <SelectPrimitive.ItemIndicator><Check className="w-4 h-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
                     </SelectPrimitive.Item>
                     {ides.map(ide => (
-                      <SelectPrimitive.Item key={ide.id} value={ide.id} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700">
+                      <SelectPrimitive.Item key={ide.id} value={ide.id} className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]">
                         <SelectPrimitive.ItemText>{ide.name} ({ideCounts[ide.name] || 0})</SelectPrimitive.ItemText>
                         <SelectPrimitive.ItemIndicator><Check className="w-4 h-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
                       </SelectPrimitive.Item>
@@ -340,7 +340,7 @@ const LinksPage: React.FC = () => {
 
             {/* Clear Filters */}
             {hasActiveFilters && (
-              <button onClick={clearAllFilters} className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-white transition-colors">
+              <button onClick={clearAllFilters} className="flex items-center gap-1 px-2 py-1 text-xs text-white/45 hover:text-white transition-colors">
                 <X className="w-3 h-3" /> Clear Filters
               </button>
             )}
@@ -348,8 +348,8 @@ const LinksPage: React.FC = () => {
 
           {/* Bulk Actions */}
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-3 border-l border-slate-700 pl-3">
-              <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+            <div className="flex items-center gap-3 border-l border-white/[0.08] pl-3">
+              <span className="text-sm text-white/45">{selectedIds.size} selected</span>
               <button
                 onClick={() => setShowBulkConfirm(true)}
                 disabled={bulkRemoving}
@@ -366,10 +366,10 @@ const LinksPage: React.FC = () => {
       {/* Links Grid */}
       {filteredLinks.length === 0 ? (
         links.length === 0 ? (
-          <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
-            <Link2 className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+          <div className="text-center py-12 glass-panel">
+            <Link2 className="w-12 h-12 mx-auto text-white/40 mb-4" />
             <h3 className="text-lg font-semibold text-white mb-2">No Links Yet</h3>
-            <p className="text-slate-400 mb-4">
+            <p className="text-white/45 mb-4">
               Link skills to projects for specific IDEs via symlinks.
             </p>
             <button
@@ -380,11 +380,11 @@ const LinksPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
-            <Filter className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+          <div className="text-center py-12 glass-panel">
+            <Filter className="w-12 h-12 mx-auto text-white/40 mb-4" />
             <h3 className="text-lg font-semibold text-white mb-2">No Matching Links</h3>
-            <p className="text-slate-400 mb-4">No links match your current filters.</p>
-            <button onClick={clearAllFilters} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
+            <p className="text-white/45 mb-4">No links match your current filters.</p>
+            <button onClick={clearAllFilters} className="px-4 py-2 glass hover:bg-white/10 rounded-lg transition-colors">
               Clear all filters
             </button>
           </div>
@@ -401,7 +401,7 @@ const LinksPage: React.FC = () => {
                 onChange={toggleSelectAll}
                 className="accent-blue-500 w-4 h-4"
               />
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-white/45">
                 {selectedIds.size > 0 ? `${selectedIds.size} of ${filteredLinks.length} selected` : 'Select all'}
               </span>
             </label>
@@ -474,8 +474,8 @@ const LinkCard: React.FC<{
   const StatusIcon = status.icon;
 
   return (
-    <div className={`bg-slate-800 border rounded-lg p-4 transition-colors ${
-      selected ? 'border-blue-500/50 bg-blue-500/5' : 'border-slate-700 hover:border-slate-600'
+    <div className={`glass-card p-4 transition-colors ${
+      selected ? 'border-blue-500/50 bg-blue-500/5' : ''
     }`}>
       <div className="flex items-start gap-2 mb-3">
         {onToggleSelect && (
@@ -488,13 +488,13 @@ const LinkCard: React.FC<{
         )}
         <div className="flex items-center gap-2 text-sm min-w-0 flex-1">
           <span className="font-semibold text-white truncate">{skillName}</span>
-          <ArrowRight className="w-4 h-4 text-slate-500 flex-shrink-0" />
-          <span className="text-slate-300 truncate">{projectName}</span>
+          <ArrowRight className="w-4 h-4 text-white/40 flex-shrink-0" />
+          <span className="text-white/70 truncate">{projectName}</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
           <button
             onClick={() => onVerify(link)}
-            className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+            className="p-1 text-white/45 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
             title="Verify link"
           >
             <RefreshCw className="w-4 h-4" />
@@ -511,7 +511,7 @@ const LinkCard: React.FC<{
 
       {/* IDE badge + Scope + Status */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className={`px-2 py-1 rounded text-xs ${ideColors[link.ideName] || 'bg-slate-700 text-slate-300'}`}>
+        <span className={`px-2 py-1 rounded text-xs ${ideColors[link.ideName] || 'glass text-white/70'}`}>
           {ideDisplayName}
         </span>
         <span className={`px-2 py-1 rounded text-xs ${
@@ -526,12 +526,12 @@ const LinkCard: React.FC<{
       </div>
 
       {/* Destination path */}
-      <p className="text-xs text-slate-500 truncate" title={link.destinationPath}>
+      <p className="text-xs text-white/40 truncate" title={link.destinationPath}>
         {link.destinationPath}
       </p>
 
       {/* Created date */}
-      <p className="text-xs text-slate-600 mt-1">
+      <p className="text-xs text-white/30 mt-1">
         Created {new Date(link.createdAt).toLocaleDateString()}
       </p>
     </div>

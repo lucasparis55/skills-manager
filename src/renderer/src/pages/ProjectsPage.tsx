@@ -192,8 +192,8 @@ const ProjectsPage: React.FC = () => {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 border border-slate-700 rounded-lg bg-slate-800/50 p-3">
-          <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+        <div className="flex items-center gap-3 border border-white/[0.08] rounded-lg glass p-3">
+          <span className="text-sm text-white/45">{selectedIds.size} selected</span>
           <button
             onClick={() => setShowBulkConfirm(true)}
             disabled={bulkRemoving}
@@ -207,9 +207,9 @@ const ProjectsPage: React.FC = () => {
 
       {/* Projects Grid */}
       {projects.length === 0 ? (
-        <div className="text-center py-12 bg-slate-800 rounded-lg border border-slate-700">
-          <FolderGit2 className="w-12 h-12 mx-auto text-slate-500 mb-4" />
-          <p className="text-slate-400 mb-4">No projects added yet</p>
+        <div className="text-center py-12 glass-panel">
+          <FolderGit2 className="w-12 h-12 mx-auto text-white/40 mb-4" />
+          <p className="text-white/45 mb-4">No projects added yet</p>
           <button
             onClick={() => setShowAddDialog(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -232,7 +232,7 @@ const ProjectsPage: React.FC = () => {
                 onChange={toggleSelectAll}
                 className="accent-blue-500 w-4 h-4"
               />
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-white/45">
                 {selectedVisibleCount > 0 ? `${selectedVisibleCount} of ${projects.length} selected` : 'Select all'}
               </span>
             </label>
@@ -306,7 +306,7 @@ const ProjectCard: React.FC<{
 
   return (
     <div className={`border rounded-lg p-4 transition-colors ${
-      selected ? 'border-blue-500/50 bg-blue-500/5' : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+      selected ? 'border-blue-500/50 bg-blue-500/5' : 'glass-card'
     }`}>
       <div className="flex items-start gap-2">
         {onToggleSelect && (
@@ -328,21 +328,21 @@ const ProjectCard: React.FC<{
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-slate-500 mb-3 truncate" title={project.path}>
+          <p className="text-xs text-white/40 mb-3 truncate" title={project.path}>
             {project.path}
           </p>
 
           {/* Detected IDEs */}
           <div className="space-y-2">
-            <p className="text-xs text-slate-400">Detected IDEs:</p>
+            <p className="text-xs text-white/45">Detected IDEs:</p>
             {project.detectedIDEs.length === 0 ? (
-              <p className="text-xs text-slate-600">None detected</p>
+              <p className="text-xs text-white/30">None detected</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {project.detectedIDEs.map((ide) => (
                   <span
                     key={ide}
-                    className={`px-2 py-1 rounded text-xs ${ideColors[ide] || 'bg-slate-700 text-slate-300'}`}
+                    className={`px-2 py-1 rounded text-xs ${ideColors[ide] || 'bg-white/10 text-white/70'}`}
                   >
                     {ide}
                   </span>

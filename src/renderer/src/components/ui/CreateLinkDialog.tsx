@@ -137,7 +137,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
+        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Link2 className="w-5 h-5 text-blue-400" />
@@ -145,11 +145,11 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                 Create Link
               </DialogPrimitive.Title>
             </div>
-            <DialogPrimitive.Close className="text-slate-500 hover:text-slate-300">
+            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-4 h-4" />
             </DialogPrimitive.Close>
           </div>
-          <DialogPrimitive.Description className="text-sm text-slate-400 mb-4">
+          <DialogPrimitive.Description className="text-sm text-white/45 mb-4">
             Link skills to a project for a specific IDE. Symlinks will be created in the project's IDE directory.
           </DialogPrimitive.Description>
 
@@ -157,7 +157,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Skills Checkbox List */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-white/70 mb-1">
                   Skills <span className="text-red-400">*</span>
                 </label>
 
@@ -166,14 +166,14 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                   <button
                     type="button"
                     onClick={selectAll}
-                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors"
+                    className="px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-xs text-white/70 transition-colors"
                   >
                     Select All
                   </button>
                   <button
                     type="button"
                     onClick={deselectAll}
-                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-300 transition-colors"
+                    className="px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-xs text-white/70 transition-colors"
                   >
                     Deselect All
                   </button>
@@ -187,7 +187,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                       className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
                         selectedSkills.has(skill.id)
                           ? 'bg-blue-500/10 border-blue-500/30'
-                          : 'bg-slate-900 border-slate-700 hover:border-slate-600'
+                          : 'glass-input border-white/[0.08] hover:border-white/[0.12]'
                       }`}
                     >
                       <input
@@ -196,37 +196,37 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                         onChange={() => toggleSkill(skill.id)}
                         className="accent-blue-500"
                       />
-                      <span className="text-sm text-slate-200">{skill.displayName || skill.name}</span>
+                      <span className="text-sm text-white/80">{skill.displayName || skill.name}</span>
                     </label>
                   ))}
                 </div>
 
                 {/* Counter */}
-                <span className="text-xs text-slate-500 mt-1 block">
+                <span className="text-xs text-white/40 mt-1 block">
                   {selectedSkills.size} of {skills.length} selected
                 </span>
               </div>
 
               {/* Project Select */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-white/70 mb-1">
                   Project <span className="text-red-400">*</span>
                 </label>
                 <SelectPrimitive.Root value={projectId} onValueChange={setProjectId}>
-                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500">
+                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
                     <SelectPrimitive.Value placeholder="Select a project..." />
                     <SelectPrimitive.Icon>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-white/45" />
                     </SelectPrimitive.Icon>
                   </SelectPrimitive.Trigger>
                   <SelectPrimitive.Portal>
-                    <SelectPrimitive.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
+                    <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
                       <SelectPrimitive.Viewport>
                         {projects.map((project) => (
                           <SelectPrimitive.Item
                             key={project.id}
                             value={project.id}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700"
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
                           >
                             <SelectPrimitive.ItemText>{project.name}</SelectPrimitive.ItemText>
                             <SelectPrimitive.ItemIndicator>
@@ -242,24 +242,24 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
 
               {/* IDE Select */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-white/70 mb-1">
                   IDE <span className="text-red-400">*</span>
                 </label>
                 <SelectPrimitive.Root value={ideName} onValueChange={setIdeName}>
-                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500">
+                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
                     <SelectPrimitive.Value placeholder="Select an IDE..." />
                     <SelectPrimitive.Icon>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-white/45" />
                     </SelectPrimitive.Icon>
                   </SelectPrimitive.Trigger>
                   <SelectPrimitive.Portal>
-                    <SelectPrimitive.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
+                    <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
                       <SelectPrimitive.Viewport>
                         {ides.map((ide) => (
                           <SelectPrimitive.Item
                             key={ide.id}
                             value={ide.id}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700"
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
                           >
                             <SelectPrimitive.ItemText>{ide.name}</SelectPrimitive.ItemText>
                             <SelectPrimitive.ItemIndicator>
@@ -275,22 +275,22 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
 
               {/* Scope Select */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-white/70 mb-1">
                   Scope
                 </label>
                 <SelectPrimitive.Root value={scope} onValueChange={(v) => setScope(v as 'global' | 'project')}>
-                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-blue-500">
+                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 glass-input text-white focus:outline-none focus:border-blue-500">
                     <SelectPrimitive.Value />
                     <SelectPrimitive.Icon>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-white/45" />
                     </SelectPrimitive.Icon>
                   </SelectPrimitive.Trigger>
                   <SelectPrimitive.Portal>
-                    <SelectPrimitive.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50">
+                    <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50">
                       <SelectPrimitive.Viewport>
                         <SelectPrimitive.Item
                           value="project"
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
                         >
                           <SelectPrimitive.ItemText>Project (symlink in project dir)</SelectPrimitive.ItemText>
                           <SelectPrimitive.ItemIndicator>
@@ -299,7 +299,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                         </SelectPrimitive.Item>
                         <SelectPrimitive.Item
                           value="global"
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 outline-none cursor-pointer hover:bg-slate-700 data-[highlighted]:bg-slate-700"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
                         >
                           <SelectPrimitive.ItemText>Global (symlink in global IDE dir)</SelectPrimitive.ItemText>
                           <SelectPrimitive.ItemIndicator>
@@ -317,7 +317,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                 <DialogPrimitive.Close asChild>
                   <button
                     type="button"
-                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                    className="px-4 py-2 text-white/45 hover:text-white transition-colors"
                   >
                     Cancel
                   </button>
@@ -338,7 +338,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
           {phase === 'creating' && (
             <div className="space-y-4">
               {/* Progress bar */}
-              <div className="bg-slate-700 rounded-full h-2 overflow-hidden">
+              <div className="bg-white/10 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-blue-500 h-full transition-all duration-300"
                   style={{ width: `${progress?.percentComplete ?? 0}%` }}
@@ -346,7 +346,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
               </div>
 
               {/* Status text */}
-              <div className="flex items-center gap-2 text-sm text-slate-300">
+              <div className="flex items-center gap-2 text-sm text-white/70">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
                 <span>
                   Creating link for {progress?.currentSkillName}... ({progress?.current}/{progress?.total})
@@ -391,12 +391,12 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                       ) : (
                         <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
                       )}
-                      <span className="text-sm text-slate-200 flex-1">
+                      <span className="text-sm text-white/80 flex-1">
                         {skills.find(s => s.id === result.skillId)?.displayName || result.skillId}
                       </span>
                     </div>
                     {result.error && (
-                      <p className="text-xs text-slate-400 mt-1 ml-6">{result.error}</p>
+                      <p className="text-xs text-white/45 mt-1 ml-6">{result.error}</p>
                     )}
                   </div>
                 ))}

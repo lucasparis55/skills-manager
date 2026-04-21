@@ -124,7 +124,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
     if (['css', 'scss', 'less'].includes(ext || '')) return <File className="w-4 h-4 text-purple-400" />;
     if (['json', 'yaml', 'yml', 'toml'].includes(ext || '')) return <File className="w-4 h-4 text-orange-400" />;
     if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return <File className="w-4 h-4 text-pink-400" />;
-    return <File className="w-4 h-4 text-slate-400" />;
+    return <File className="w-4 h-4 text-white/45" />;
   };
 
   const getIndentLevel = (filePath: string): number => {
@@ -136,7 +136,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-        <span className="ml-2 text-slate-400">Loading files...</span>
+        <span className="ml-2 text-white/45">Loading files...</span>
       </div>
     );
   }
@@ -145,20 +145,20 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-300">
+        <h3 className="text-sm font-medium text-white/70">
           Skill Files ({files.length})
         </h3>
         <div className="flex gap-2">
           <button
             onClick={() => setShowNewFileDialog(true)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-sm text-white/70 transition-colors"
           >
             <Plus className="w-4 h-4" />
             New File
           </button>
           <button
             onClick={handleOpenFolder}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-sm text-white/70 transition-colors"
           >
             <ExternalLink className="w-4 h-4" />
             Open Folder
@@ -168,7 +168,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
 
       {/* New File Input */}
       {showNewFileDialog && (
-        <div className="flex gap-2 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+        <div className="flex gap-2 p-3 bg-white/[0.06] rounded-lg border border-white/[0.12]">
           <input
             type="text"
             placeholder="filename.md"
@@ -181,7 +181,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
                 setNewFileName('');
               }
             }}
-            className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+            className="flex-1 px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 text-sm"
             autoFocus
           />
           <button
@@ -196,7 +196,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
               setShowNewFileDialog(false);
               setNewFileName('');
             }}
-            className="px-3 py-2 text-slate-400 hover:text-white transition-colors"
+            className="px-3 py-2 text-white/45 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -205,23 +205,23 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
 
       {/* File List */}
       {files.length === 0 ? (
-        <div className="text-center py-8 text-slate-500 text-sm">
+        <div className="text-center py-8 text-white/40 text-sm">
           No files yet. Create a file to get started.
         </div>
       ) : (
-        <div className="bg-slate-900 rounded-lg border border-slate-700 divide-y divide-slate-700 max-h-80 overflow-y-auto">
+        <div className="glass-input rounded-lg divide-y divide-white/[0.06] max-h-80 overflow-y-auto">
           {files.map((file) => (
             <div
               key={file.path}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800 transition-colors group"
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors group"
               style={{ paddingLeft: `${getIndentLevel(file.path) * 16 + 16}px` }}
             >
               {getFileIcon(file.name, file.isDirectory)}
-              <span className="flex-1 text-sm text-slate-300 truncate">
+              <span className="flex-1 text-sm text-white/70 truncate">
                 {file.name}
               </span>
               {!file.isDirectory && (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-white/40">
                   {formatSize(file.size)}
                 </span>
               )}
@@ -229,14 +229,14 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleEditFile(file)}
-                    className="p-1 text-slate-400 hover:text-blue-400 transition-colors"
+                    className="p-1 text-white/45 hover:text-blue-400 transition-colors"
                     title="Edit file"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setDeleteTarget(file)}
-                    className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                    className="p-1 text-white/45 hover:text-red-400 transition-colors"
                     title="Delete file"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -244,7 +244,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
                 </div>
               )}
               {file.isDirectory && (
-                <Folder className="w-3.5 h-3.5 text-slate-600" />
+                <Folder className="w-3.5 h-3.5 text-white/30" />
               )}
             </div>
           ))}
@@ -254,14 +254,14 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
       {/* Edit File Modal */}
       {editingFile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col m-4">
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+          <div className="glass-dialog rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col m-4">
+            <div className="flex items-center justify-between p-4 border-b border-white/[0.08]">
               <h3 className="text-sm font-medium text-white">
                 {editingFile.isNew ? 'New File' : 'Edit'}: {editingFile.path}
               </h3>
               <button
                 onClick={() => setEditingFile(null)}
-                className="text-slate-500 hover:text-slate-300"
+                className="text-white/40 hover:text-white/80"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -271,7 +271,7 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
                 value={editingFile.content}
                 onChange={(e) => setEditingFile({ ...editingFile, content: e.target.value })}
                 placeholder="File content..."
-                className="w-full h-64 px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
+                className="w-full h-64 px-4 py-3 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 resize-y font-mono text-sm"
                 onKeyDown={(e) => {
                   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
@@ -280,10 +280,10 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
                 }}
               />
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-slate-700">
+            <div className="flex justify-end gap-3 p-4 border-t border-white/[0.08]">
               <button
                 onClick={() => setEditingFile(null)}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-white/45 hover:text-white transition-colors"
               >
                 Cancel
               </button>
