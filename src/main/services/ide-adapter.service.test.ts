@@ -57,4 +57,13 @@ describe('IDEAdapterService', () => {
     expect(roots.length).toBeGreaterThan(0);
     expect(roots.every((root) => root.exists === false)).toBe(true);
   });
+
+  it('uses .agents/skills as first projectRelative for codex-desktop', () => {
+    const service = new IDEAdapterService();
+    const ides = service.list();
+    const codexDesktop = ides.find((ide) => ide.id === 'codex-desktop');
+
+    expect(codexDesktop).toBeDefined();
+    expect(codexDesktop!.roots.projectRelative[0]).toBe('.agents/skills');
+  });
 });

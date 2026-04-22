@@ -190,6 +190,24 @@ describe('resolveLinkDestination', () => {
     expect(destination).toContain(path.normalize('C:/repo/project'));
     expect(destination).toContain('.claude');
   });
+
+  it('builds codex-desktop project destination under .agents/skills', () => {
+    const destination = resolveLinkDestination(
+      'brainstorming',
+      'C:/repo/project',
+      {
+        roots: {
+          primaryGlobal: ['~/.codex', '~/.codex/skills', '~/.agents/skills'],
+          projectRelative: ['.agents/skills', '.codex'],
+        },
+      },
+      'project',
+    );
+
+    expect(destination).toContain(path.normalize('C:/repo/project'));
+    expect(destination).toContain(path.normalize('.agents/skills/brainstorming'));
+    expect(destination).not.toContain(path.normalize('.codex/brainstorming'));
+  });
 });
 
 describe('registerIPCHandlers', () => {

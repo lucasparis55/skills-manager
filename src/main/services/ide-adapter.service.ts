@@ -44,7 +44,7 @@ export class IDEAdapterService {
           '%LOCALAPPDATA%/Codex/skills',
           '%LOCALAPPDATA%/Programs/Codex',
         ],
-        projectRelative: ['.codex', '.agents/skills'],
+        projectRelative: ['.agents/skills', '.codex'],
       },
     },
     {
