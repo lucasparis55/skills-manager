@@ -154,4 +154,103 @@ describe('CreateLinkDialog', () => {
     expect(screen.getByRole('button', { name: 'Create 2 Links' })).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it('filters skills by search query', async () => {
+    const manySkills = [
+      { id: 's1', name: 'brainstorming', displayName: 'Brainstorming' },
+      { id: 's2', name: 'planning', displayName: 'Planning' },
+      { id: 's3', name: 'debugging', displayName: 'Debugging' },
+    ];
+
+    createApiMock();
+
+    renderWithProviders(
+      <CreateLinkDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        skills={manySkills}
+        projects={projects}
+        ides={ides}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    // All visible initially
+    expect(screen.getByText('Brainstorming')).toBeInTheDocument();
+    expect(screen.getByText('Planning')).toBeInTheDocument();
+    expect(screen.getByText('Debugging')).toBeInTheDocument();
+
+    // Type search query
+    await userEvent.type(screen.getByPlaceholderText('Search skills...'), 'plan');
+
+    // Only Planning should be visible
+    expect(screen.queryByText('Brainstorming')).not.toBeInTheDocument();
+    expect(screen.getByText('Planning')).toBeInTheDocument();
+    expect(screen.queryByText('Debugging')).not.toBeInTheDocument();
+  });
+
+  it('preserves selections for skills filtered out by search', async () => {
+    const manySkills = [
+      { id: 's1', name: 'brainstorming', displayName: 'Brainstorming' },
+      { id: 's2', name: 'planning', displayName: 'Planning' },
+      { id: 's3', name: 'debugging', displayName: 'Debugging' },
+    ];
+
+    createApiMock();
+
+    renderWithProviders(
+      <CreateLinkDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        skills={manySkills}
+        projects={projects}
+        ides={ides}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    // Deselect all first
+    await userEvent.click(screen.getByRole('button', { name: 'Deselect All' }));
+
+    // Select only Brainstorming
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Brainstorming' }));
+
+    // Search to filter Brainstorming out
+    await userEvent.type(screen.getByPlaceholderText('Search skills...'), 'plan');
+
+    // Counter still shows 1 selected even though Brainstorming is filtered out
+    expect(screen.getByText('1 of 3 selected (1 visible)')).toBeInTheDocument();
+
+    // Clear search and verify Brainstorming is still selected
+    await userEvent.clear(screen.getByPlaceholderText('Search skills...'));
+    expect(screen.getByRole('checkbox', { name: 'Brainstorming' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Planning' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Debugging' })).not.toBeChecked();
+  });
+
+  it('shows empty message when search yields no results', async () => {
+    const manySkills = [
+      { id: 's1', name: 'brainstorming', displayName: 'Brainstorming' },
+      { id: 's2', name: 'planning', displayName: 'Planning' },
+    ];
+
+    createApiMock();
+
+    renderWithProviders(
+      <CreateLinkDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        skills={manySkills}
+        projects={projects}
+        ides={ides}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await userEvent.type(screen.getByPlaceholderText('Search skills...'), 'xyz');
+
+    expect(screen.getByText('No skills match your search.')).toBeInTheDocument();
+    expect(screen.queryByText('Brainstorming')).not.toBeInTheDocument();
+    expect(screen.queryByText('Planning')).not.toBeInTheDocument();
+  });
 });

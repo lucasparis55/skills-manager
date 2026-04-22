@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { X, ChevronDown, Check, Link2, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { X, ChevronDown, Check, Link2, Loader2, CheckCircle2, AlertTriangle, XCircle, Search } from 'lucide-react';
 import { useToast } from './Toast';
 
 interface Skill {
@@ -61,6 +61,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
   const [phase, setPhase] = useState<'form-input' | 'creating' | 'results'>('form-input');
   const [creationResults, setCreationResults] = useState<LinkCreationResult[]>([]);
   const [progress, setProgress] = useState<LinkCreationProgress | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
 
   // Subscribe to progress events when in creating phase
@@ -78,10 +79,12 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
       setPhase('form-input');
       setCreationResults([]);
       setProgress(null);
+      setSearchQuery('');
     } else {
       setProjectId('');
       setIdeName('');
       setScope('project');
+      setSearchQuery('');
     }
   }, [open, skills]);
 
@@ -96,6 +99,16 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
 
   const selectAll = () => setSelectedSkills(new Set(skills.map(s => s.id)));
   const deselectAll = () => setSelectedSkills(new Set());
+
+  const filteredSkills = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return skills;
+    return skills.filter(
+      (skill) =>
+        skill.displayName?.toLowerCase().includes(query) ||
+        skill.name.toLowerCase().includes(query),
+    );
+  }, [skills, searchQuery]);
 
   const isSubmitDisabled = selectedSkills.size === 0 || !projectId || !ideName;
 
@@ -179,9 +192,26 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                   </button>
                 </div>
 
+                {/* Search input */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/35 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search skills..."
+                    className="w-full pl-9 pr-3 py-2 glass-input text-sm text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500 rounded-lg"
+                  />
+                </div>
+
                 {/* Scrollable checkbox list */}
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {skills.map((skill) => (
+                  {filteredSkills.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-white/40">
+                      No skills match your search.
+                    </div>
+                  ) : (
+                    filteredSkills.map((skill) => (
                     <label
                       key={skill.id}
                       className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
@@ -198,12 +228,16 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                       />
                       <span className="text-sm text-white/80">{skill.displayName || skill.name}</span>
                     </label>
-                  ))}
+                  ))
+                  )}
                 </div>
 
                 {/* Counter */}
                 <span className="text-xs text-white/40 mt-1 block">
                   {selectedSkills.size} of {skills.length} selected
+                  {searchQuery.trim() && filteredSkills.length !== skills.length
+                    ? ` (${filteredSkills.length} visible)`
+                    : ''}
                 </span>
               </div>
 
