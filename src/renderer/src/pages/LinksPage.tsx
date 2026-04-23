@@ -35,6 +35,11 @@ interface IDE {
   name: string;
 }
 
+interface IDERoot {
+  ideId: string;
+  exists: boolean;
+}
+
 interface LinkCreationResult {
   skillId: string;
   skillName: string;
@@ -62,6 +67,7 @@ const LinksPage: React.FC = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [ides, setIdes] = useState<IDE[]>([]);
+  const [ideRoots, setIdeRoots] = useState<IDERoot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmState, setConfirmState] = useState<{ link: LinkData } | null>(null);
@@ -79,16 +85,18 @@ const LinksPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [linksData, skillsData, projectsData, idesData] = await Promise.all([
+      const [linksData, skillsData, projectsData, idesData, ideRootsData] = await Promise.all([
         window.api.links.list(),
         window.api.skills.list(),
         window.api.projects.list(),
         window.api.ides.list(),
+        window.api.ides.detectRoots().catch(() => []),
       ]);
       setLinks(linksData || []);
       setSkills(skillsData || []);
       setProjects(projectsData || []);
       setIdes(idesData || []);
+      setIdeRoots(ideRootsData || []);
     } catch (err) {
       console.error('Failed to load links data:', err);
     } finally {
@@ -123,6 +131,11 @@ const LinksPage: React.FC = () => {
     links.forEach(l => { counts[l.ideName] = (counts[l.ideName] || 0) + 1; });
     return counts;
   }, [links]);
+
+  const availableIdes = useMemo(() => {
+    const detectedIdeIds = new Set(ideRoots.filter(root => root.exists).map(root => root.ideId));
+    return ides.filter(ide => detectedIdeIds.has(ide.id));
+  }, [ides, ideRoots]);
 
   // Selection handlers
   const toggleSelection = (id: string) => {
@@ -428,7 +441,7 @@ const LinksPage: React.FC = () => {
         onOpenChange={setShowCreateDialog}
         skills={skills}
         projects={projects}
-        ides={ides}
+        ides={availableIdes}
         onSubmit={handleCreateLink}
         onComplete={handleCreateComplete}
       />

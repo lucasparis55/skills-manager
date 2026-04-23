@@ -88,6 +88,12 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
     }
   }, [open, skills]);
 
+  useEffect(() => {
+    if (ideName && !ides.some((ide) => ide.id === ideName)) {
+      setIdeName('');
+    }
+  }, [ides, ideName]);
+
   const toggleSkill = (id: string) => {
     setSelectedSkills(prev => {
       const next = new Set(prev);
@@ -289,7 +295,11 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                   <SelectPrimitive.Portal>
                     <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
                       <SelectPrimitive.Viewport>
-                        {ides.map((ide) => (
+                        {ides.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-white/40">
+                            No detected IDEs available.
+                          </div>
+                        ) : ides.map((ide) => (
                           <SelectPrimitive.Item
                             key={ide.id}
                             value={ide.id}
@@ -305,6 +315,9 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                     </SelectPrimitive.Content>
                   </SelectPrimitive.Portal>
                 </SelectPrimitive.Root>
+                {ides.length === 0 && (
+                  <p className="text-xs text-white/40 mt-1">No detected IDEs available.</p>
+                )}
               </div>
 
               {/* Scope Select */}

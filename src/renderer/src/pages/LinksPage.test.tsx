@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import LinksPage from './LinksPage';
@@ -8,6 +8,16 @@ vi.mock('../components/ui/CreateLinkDialog', () => ({
   default: (props: any) =>
     props.open ? (
       <div data-testid="create-link-dialog">
+        {props.ides.length === 0 ? (
+          <div>No detected IDEs available.</div>
+        ) : (
+          <div>
+            {props.ides.map((ide: any) => (
+              <span key={ide.id}>{ide.name}</span>
+            ))}
+          </div>
+        )}
+        <button disabled={props.ides.length === 0}>Create Link</button>
         <button
           onClick={() =>
             props.onComplete?.([
@@ -57,6 +67,15 @@ const linksPayload = [
   },
 ];
 
+const idesPayload = [
+  { id: 'claude-code', name: 'Claude Code CLI' },
+  { id: 'codex-cli', name: 'Codex CLI' },
+  { id: 'codex-desktop', name: 'Codex Desktop' },
+  { id: 'opencode', name: 'OpenCode' },
+  { id: 'kimi-cli', name: 'Kimi Code CLI' },
+  { id: 'cursor', name: 'Cursor' },
+];
+
 describe('LinksPage', () => {
   it('loads links and verifies all links with user feedback', async () => {
     const api = createApiMock({
@@ -74,10 +93,7 @@ describe('LinksPage', () => {
         list: vi.fn(async () => [{ id: 'p1', name: 'Project 1', path: 'C:/repo', detectedIDEs: [] }]),
       },
       ides: {
-        list: vi.fn(async () => [
-          { id: 'claude-code', name: 'Claude Code CLI' },
-          { id: 'codex-cli', name: 'Codex CLI' },
-        ]),
+        list: vi.fn(async () => idesPayload.slice(0, 2)),
       },
     });
 
@@ -111,10 +127,7 @@ describe('LinksPage', () => {
         list: vi.fn(async () => [{ id: 'p1', name: 'Project 1', path: 'C:/repo', detectedIDEs: [] }]),
       },
       ides: {
-        list: vi.fn(async () => [
-          { id: 'claude-code', name: 'Claude Code CLI' },
-          { id: 'codex-cli', name: 'Codex CLI' },
-        ]),
+        list: vi.fn(async () => idesPayload.slice(0, 2)),
       },
     });
 
@@ -147,5 +160,58 @@ describe('LinksPage', () => {
 
     expect(await screen.findByText('Links created')).toBeInTheDocument();
     expect(screen.getAllByText(/1 link created successfully, 1 skipped/i)[0]).toBeInTheDocument();
+  });
+
+  it('passes only globally detected IDEs to the create link dialog', async () => {
+    createApiMock({
+      links: { list: vi.fn(async () => []) },
+      skills: { list: vi.fn(async () => []) },
+      projects: { list: vi.fn(async () => []) },
+      ides: {
+        list: vi.fn(async () => idesPayload),
+        detectRoots: vi.fn(async () => [
+          { ideId: 'claude-code', exists: false },
+          { ideId: 'codex-cli', exists: false },
+          { ideId: 'codex-desktop', exists: true },
+          { ideId: 'opencode', exists: false },
+          { ideId: 'kimi-cli', exists: true },
+          { ideId: 'cursor', exists: false },
+        ]),
+      },
+    });
+
+    renderWithProviders(<LinksPage />);
+    await screen.findByText('No Links Yet');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create Link' }));
+
+    const dialog = screen.getByTestId('create-link-dialog');
+    expect(dialog).toHaveTextContent('Codex Desktop');
+    expect(dialog).toHaveTextContent('Kimi Code CLI');
+    expect(dialog).not.toHaveTextContent('Claude Code CLI');
+    expect(dialog).not.toHaveTextContent('Codex CLI');
+    expect(dialog).not.toHaveTextContent('OpenCode');
+    expect(dialog).not.toHaveTextContent('Cursor');
+  });
+
+  it('shows an unavailable state when no IDE roots are detected', async () => {
+    createApiMock({
+      links: { list: vi.fn(async () => []) },
+      skills: { list: vi.fn(async () => []) },
+      projects: { list: vi.fn(async () => []) },
+      ides: {
+        list: vi.fn(async () => idesPayload),
+        detectRoots: vi.fn(async () => idesPayload.map((ide) => ({ ideId: ide.id, exists: false }))),
+      },
+    });
+
+    renderWithProviders(<LinksPage />);
+    await screen.findByText('No Links Yet');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create Link' }));
+
+    const dialog = screen.getByTestId('create-link-dialog');
+    expect(within(dialog).getByText('No detected IDEs available.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create Link' })).toBeDisabled();
   });
 });
