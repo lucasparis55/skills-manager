@@ -64,6 +64,48 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('Connection OK')).toBeInTheDocument();
   });
 
+  it('displays detected IDE roots and manages overrides', async () => {
+    const api = createApiMock({
+      settings: {
+        get: vi.fn(async () => ({
+          centralSkillsRoot: 'C:/skills',
+          checkForUpdates: true,
+          autoScanProjects: false,
+          symlinkStrategy: 'auto',
+          theme: 'dark',
+          hasGithubToken: false,
+          ideRootOverrides: {},
+        })),
+        update: vi.fn(async () => ({})),
+      },
+      ides: {
+        list: vi.fn(async () => [
+          { id: 'claude-code', name: 'Claude Code CLI', configFormat: 'json', mode: 'subagents' },
+        ]),
+        detectRoots: vi.fn(async () => [
+          { ideId: 'claude-code', root: 'C:/Users/test/.claude', exists: true, isPrimary: true, isConfigured: false },
+          { ideId: 'claude-code', root: 'C:/Users/test/.claude-secondary', exists: false, isPrimary: false, isConfigured: false },
+        ]),
+      },
+    });
+
+    renderWithProviders(<SettingsPage />);
+
+    expect(await screen.findByText('Claude Code CLI')).toBeInTheDocument();
+    expect(screen.getByText('C:/Users/test/.claude')).toBeInTheDocument();
+    expect(screen.getByText('C:/Users/test/.claude-secondary')).toBeInTheDocument();
+
+    const overrideInput = screen.getByPlaceholderText('Override path (optional)');
+    await userEvent.type(overrideInput, 'D:/custom/claude');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save Override' }));
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith({
+        ideRootOverrides: { 'claude-code': 'D:/custom/claude' },
+      });
+    });
+  });
+
   it('reports token test failure from API errors', async () => {
     createApiMock({
       settings: {

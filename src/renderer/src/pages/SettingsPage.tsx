@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, FolderOpen, Monitor, Github, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Settings, FolderOpen, Monitor, Github, Loader2, CheckCircle2, AlertCircle, Code2, XCircle } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -10,6 +10,7 @@ interface AppSettings {
   symlinkStrategy: 'symlink' | 'junction' | 'auto';
   theme: 'light' | 'dark' | 'system';
   hasGithubToken: boolean;
+  ideRootOverrides?: Record<string, string>;
 }
 
 const SettingsPage: React.FC = () => {
@@ -20,11 +21,21 @@ const SettingsPage: React.FC = () => {
   const [savingToken, setSavingToken] = useState(false);
   const [githubTokenInput, setGithubTokenInput] = useState('');
   const [tokenTestResult, setTokenTestResult] = useState<'success' | 'error' | null>(null);
+  const [ides, setIdes] = useState<any[]>([]);
+  const [detectedRoots, setDetectedRoots] = useState<any[]>([]);
+  const [ideRootInputs, setIdeRootInputs] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
     loadSettings();
+    loadIDEs();
   }, []);
+
+  useEffect(() => {
+    if (settings?.ideRootOverrides) {
+      setIdeRootInputs(settings.ideRootOverrides);
+    }
+  }, [settings?.ideRootOverrides]);
 
   const loadSettings = async () => {
     try {
@@ -34,6 +45,19 @@ const SettingsPage: React.FC = () => {
       console.error('Failed to load settings:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadIDEs = async () => {
+    try {
+      const [ideList, roots] = await Promise.all([
+        window.api.ides.list(),
+        window.api.ides.detectRoots(),
+      ]);
+      setIdes(ideList);
+      setDetectedRoots(roots);
+    } catch (err) {
+      console.error('Failed to load IDE data:', err);
     }
   };
 
@@ -220,10 +244,102 @@ const SettingsPage: React.FC = () => {
           <Monitor className="w-5 h-5" />
           IDE Configuration
         </h3>
-        <p className="text-sm text-white/45">
-          IDE configurations are automatically detected based on your system.
-          Custom overrides will be supported in a future update.
-        </p>
+        <div className="space-y-3">
+          {ides.map((ide) => {
+            const roots = detectedRoots.filter((r) => r.ideId === ide.id);
+            const primaryRoots = roots.filter((r) => r.isPrimary);
+            const secondaryRoots = roots.filter((r) => !r.isPrimary);
+            const overrideValue = ideRootInputs[ide.id] || '';
+            const hasOverride = !!settings?.ideRootOverrides?.[ide.id];
+
+            return (
+              <div key={ide.id} className="glass-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-white/60" />
+                    <span className="font-medium text-white">{ide.name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/50 uppercase">{ide.configFormat}</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/50 capitalize">{ide.mode}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 mb-4">
+                  {primaryRoots.length > 0 && (
+                    <div className="text-xs font-medium text-white/40 mb-1">Primary Roots</div>
+                  )}
+                  {primaryRoots.map((root) => (
+                    <div key={root.root} className="flex items-center gap-2 text-sm">
+                      {root.exists ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                      )}
+                      <span className={root.exists ? 'text-white/70 truncate' : 'text-white/30 truncate'} title={root.root}>
+                        {root.root}
+                      </span>
+                    </div>
+                  ))}
+                  {secondaryRoots.length > 0 && (
+                    <div className="text-xs font-medium text-white/40 mt-2 mb-1">Secondary Roots</div>
+                  )}
+                  {secondaryRoots.map((root) => (
+                    <div key={root.root} className="flex items-center gap-2 text-sm">
+                      {root.exists ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                      )}
+                      <span className={root.exists ? 'text-white/70 truncate' : 'text-white/30 truncate'} title={root.root}>
+                        {root.root}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-white/50 mb-1.5">Custom Global Root Override</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={overrideValue}
+                      onChange={(e) => setIdeRootInputs((prev) => ({ ...prev, [ide.id]: e.target.value }))}
+                      placeholder="Override path (optional)"
+                      className="flex-1 px-3 py-1.5 glass-input text-sm text-white placeholder:text-white/30"
+                    />
+                    <button
+                      onClick={async () => {
+                        const nextOverrides = { ...(settings?.ideRootOverrides || {}), [ide.id]: overrideValue };
+                        await handleUpdate('ideRootOverrides', nextOverrides);
+                        toast({ title: 'Override saved', description: `${ide.name} global root updated.`, variant: 'success' });
+                      }}
+                      className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 rounded-lg text-xs text-white transition-colors"
+                    >
+                      Save Override
+                    </button>
+                    {hasOverride && (
+                      <button
+                        onClick={async () => {
+                          const nextOverrides = { ...(settings?.ideRootOverrides || {}) };
+                          delete nextOverrides[ide.id];
+                          await handleUpdate('ideRootOverrides', nextOverrides);
+                          toast({ title: 'Override cleared', description: `${ide.name} using default root.`, variant: 'success' });
+                        }}
+                        className="px-3 py-1.5 glass hover:bg-white/[0.10] rounded-lg text-xs text-white/70 transition-colors"
+                      >
+                        Clear Override
+                      </button>
+                    )}
+                  </div>
+                  {hasOverride && (
+                    <p className="text-xs text-amber-400/80 mt-1.5">
+                      Override active: {settings!.ideRootOverrides![ide.id]}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* GitHub Integration */}

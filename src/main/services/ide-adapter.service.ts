@@ -95,6 +95,20 @@ export class IDEAdapterService {
   }
 
   /**
+   * Get the effective global root for an IDE, considering overrides
+   */
+  getEffectiveGlobalRoot(ideId: string, overrides?: Record<string, string>): string | null {
+    const ide = this.ides.find((i) => i.id === ideId);
+    if (!ide) {
+      return null;
+    }
+    if (overrides?.[ideId]) {
+      return expandPath(overrides[ideId]);
+    }
+    return ide.roots.primaryGlobal.length > 0 ? expandPath(ide.roots.primaryGlobal[0]) : null;
+  }
+
+  /**
    * Detect roots for all IDEs
    */
   detectRoots(): ResolvedIDERoot[] {

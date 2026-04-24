@@ -70,6 +70,7 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
         symlinkStrategy: 'auto',
         theme: 'dark',
         hasGithubToken: false,
+        ideRootOverrides: {},
       })),
       update: vi.fn(async () => ({})),
       setGithubToken: vi.fn(async () => ({ success: true })),

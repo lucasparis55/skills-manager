@@ -208,6 +208,27 @@ describe('resolveLinkDestination', () => {
     expect(destination).toContain(path.normalize('.agents/skills/brainstorming'));
     expect(destination).not.toContain(path.normalize('.codex/brainstorming'));
   });
+
+  it('uses ideRootOverrides when provided for global scope', () => {
+    const destination = resolveLinkDestination(
+      'brainstorming',
+      'C:/repo/project',
+      {
+        id: 'claude-code',
+        roots: {
+          primaryGlobal: ['~/.claude'],
+          projectRelative: ['.claude/agents'],
+        },
+      },
+      'global',
+      (value) => value.replace('~', 'C:/Users/me'),
+      { 'claude-code': 'D:/custom/claude' },
+    );
+
+    expect(destination).toContain(path.normalize('D:/custom/claude'));
+    expect(destination).toContain('brainstorming');
+    expect(destination).not.toContain('C:/Users/me');
+  });
 });
 
 describe('registerIPCHandlers', () => {

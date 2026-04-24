@@ -53,6 +53,7 @@ type ZipImportServiceLike = Pick<
 
 type LinkScope = 'global' | 'project';
 type IdeRootsShape = {
+  id?: string;
   roots: {
     primaryGlobal: string[];
     projectRelative: string[];
@@ -111,10 +112,12 @@ export function resolveLinkDestination(
   ide: IdeRootsShape,
   scope: LinkScope,
   expandPathFn: (input: string) => string = expandPath,
+  overrides?: Record<string, string>,
 ): string {
   const pathLib = require('path');
   if (scope === 'global') {
-    const globalRoot = ide.roots.primaryGlobal[0];
+    const overrideRoot = overrides?.[ide.id as string];
+    const globalRoot = overrideRoot ?? ide.roots.primaryGlobal[0];
     return pathLib.join(expandPathFn(globalRoot), skillName);
   }
 
@@ -223,7 +226,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       }
     }
 
-    const destination = resolveLinkDestination(skill.name, project.path, ide, input.scope, deps.expandPath);
+    const destination = resolveLinkDestination(skill.name, project.path, ide, input.scope, deps.expandPath, deps.settingsService.get().ideRootOverrides);
     const source = skill.sourcePath;
     const allLinks = deps.linkService.list();
 
@@ -292,7 +295,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
         continue;
       }
 
-      const destination = resolveLinkDestination(skill.name, project.path, ide, scope, deps.expandPath);
+      const destination = resolveLinkDestination(skill.name, project.path, ide, scope, deps.expandPath, deps.settingsService.get().ideRootOverrides);
       const source = skill.sourcePath;
 
       if (scope === 'global') {
