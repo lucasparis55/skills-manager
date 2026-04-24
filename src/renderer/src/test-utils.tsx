@@ -14,6 +14,7 @@ type ApiMock = {
   dialog: Record<string, ReturnType<typeof vi.fn>>;
   githubImport: Record<string, ReturnType<typeof vi.fn>>;
   zipImport: Record<string, ReturnType<typeof vi.fn>>;
+  update: Record<string, ReturnType<typeof vi.fn>>;
 };
 
 export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
@@ -98,6 +99,11 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
       cancelImport: vi.fn(async () => ({ success: true })),
       onProgress: vi.fn(() => () => {}),
       ...(partial.zipImport || {}),
+    },
+    update: {
+      check: vi.fn(async () => ({ hasUpdate: false, currentVersion: '1.0.0', latestVersion: null, releaseUrl: null, releaseNotes: null, publishedAt: null })),
+      openRelease: vi.fn(async () => {}),
+      ...(partial.update || {}),
     },
   };
 

@@ -8,6 +8,7 @@ import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
+import { UpdateService } from '../services/update.service';
 import { expandPath } from '../utils/paths';
 import type {
   AppSettings,
@@ -50,6 +51,7 @@ type ZipImportServiceLike = Pick<
   ZipImportService,
   'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
 >;
+type UpdateServiceLike = Pick<UpdateService, 'checkForUpdates' | 'openReleasePage'>;
 
 type LinkScope = 'global' | 'project';
 type IdeRootsShape = {
@@ -72,6 +74,7 @@ export interface IPCHandlerDependencies {
   detectionService: DetectionServiceLike;
   githubImportService: GitHubImportServiceLike;
   zipImportService: ZipImportServiceLike;
+  updateService: UpdateServiceLike;
   createSkillService: () => SkillServiceLike;
   expandPath: (input: string) => string;
   platform: NodeJS.Platform | string;
@@ -87,6 +90,7 @@ const defaultDetectionService = new DetectionService();
 const defaultSettingsService = new SettingsService();
 const defaultGithubImportService = new GitHubImportService(defaultSettingsService);
 const defaultZipImportService = new ZipImportService(defaultSettingsService);
+const defaultUpdateService = new UpdateService();
 
 const defaultDeps: IPCHandlerDependencies = {
   ipcMain,
@@ -100,6 +104,7 @@ const defaultDeps: IPCHandlerDependencies = {
   detectionService: defaultDetectionService,
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
+  updateService: defaultUpdateService,
   createSkillService: () => defaultSkillService,
   expandPath,
   platform: process.platform,
@@ -547,6 +552,15 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
 
   deps.ipcMain.handle('zip:cancelImport', () => {
     deps.zipImportService.cancelImport();
+    return { success: true };
+  });
+
+  deps.ipcMain.handle('update:check', async () => {
+    return deps.updateService.checkForUpdates();
+  });
+
+  deps.ipcMain.handle('update:openRelease', async (_event, version: string) => {
+    await deps.updateService.openReleasePage(version);
     return { success: true };
   });
 }

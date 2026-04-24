@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowUpCircle } from 'lucide-react';
 
-const StatusBar: React.FC = () => {
+interface StatusBarProps {
+  hasUpdate?: boolean;
+  onUpdateClick?: () => void;
+}
+
+const StatusBar: React.FC<StatusBarProps> = ({ hasUpdate = false, onUpdateClick }) => {
   const [stats, setStats] = useState({ skills: 0, projects: 0, links: 0 });
 
   useEffect(() => {
@@ -25,11 +31,23 @@ const StatusBar: React.FC = () => {
   }, []);
 
   return (
-    <footer className="glass-statusbar px-6 py-2 text-sm text-white/45 flex gap-6">
+    <footer className="glass-statusbar px-6 py-2 text-sm text-white/45 flex gap-6 items-center">
       <span>{stats.skills} skills</span>
       <span>{stats.projects} projects</span>
       <span>{stats.links} links</span>
-      <span className="ml-auto text-green-400">Ready</span>
+      <span className="ml-auto flex items-center gap-2">
+        {hasUpdate && onUpdateClick ? (
+          <button
+            onClick={onUpdateClick}
+            className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition-colors text-xs font-medium"
+          >
+            <ArrowUpCircle className="w-3.5 h-3.5" />
+            Update available
+          </button>
+        ) : (
+          <span className="text-green-400">Ready</span>
+        )}
+      </span>
     </footer>
   );
 };

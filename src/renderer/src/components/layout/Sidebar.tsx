@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Target, FolderGit2, Link, Settings } from 'lucide-react';
+import { LayoutDashboard, Target, FolderGit2, Link, Settings, CheckCircle2, ArrowUpCircle } from 'lucide-react';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -10,7 +10,12 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  hasUpdate?: boolean;
+  onUpdateClick?: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ hasUpdate = false, onUpdateClick }) => {
   return (
     <aside className="w-64 glass-sidebar flex flex-col">
       <div className="p-6 border-b border-white/[0.08]">
@@ -38,8 +43,24 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="p-4 border-t border-white/[0.08]">
-        <div className="text-xs text-white/40">
-          <p>{`v${__APP_VERSION__}`}</p>
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-white/40">
+            <p>{`v${__APP_VERSION__}`}</p>
+          </div>
+          {hasUpdate ? (
+            <button
+              onClick={onUpdateClick}
+              className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors animate-pulse"
+              title="Update available"
+            >
+              <ArrowUpCircle className="w-3.5 h-3.5" />
+              Update
+            </button>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-emerald-400/60" title="Up to date">
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
+          )}
         </div>
       </div>
     </aside>

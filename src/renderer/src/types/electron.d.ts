@@ -138,6 +138,20 @@ interface ZipImportAPI {
   onProgress: (callback: (progress: any) => void) => () => void;
 }
 
+interface UpdateCheckResult {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  releaseUrl: string | null;
+  releaseNotes: string | null;
+  publishedAt: string | null;
+}
+
+interface UpdateAPI {
+  check: () => Promise<UpdateCheckResult>;
+  openRelease: (version: string) => Promise<void>;
+}
+
 interface ElectronAPI {
   skills: SkillsAPI;
   projects: ProjectsAPI;
@@ -148,6 +162,7 @@ interface ElectronAPI {
   dialog: DialogAPI;
   githubImport: GitHubImportAPI;
   zipImport: ZipImportAPI;
+  update: UpdateAPI;
 }
 
 declare global {

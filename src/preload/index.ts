@@ -103,4 +103,10 @@ contextBridge.exposeInMainWorld('api', {
       };
     },
   },
+
+  // Update
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    openRelease: (version: string) => ipcRenderer.invoke('update:openRelease', version),
+  },
 });
