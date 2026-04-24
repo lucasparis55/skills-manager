@@ -71,7 +71,7 @@ interface ProjectsAPI {
   list: () => Promise<any[]>;
   add: (path: string) => Promise<any>;
   remove: (id: string) => Promise<any>;
-  scan: (rootPath?: string) => Promise<any[]>;
+  scan: (rootPath?: string, maxDepth?: number) => Promise<any[]>;
 }
 
 interface LinksAPI {
@@ -102,6 +102,8 @@ interface SettingsAPI {
     symlinkStrategy: 'symlink' | 'junction' | 'auto';
     developerModeEnabled?: boolean;
     theme: 'light' | 'dark' | 'system';
+    lastProjectScanPath?: string;
+    projectScanDepth?: number;
     ideRootOverrides?: Record<string, string>;
     hasGithubToken: boolean;
   }>;

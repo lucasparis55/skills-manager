@@ -3,6 +3,37 @@ import { Target, FolderGit2, Link, AlertTriangle, Plus, FolderOpen } from 'lucid
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import { useToast } from '../components/ui/Toast';
 
+const scanProjectFields = (defaultPath: string, defaultDepth: string): FormField[] => [
+  {
+    name: 'path',
+    label: 'Start Folder',
+    placeholder: 'C:\\Users\\...',
+    defaultValue: defaultPath,
+    required: true,
+    actionButton: {
+      icon: FolderOpen,
+      tooltip: 'Browse for start directory',
+      onClick: async () => {
+        const selectedPath = await window.api.dialog.selectFolder();
+        return selectedPath || undefined;
+      },
+    },
+  },
+  {
+    name: 'depth',
+    label: 'Scan Depth',
+    type: 'select',
+    defaultValue: defaultDepth,
+    options: [
+      { label: '1 — Only the selected folder', value: '1' },
+      { label: '2 — Selected folder + 1 sublevel', value: '2' },
+      { label: '3 — Selected folder + 2 sublevels', value: '3' },
+      { label: '4 — Selected folder + 3 sublevels', value: '4' },
+      { label: '5 — Selected folder + 4 sublevels', value: '5' },
+    ],
+  },
+];
+
 const createSkillFields: FormField[] = [
   { name: 'name', label: 'Skill Name', placeholder: 'e.g., my-skill', required: true },
   { name: 'displayName', label: 'Display Name', placeholder: 'My Skill' },
@@ -13,6 +44,8 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ skills: 0, projects: 0, links: 0, warnings: 0 });
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showScanDialog, setShowScanDialog] = useState(false);
+  const [scanDefaults, setScanDefaults] = useState<{ path: string; depth: string }>({ path: '', depth: '2' });
   const { toast } = useToast();
 
   const loadStats = async () => {
@@ -38,7 +71,19 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadStats();
+    loadScanDefaults();
   }, []);
+
+  const loadScanDefaults = async () => {
+    try {
+      const settings = await window.api.settings.get();
+      const defaultPath = settings.lastProjectScanPath || '';
+      const defaultDepth = String(settings.projectScanDepth ?? 2);
+      setScanDefaults({ path: defaultPath, depth: defaultDepth });
+    } catch {
+      // ignore
+    }
+  };
 
   const handleCreateSkill = async (values: Record<string, string>) => {
     try {
@@ -63,15 +108,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleScanProjects = async () => {
+  const handleScanSubmit = async (values: Record<string, string>) => {
     try {
-      const projects = await window.api.projects.scan();
+      const rootPath = values.path;
+      const maxDepth = parseInt(values.depth || '2', 10);
+      const projects = await window.api.projects.scan(rootPath, maxDepth);
+      await window.api.settings.update({ lastProjectScanPath: rootPath, projectScanDepth: maxDepth });
+      setScanDefaults({ path: rootPath, depth: String(maxDepth) });
       await loadStats();
       toast({
         title: 'Scan Complete',
         description: `Found ${projects?.length || 0} projects.`,
         variant: 'info',
       });
+      setShowScanDialog(false);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
     }
@@ -123,7 +173,7 @@ const Dashboard: React.FC = () => {
             Create Skill
           </button>
           <button
-            onClick={handleScanProjects}
+            onClick={() => setShowScanDialog(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
           >
             <FolderOpen className="w-4 h-4" />
@@ -146,6 +196,16 @@ const Dashboard: React.FC = () => {
         fields={createSkillFields}
         onSubmit={handleCreateSkill}
         submitLabel="Create"
+      />
+
+      <FormDialog
+        open={showScanDialog}
+        onOpenChange={setShowScanDialog}
+        title="Scan Projects"
+        description="Choose a folder and how deep to search for projects."
+        fields={scanProjectFields(scanDefaults.path, scanDefaults.depth)}
+        onSubmit={handleScanSubmit}
+        submitLabel="Scan"
       />
     </div>
   );

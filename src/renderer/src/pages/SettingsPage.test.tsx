@@ -23,6 +23,7 @@ describe('SettingsPage', () => {
           autoScanProjects: false,
           symlinkStrategy: 'auto',
           theme: 'dark',
+          projectScanDepth: 2,
           hasGithubToken: true,
         })),
         update: vi.fn(async () => ({})),
@@ -37,8 +38,8 @@ describe('SettingsPage', () => {
 
     expect(await screen.findByDisplayValue('C:/skills')).toBeInTheDocument();
 
-    const select = screen.getByRole('combobox');
-    await userEvent.selectOptions(select, 'junction');
+    const selects = screen.getAllByRole('combobox');
+    await userEvent.selectOptions(selects[0], 'junction');
     await waitFor(() => {
       expect(api.settings.update).toHaveBeenCalledWith({ symlinkStrategy: 'junction' });
     });

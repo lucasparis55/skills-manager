@@ -58,7 +58,7 @@ describe('preload bridge', () => {
     await api.projects.list();
     await api.projects.add('C:/repo');
     await api.projects.remove('p1');
-    await api.projects.scan('C:/root');
+    await api.projects.scan('C:/root', 3);
 
     await api.links.list();
     await api.links.create({ skillId: 's1', projectId: 'p1', ideName: 'ide', scope: 'project' });
@@ -107,7 +107,7 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('projects:list');
     expect(invoke).toHaveBeenCalledWith('projects:add', 'C:/repo');
     expect(invoke).toHaveBeenCalledWith('projects:remove', 'p1');
-    expect(invoke).toHaveBeenCalledWith('projects:scan', 'C:/root');
+    expect(invoke).toHaveBeenCalledWith('projects:scan', 'C:/root', 3);
 
     expect(invoke).toHaveBeenCalledWith('links:list');
     expect(invoke).toHaveBeenCalledWith(

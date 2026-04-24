@@ -69,11 +69,12 @@ export class ProjectService {
   /**
    * Scan a directory for projects
    */
-  scan(rootPath?: string): Project[] {
+  scan(rootPath?: string, maxDepth?: number): Project[] {
     const scanPath = rootPath || process.env.USERPROFILE || process.env.HOME || '.';
     const foundProjects: Project[] = [];
+    const clampedDepth = Math.min(5, Math.max(1, maxDepth ?? 2));
 
-    this.scanDirectory(scanPath, foundProjects, 2); // Max depth 2
+    this.scanDirectory(scanPath, foundProjects, clampedDepth);
 
     let hasChanges = false;
     for (const found of foundProjects) {
@@ -147,6 +148,9 @@ export class ProjectService {
    * Recursively scan directory for projects
    */
   private scanDirectory(dir: string, projects: Project[], maxDepth: number, currentDepth: number = 0): void {
+    if (maxDepth < 1) {
+      return;
+    }
     if (currentDepth > maxDepth) {
       return;
     }

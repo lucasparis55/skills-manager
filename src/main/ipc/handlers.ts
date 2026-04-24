@@ -201,7 +201,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
     deps.projectService.remove(id);
     return { success: true };
   });
-  deps.ipcMain.handle('projects:scan', (_event, rootPath?: string) => deps.projectService.scan(rootPath));
+  deps.ipcMain.handle('projects:scan', (_event, rootPath?: string, maxDepth?: number) => deps.projectService.scan(rootPath, maxDepth));
 
   deps.ipcMain.handle('links:list', () => {
     deps.log.log('IPC: links:list called');

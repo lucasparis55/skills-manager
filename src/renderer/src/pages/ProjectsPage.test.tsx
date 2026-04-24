@@ -8,7 +8,17 @@ vi.mock('../components/ui/FormDialog', () => ({
   default: (props: any) =>
     props.open ? (
       <div>
-        <button onClick={() => props.onSubmit({ path: 'C:/repo/new-project' })}>submit-project</button>
+        <button
+          onClick={() =>
+            props.onSubmit(
+              props.title === 'Add Project'
+                ? { path: 'C:/repo/new-project' }
+                : { path: 'C:/scan-root', depth: '2' },
+            )
+          }
+        >
+          {props.submitLabel}
+        </button>
       </div>
     ) : null,
 }));
@@ -60,13 +70,14 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Repo 1')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Scan' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Scan' })[1]);
     await waitFor(() => {
-      expect(api.projects.scan).toHaveBeenCalledTimes(1);
+      expect(api.projects.scan).toHaveBeenCalledWith('C:/scan-root', 2);
     });
     expect(await screen.findByText('Scan Complete')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Add Project' }));
-    await userEvent.click(screen.getByRole('button', { name: 'submit-project' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     await waitFor(() => {
       expect(api.projects.add).toHaveBeenCalledWith('C:/repo/new-project');
     });

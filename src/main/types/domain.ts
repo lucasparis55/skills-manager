@@ -66,6 +66,7 @@ export interface AppSettings {
   developerModeEnabled: boolean;
   theme: 'light' | 'dark' | 'system';
   lastProjectScanPath?: string;
+  projectScanDepth: number;
   ideRootOverrides: Record<string, string>;
 }
 

@@ -159,4 +159,41 @@ describe('ProjectService', () => {
 
     expect(ides).toContain('kimi-cli');
   });
+
+  it('scans with custom depth', () => {
+    const scanRoot = path.join(workspaceDir, 'deep-root');
+    const level1 = path.join(scanRoot, 'level1');
+    const level2 = path.join(level1, 'level2');
+    const projectAtLevel2 = path.join(level2, 'deep-project');
+
+    fs.mkdirSync(projectAtLevel2, { recursive: true });
+    fs.writeFileSync(path.join(projectAtLevel2, 'package.json'), '{}', 'utf-8');
+
+    const service = new ProjectService(appDataDir);
+    const depth2 = service.scan(scanRoot, 2);
+    const depth3 = service.scan(scanRoot, 3);
+
+    expect(depth2).toHaveLength(0);
+    expect(depth3).toHaveLength(1);
+    expect(depth3[0].name).toBe('deep-project');
+  });
+
+  it('clamps scan depth between 1 and 5', () => {
+    const scanRoot = path.join(workspaceDir, 'clamp-root');
+    const sub = path.join(scanRoot, 'sub');
+    const projectPath = path.join(sub, 'app');
+
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.writeFileSync(path.join(projectPath, 'package.json'), '{}', 'utf-8');
+
+    const service = new ProjectService(appDataDir);
+
+    const tooLow = service.scan(scanRoot, 0);
+    const tooHigh = service.scan(scanRoot, 10);
+    const normal = service.scan(scanRoot, 2);
+
+    expect(tooLow).toHaveLength(0); // depth clamped to 1, scanRoot and sub checked
+    expect(tooHigh).toHaveLength(1); // depth clamped to 5, finds project
+    expect(normal).toHaveLength(1); // depth 2, finds project at sub/app
+  });
 });

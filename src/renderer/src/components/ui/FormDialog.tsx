@@ -8,8 +8,9 @@ export interface FormField {
   placeholder?: string;
   defaultValue?: string;
   required?: boolean;
-  type?: 'text' | 'password' | 'textarea' | 'tags';
+  type?: 'text' | 'password' | 'textarea' | 'tags' | 'select';
   rows?: number;
+  options?: { label: string; value: string }[];
   actionButton?: {
     icon: React.ComponentType<{ className?: string }>;
     tooltip?: string;
@@ -170,6 +171,22 @@ export const InlineForm: React.FC<InlineFormProps> = ({
             </button>
           </div>
         </div>
+      );
+    }
+
+    if (field.type === 'select' && field.options) {
+      return (
+        <select
+          value={value}
+          onChange={(e) => updateValue(field.name, e.target.value)}
+          className="w-full px-3 py-2 glass-input text-white focus:outline-none focus:border-blue-500"
+        >
+          {field.options.map((opt) => (
+            <option key={opt.value} value={opt.value} className="bg-gray-900 text-white">
+              {opt.label}
+            </option>
+          ))}
+        </select>
       );
     }
 

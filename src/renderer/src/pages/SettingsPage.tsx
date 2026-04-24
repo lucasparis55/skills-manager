@@ -235,6 +235,24 @@ const SettingsPage: React.FC = () => {
               <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/30 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
             </label>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-2">
+              Default Scan Depth
+            </label>
+            <select
+              value={settings.projectScanDepth ?? 2}
+              onChange={(e) => handleUpdate('projectScanDepth', parseInt(e.target.value, 10))}
+              className="w-full px-3 py-2 glass-input focus:outline-none focus:border-blue-500"
+            >
+              <option value={1}>1 — Only the selected folder</option>
+              <option value={2}>2 — Selected folder + 1 sublevel</option>
+              <option value={3}>3 — Selected folder + 2 sublevels</option>
+              <option value={4}>4 — Selected folder + 3 sublevels</option>
+              <option value={5}>5 — Selected folder + 4 sublevels</option>
+            </select>
+            <p className="text-xs text-white/40 mt-1">Maximum depth used when scanning for projects.</p>
+          </div>
         </div>
       </div>
 

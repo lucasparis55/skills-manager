@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('api', {
     list: () => ipcRenderer.invoke('projects:list'),
     add: (path: string) => ipcRenderer.invoke('projects:add', path),
     remove: (id: string) => ipcRenderer.invoke('projects:remove', id),
-    scan: (rootPath?: string) => ipcRenderer.invoke('projects:scan', rootPath),
+    scan: (rootPath?: string, maxDepth?: number) => ipcRenderer.invoke('projects:scan', rootPath, maxDepth),
   },
 
   // Links

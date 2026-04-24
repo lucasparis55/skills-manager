@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   symlinkStrategy: 'auto',
   developerModeEnabled: false,
   theme: 'dark',
+  projectScanDepth: 2,
   ideRootOverrides: {},
 };
 

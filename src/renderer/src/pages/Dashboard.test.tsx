@@ -10,14 +10,21 @@ vi.mock('../components/ui/FormDialog', () => ({
       <div>
         <button
           onClick={() =>
-            props.onSubmit({
-              name: 'new-skill',
-              displayName: 'New Skill',
-              description: 'desc',
-            })
+            props.onSubmit(
+              props.title === 'Create New Skill'
+                ? {
+                    name: 'new-skill',
+                    displayName: 'New Skill',
+                    description: 'desc',
+                  }
+                : {
+                    path: 'C:/projects',
+                    depth: '2',
+                  },
+            )
           }
         >
-          submit-skill
+          {props.submitLabel}
         </button>
       </div>
     ) : null,
@@ -50,13 +57,14 @@ describe('Dashboard', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Scan Projects' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Scan' }));
     await waitFor(() => {
-      expect(api.projects.scan).toHaveBeenCalledTimes(1);
+      expect(api.projects.scan).toHaveBeenCalledWith('C:/projects', 2);
     });
     expect(await screen.findByText('Scan Complete')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Create Skill' }));
-    await userEvent.click(screen.getByRole('button', { name: 'submit-skill' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       expect(api.skills.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'new-skill' }));
     });
