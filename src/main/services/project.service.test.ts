@@ -178,6 +178,23 @@ describe('ProjectService', () => {
     expect(depth3[0].name).toBe('deep-project');
   });
 
+  it('deduplicates detected IDEs when multiple matching directories exist', () => {
+    const projectPath = path.join(workspaceDir, 'multi-ide-project');
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.mkdirSync(path.join(projectPath, '.agents'), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, '.codex'), { recursive: true });
+
+    const service = new ProjectService(appDataDir);
+    const ides = service.detectIDEs(projectPath);
+
+    const uniqueIdes = [...new Set(ides)];
+    expect(ides).toEqual(uniqueIdes);
+    expect(ides).toContain('codex-cli');
+    expect(ides).toContain('codex-desktop');
+    expect(ides).toContain('kimi-cli');
+    expect(ides).toHaveLength(3);
+  });
+
   it('clamps scan depth between 1 and 5', () => {
     const scanRoot = path.join(workspaceDir, 'clamp-root');
     const sub = path.join(scanRoot, 'sub');

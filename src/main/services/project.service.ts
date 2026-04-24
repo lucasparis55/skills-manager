@@ -141,7 +141,7 @@ export class ProjectService {
       }
     }
 
-    return ides;
+    return [...new Set(ides)];
   }
 
   /**
