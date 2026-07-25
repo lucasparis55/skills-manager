@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -149,7 +149,7 @@ describe('ProjectService', () => {
     expect(ides).toContain('kimi-cli');
   });
 
-  it('detects kimi-cli IDE when .agents directory exists', () => {
+  it('detects codex-cli from .agents alone and excludes kimi-cli', () => {
     const projectPath = path.join(workspaceDir, 'agents-project');
     fs.mkdirSync(projectPath, { recursive: true });
     fs.mkdirSync(path.join(projectPath, '.agents'), { recursive: true });
@@ -157,7 +157,9 @@ describe('ProjectService', () => {
     const service = new ProjectService(appDataDir);
     const ides = service.detectIDEs(projectPath);
 
-    expect(ides).toContain('kimi-cli');
+    expect(ides).toContain('codex-cli');
+    expect(ides).not.toContain('kimi-cli');
+    expect(ides).not.toContain('codex-desktop');
   });
 
   it('scans with custom depth', () => {
@@ -191,8 +193,51 @@ describe('ProjectService', () => {
     expect(ides).toEqual(uniqueIdes);
     expect(ides).toContain('codex-cli');
     expect(ides).toContain('codex-desktop');
-    expect(ides).toContain('kimi-cli');
-    expect(ides).toHaveLength(3);
+    expect(ides).not.toContain('kimi-cli');
+    expect(ides).toHaveLength(2);
+  });
+
+  it('scan returns persisted ids matching list() for colliding basenames', () => {
+    const firstPath = path.join(workspaceDir, 'team-a', 'app');
+    const secondPath = path.join(workspaceDir, 'team-b', 'app');
+
+    fs.mkdirSync(firstPath, { recursive: true });
+    fs.mkdirSync(secondPath, { recursive: true });
+    fs.writeFileSync(path.join(firstPath, 'package.json'), '{}', 'utf-8');
+    fs.writeFileSync(path.join(secondPath, 'package.json'), '{}', 'utf-8');
+
+    const service = new ProjectService(appDataDir);
+    service.add(firstPath);
+    service.add(secondPath);
+
+    const scanned = service.scan(workspaceDir, 3);
+    const listed = service.list();
+
+    expect(scanned).toHaveLength(2);
+    expect(scanned.map((p) => p.id).sort()).toEqual(listed.map((p) => p.id).sort());
+    expect(scanned.every((p) => listed.some((l) => l.id === p.id && l.path === p.path))).toBe(true);
+    expect(listed.some((p) => p.id === 'app')).toBe(true);
+    expect(listed.some((p) => p.id.startsWith('app-'))).toBe(true);
+  });
+
+  it('scan with NaN depth uses effective depth 2', () => {
+    const scanRoot = path.join(workspaceDir, 'nan-depth-root');
+    const sub = path.join(scanRoot, 'sub');
+    const projectPath = path.join(sub, 'app');
+
+    fs.mkdirSync(projectPath, { recursive: true });
+    fs.writeFileSync(path.join(projectPath, 'package.json'), '{}', 'utf-8');
+
+    const service = new ProjectService(appDataDir);
+    const scanDirectorySpy = vi.spyOn(service as any, 'scanDirectory');
+
+    const scanned = service.scan(scanRoot, Number.NaN);
+
+    expect(scanDirectorySpy).toHaveBeenCalledWith(scanRoot, expect.any(Array), 2);
+    expect(scanned).toHaveLength(1);
+    expect(scanned[0].name).toBe('app');
+
+    scanDirectorySpy.mockRestore();
   });
 
   it('clamps scan depth between 1 and 5', () => {

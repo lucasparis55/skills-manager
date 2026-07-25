@@ -111,35 +111,29 @@ export class IDEAdapterService {
   /**
    * Detect roots for all IDEs
    */
-  detectRoots(): ResolvedIDERoot[] {
+  detectRoots(overrides?: Record<string, string>): ResolvedIDERoot[] {
     const resolved: ResolvedIDERoot[] = [];
-
     for (const ide of this.ides) {
-      // Check primary roots
-      for (const root of ide.roots.primaryGlobal) {
-        const expanded = expandPath(root);
+      const effective = this.getEffectiveGlobalRoot(ide.id, overrides);
+      const pushRoot = (rootTemplate: string, isPrimary: boolean) => {
+        const expanded = expandPath(rootTemplate);
+        const sameAsEffective =
+          !!effective &&
+          (process.platform === 'win32'
+            ? path.normalize(expanded).toLowerCase() === path.normalize(effective).toLowerCase()
+            : path.normalize(expanded) === path.normalize(effective));
+        const exists = this.pathExists(expanded);
         resolved.push({
           ideId: ide.id,
           root: expanded,
-          exists: this.pathExists(expanded),
-          isPrimary: true,
-          isConfigured: false,
+          exists,
+          isPrimary,
+          isConfigured: exists && sameAsEffective,
         });
-      }
-
-      // Check secondary roots
-      for (const root of ide.roots.secondaryGlobal) {
-        const expanded = expandPath(root);
-        resolved.push({
-          ideId: ide.id,
-          root: expanded,
-          exists: this.pathExists(expanded),
-          isPrimary: false,
-          isConfigured: false,
-        });
-      }
+      };
+      for (const root of ide.roots.primaryGlobal) pushRoot(root, true);
+      for (const root of ide.roots.secondaryGlobal) pushRoot(root, false);
     }
-
     return resolved;
   }
 

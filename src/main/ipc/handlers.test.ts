@@ -443,6 +443,129 @@ describe('registerIPCHandlers', () => {
     ).rejects.toThrow('Permission denied');
   });
 
+  it('links:create does not touch symlink when link id already exists', async () => {
+    const harness = createHarness({
+      linkService: {
+        list: vi.fn(() => []),
+        create: vi.fn(),
+        get: vi.fn(() => ({ id: 'brainstorming-skills-manager-claude-code' })),
+        remove: vi.fn(() => true),
+        removeMultiple: vi.fn(() => []),
+        verify: vi.fn(() => ({ valid: true })),
+        verifyAll: vi.fn(() => []),
+      },
+    });
+
+    await expect(
+      harness.invoke('links:create', {
+        skillId: 'brainstorming',
+        projectId: 'skills-manager',
+        ideName: 'claude-code',
+        scope: 'project',
+      }),
+    ).rejects.toThrow(/already exists/);
+
+    expect(harness.deps.symlinkService.create).not.toHaveBeenCalled();
+  });
+
+  it('cascades link and symlink cleanup when skills:delete runs', async () => {
+    let current = [
+      {
+        id: 'brainstorming-skills-manager-claude-code',
+        skillId: 'brainstorming',
+        projectId: 'skills-manager',
+        destinationPath: 'C:/dest/unique',
+      },
+      {
+        id: 'other-skills-manager-claude-code',
+        skillId: 'other',
+        projectId: 'skills-manager',
+        destinationPath: 'C:/dest/shared',
+      },
+      {
+        id: 'brainstorming-other-claude-code',
+        skillId: 'brainstorming',
+        projectId: 'other',
+        destinationPath: 'C:/dest/shared',
+      },
+    ];
+
+    const harness = createHarness({
+      linkService: {
+        list: vi.fn(() => current),
+        create: vi.fn(),
+        get: vi.fn(),
+        remove: vi.fn(() => true),
+        removeMultiple: vi.fn((ids: string[]) => {
+          const results = ids.map((id) => ({ id, success: current.some((link) => link.id === id) }));
+          current = current.filter((link) => !ids.includes(link.id));
+          return results;
+        }),
+        verify: vi.fn(() => ({ valid: true })),
+        verifyAll: vi.fn(() => []),
+      },
+    });
+
+    await expect(harness.invoke('skills:delete', 'brainstorming')).resolves.toEqual({ success: true });
+
+    expect(harness.deps.linkService.removeMultiple).toHaveBeenCalledWith([
+      'brainstorming-skills-manager-claude-code',
+      'brainstorming-other-claude-code',
+    ]);
+    expect(harness.deps.symlinkService.remove).toHaveBeenCalledWith('C:/dest/unique');
+    expect(harness.deps.symlinkService.remove).not.toHaveBeenCalledWith('C:/dest/shared');
+    expect(harness.skillService.delete).toHaveBeenCalledWith('brainstorming');
+  });
+
+  it('cascades link and symlink cleanup when projects:remove runs', async () => {
+    let current = [
+      {
+        id: 'brainstorming-skills-manager-claude-code',
+        skillId: 'brainstorming',
+        projectId: 'skills-manager',
+        destinationPath: 'C:/dest/project-unique',
+      },
+      {
+        id: 'other-skills-manager-claude-code',
+        skillId: 'other',
+        projectId: 'skills-manager',
+        destinationPath: 'C:/dest/shared',
+      },
+      {
+        id: 'brainstorming-keep-claude-code',
+        skillId: 'brainstorming',
+        projectId: 'keep',
+        destinationPath: 'C:/dest/shared',
+      },
+    ];
+
+    const harness = createHarness({
+      linkService: {
+        list: vi.fn(() => current),
+        create: vi.fn(),
+        get: vi.fn(),
+        remove: vi.fn(() => true),
+        removeMultiple: vi.fn((ids: string[]) => {
+          const results = ids.map((id) => ({ id, success: current.some((link) => link.id === id) }));
+          current = current.filter((link) => !ids.includes(link.id));
+          return results;
+        }),
+        verify: vi.fn(() => ({ valid: true })),
+        verifyAll: vi.fn(() => []),
+      },
+    });
+
+    await expect(harness.invoke('projects:remove', 'skills-manager')).resolves.toEqual({ success: true });
+
+    expect(harness.deps.linkService.removeMultiple).toHaveBeenCalledWith([
+      'brainstorming-skills-manager-claude-code',
+      'other-skills-manager-claude-code',
+    ]);
+    expect(harness.deps.symlinkService.remove).toHaveBeenCalledWith('C:/dest/project-unique');
+    expect(harness.deps.symlinkService.remove).not.toHaveBeenCalledWith('C:/dest/shared');
+    expect(harness.deps.projectService.remove).toHaveBeenCalledWith('skills-manager');
+  });
+
   it('blocks links:create for global destination conflict', async () => {
     const conflictDestination = resolveLinkDestination(
       'brainstorming',
@@ -855,6 +978,7 @@ describe('registerIPCHandlers', () => {
     await expect(harness.invoke('skills:list')).resolves.toEqual([
       expect.objectContaining({ id: 'brainstorming' }),
     ]);
+    expect(harness.deps.createSkillService).toHaveBeenCalled();
     await expect(harness.invoke('skills:get', 'brainstorming')).resolves.toEqual(
       expect.objectContaining({ id: 'brainstorming' }),
     );
@@ -884,6 +1008,7 @@ describe('registerIPCHandlers', () => {
 
     await harness.invoke('ides:list');
     await harness.invoke('ides:detect-roots');
+    expect(harness.deps.ideService.detectRoots).toHaveBeenCalledWith({});
     await harness.invoke('detection:check-duplicates', 's1', 'p1', 'ide');
 
     await harness.invoke('settings:get');
@@ -912,6 +1037,19 @@ describe('registerIPCHandlers', () => {
     expect(harness.deps.settingsService.update).toHaveBeenCalledWith({ theme: 'light' });
     expect(harness.deps.githubImportService.cancelImport).toHaveBeenCalledTimes(1);
     expect(harness.deps.zipImportService.cancelImport).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes ideRootOverrides from settings to detectRoots', async () => {
+    const overrides = { cursor: 'C:/custom/cursor' };
+    const harness = createHarness({
+      settingsService: {
+        get: vi.fn(() => ({ ...defaultSettings, ideRootOverrides: overrides })),
+        update: vi.fn((input: any) => ({ ...defaultSettings, ...input })),
+      },
+    });
+
+    await harness.invoke('ides:detect-roots');
+    expect(harness.deps.ideService.detectRoots).toHaveBeenCalledWith(overrides);
   });
 
   it('handles remove dedupe and github import error fallback payload', async () => {

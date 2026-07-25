@@ -74,12 +74,9 @@ describe('SkillService operations', () => {
     service.writeFile('alpha-skill', 'docs/config.json', '{"ok":true}');
 
     const files = service.listFiles('alpha-skill');
-    const normalizedPaths = files.map((f) => ({
-      ...f,
-      path: f.path.replaceAll('\\', '/'),
-    }));
-    expect(normalizedPaths.some((f) => f.path === 'docs' && f.isDirectory)).toBe(true);
-    expect(normalizedPaths.some((f) => f.path === 'docs/guide.md' && !f.isDirectory)).toBe(true);
+    expect(files.some((f) => f.path === 'docs' && f.isDirectory)).toBe(true);
+    expect(files.some((f) => f.path === 'docs/guide.md' && !f.isDirectory)).toBe(true);
+    expect(files.every((f) => !f.path.includes('\\'))).toBe(true);
     expect(service.readFile('alpha-skill', 'docs/guide.md')).toBe('Guide');
 
     expect(() => service.readFile('alpha-skill', 'docs')).toThrow('directory');
@@ -126,6 +123,31 @@ describe('SkillService operations', () => {
     );
     expect(overwritten.name).toBe('imported-skill');
     expect(service.getContent('imported-skill')).toContain('overwritten');
+  });
+
+  it('lists skill with CRLF frontmatter', () => {
+    const dir = path.join(tempDir, 'crlf-skill');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(
+      path.join(dir, 'SKILL.md'),
+      '---\r\nname: crlf-skill\r\ndisplayName: CRLF\r\n---\r\n# Hi\r\n',
+    );
+    const listed = service.list();
+    expect(listed.some((s) => s.name === 'crlf-skill')).toBe(true);
+  });
+
+  it('update upserts missing field and allows empty description', () => {
+    service.create(input);
+    service.update('alpha-skill', { description: '' });
+    const skill = service.get('alpha-skill');
+    expect(skill?.description).toBe('');
+
+    // Remove version line, then upsert it back
+    const skillMdPath = path.join(tempDir, 'alpha-skill', 'SKILL.md');
+    const content = fs.readFileSync(skillMdPath, 'utf-8').replace(/^version:.*$/m, '');
+    fs.writeFileSync(skillMdPath, content, 'utf-8');
+    service.update('alpha-skill', { version: '3.1.0' });
+    expect(service.get('alpha-skill')?.version).toBe('3.1.0');
   });
 
   it('guards invalid names, invalid file paths, and exists() edge cases', () => {

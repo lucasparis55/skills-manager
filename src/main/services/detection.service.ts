@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { DuplicateReport } from '../types/domain';
-import { expandPath, getSkillsRoot } from '../utils/paths';
+import { expandPath, resolveSkillsRoot } from '../utils/paths';
 import { SkillService } from './skill.service';
 import { ProjectService } from './project.service';
 import { IDEAdapterService } from './ide-adapter.service';
@@ -26,8 +26,7 @@ export class DetectionService {
   }
 
   private createSkillService(): SkillService {
-    const configured = this.settingsService.get().centralSkillsRoot;
-    return new SkillService(configured || getSkillsRoot());
+    return new SkillService(resolveSkillsRoot(this.settingsService.get().centralSkillsRoot));
   }
 
   /**
@@ -38,9 +37,9 @@ export class DetectionService {
     const project = this.projectService.list().find(p => p.id === projectId);
     if (!project) {
       return {
-        hasDuplicate: false,
+        hasDuplicate: true,
         existingType: 'project-skill',
-        severity: 'info',
+        severity: 'error',
         message: 'Project not found',
       };
     }
@@ -48,9 +47,9 @@ export class DetectionService {
     const skill = skillService.get(skillId);
     if (!skill) {
       return {
-        hasDuplicate: false,
+        hasDuplicate: true,
         existingType: 'global-skill',
-        severity: 'info',
+        severity: 'error',
         message: 'Skill not found',
       };
     }
@@ -59,9 +58,9 @@ export class DetectionService {
     const ideRoots = this.ideService.list().find(ide => ide.id === ideId);
     if (!ideRoots) {
       return {
-        hasDuplicate: false,
+        hasDuplicate: true,
         existingType: 'global-skill',
-        severity: 'info',
+        severity: 'error',
         message: 'IDE not found',
       };
     }

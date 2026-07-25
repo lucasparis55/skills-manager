@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { expandPath, getAppDataDir, getSkillsRoot, isSubDirectory } from './paths';
+import { expandPath, getAppDataDir, getSkillsRoot, isSubDirectory, resolveSkillsRoot } from './paths';
 
 describe('paths utils', () => {
   it('expands home and environment variables', () => {
@@ -30,5 +30,15 @@ describe('paths utils', () => {
     expect(isSubDirectory('/parent/child', '/parent')).toBe(true);
     expect(isSubDirectory('/parent', '/parent')).toBe(false);
     expect(isSubDirectory('/other/place', '/parent')).toBe(false);
+  });
+
+  it('resolveSkillsRoot uses configured path when non-empty', () => {
+    const configured = path.join(os.tmpdir(), 'custom-skills');
+    expect(resolveSkillsRoot(configured)).toBe(path.resolve(configured));
+  });
+
+  it('resolveSkillsRoot falls back to getSkillsRoot', () => {
+    expect(resolveSkillsRoot('')).toBe(path.resolve(getSkillsRoot()));
+    expect(resolveSkillsRoot(null)).toBe(path.resolve(getSkillsRoot()));
   });
 });

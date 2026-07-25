@@ -170,7 +170,7 @@ tags: [${input.tags?.join(', ') || ''}]
 
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), frontmatter, 'utf-8');
 
-    return this.loadSkill(skillName, skillDir)!;
+    return this.requireLoadedSkill(skillName, skillDir);
   }
 
   /**
@@ -184,34 +184,38 @@ tags: [${input.tags?.join(', ') || ''}]
       throw new Error(`Skill "${skillName}" not found`);
     }
 
-    const content = fs.readFileSync(skillMdPath, 'utf-8');
-
-    // Parse and update frontmatter
+    const raw = fs.readFileSync(skillMdPath, 'utf-8');
+    const content = this.normalizeNewlines(raw);
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (frontmatterMatch) {
-      let frontmatter = frontmatterMatch[1];
-
-      if (input.displayName) {
-        frontmatter = frontmatter.replace(/displayName:.*/, `displayName: ${input.displayName}`);
-      }
-      if (input.description) {
-        frontmatter = frontmatter.replace(/description:.*/, `description: ${input.description}`);
-      }
-      if (input.version) {
-        frontmatter = frontmatter.replace(/version:.*/, `version: ${input.version}`);
-      }
-      if (input.targetIDEs) {
-        frontmatter = frontmatter.replace(/targetIDEs:.*/, `targetIDEs: [${input.targetIDEs.join(', ')}]`);
-      }
-      if (input.tags) {
-        frontmatter = frontmatter.replace(/tags:.*/, `tags: [${input.tags.join(', ')}]`);
-      }
-
-      const newContent = content.replace(/^---\n[\s\S]*?\n---/, `---\n${frontmatter}\n---`);
-      fs.writeFileSync(skillMdPath, newContent, 'utf-8');
+    if (!frontmatterMatch) {
+      throw new Error(`Skill "${skillName}" has no YAML frontmatter`);
     }
 
-    return this.loadSkill(skillName, skillDir)!;
+    let frontmatter = frontmatterMatch[1];
+
+    const upsertScalar = (field: string, value: string) => {
+      const re = new RegExp(`^${field}:.*$`, 'm');
+      const line = `${field}: ${value}`;
+      if (re.test(frontmatter)) {
+        frontmatter = frontmatter.replace(re, line);
+      } else {
+        frontmatter = `${frontmatter.trimEnd()}\n${line}`;
+      }
+    };
+
+    const upsertArray = (field: string, values: string[]) => {
+      upsertScalar(field, `[${values.join(', ')}]`);
+    };
+
+    if (input.displayName !== undefined) upsertScalar('displayName', input.displayName);
+    if (input.description !== undefined) upsertScalar('description', input.description);
+    if (input.version !== undefined) upsertScalar('version', input.version);
+    if (input.targetIDEs !== undefined) upsertArray('targetIDEs', input.targetIDEs);
+    if (input.tags !== undefined) upsertArray('tags', input.tags);
+
+    const newContent = content.replace(/^---\n[\s\S]*?\n---/, `---\n${frontmatter}\n---`);
+    fs.writeFileSync(skillMdPath, newContent, 'utf-8');
+    return this.requireLoadedSkill(skillName, skillDir);
   }
 
   /**
@@ -227,6 +231,10 @@ tags: [${input.tags?.join(', ') || ''}]
     fs.rmSync(skillDir, { recursive: true, force: true });
   }
 
+  private normalizeNewlines(content: string): string {
+    return content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  }
+
   /**
    * Load skill metadata from directory
    */
@@ -237,7 +245,7 @@ tags: [${input.tags?.join(', ') || ''}]
       return null;
     }
 
-    const content = fs.readFileSync(skillMdPath, 'utf-8');
+    const content = this.normalizeNewlines(fs.readFileSync(skillMdPath, 'utf-8'));
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
 
     if (!frontmatterMatch) {
@@ -247,7 +255,7 @@ tags: [${input.tags?.join(', ') || ''}]
     const frontmatter = frontmatterMatch[1];
 
     const parseField = (field: string): string => {
-      const match = frontmatter.match(new RegExp(`${field}:\\s*(.+)`));
+      const match = frontmatter.match(new RegExp(`^${field}:(.*)$`, 'm'));
       return match ? match[1].trim() : '';
     };
 
@@ -273,6 +281,16 @@ tags: [${input.tags?.join(', ') || ''}]
       sourcePath: skillDir,
       metadata: {},
     };
+  }
+
+  private requireLoadedSkill(name: string, skillDir: string): Skill {
+    const skill = this.loadSkill(name, skillDir);
+    if (!skill) {
+      throw new Error(
+        `Failed to load skill "${name}" after write (invalid or missing frontmatter)`,
+      );
+    }
+    return skill;
   }
 
   /**
@@ -319,7 +337,7 @@ tags: [${input.tags?.join(', ') || ''}]
     }
 
     fs.writeFileSync(skillMdPath, content, 'utf-8');
-    return this.loadSkill(skillName, skillDir)!;
+    return this.requireLoadedSkill(skillName, skillDir);
   }
 
   /**
@@ -345,7 +363,7 @@ tags: [${input.tags?.join(', ') || ''}]
 
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
-      const relativePath = path.relative(baseDir, fullPath);
+      const relativePath = path.relative(baseDir, fullPath).split(path.sep).join('/');
 
       if (entry.isDirectory()) {
         files.push({
@@ -519,7 +537,7 @@ ${importSourceLine}
       }
     }
 
-    return this.loadSkill(skillName, skillDir)!;
+    return this.requireLoadedSkill(skillName, skillDir);
   }
 
   /**

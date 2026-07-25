@@ -9,7 +9,7 @@ import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
 import { UpdateService } from '../services/update.service';
-import { expandPath } from '../utils/paths';
+import { expandPath, resolveSkillsRoot } from '../utils/paths';
 import type {
   AppSettings,
   CreateMultipleLinksInput,
@@ -81,7 +81,6 @@ export interface IPCHandlerDependencies {
   log: Pick<Console, 'log' | 'error'>;
 }
 
-const defaultSkillService = new SkillService();
 const defaultProjectService = new ProjectService();
 const defaultSymlinkService = new SymlinkService();
 const defaultLinkService = new LinkService();
@@ -105,7 +104,8 @@ const defaultDeps: IPCHandlerDependencies = {
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
   updateService: defaultUpdateService,
-  createSkillService: () => defaultSkillService,
+  createSkillService: () =>
+    new SkillService(resolveSkillsRoot(defaultSettingsService.get().centralSkillsRoot)),
   expandPath,
   platform: process.platform,
   log: console,
@@ -146,46 +146,72 @@ function buildLinkId(skillId: string, projectId: string, ideName: string): strin
   return `${skillId}-${projectId}-${ideName}`;
 }
 
+function removeLinksMatching(
+  deps: IPCHandlerDependencies,
+  predicate: (link: any) => boolean,
+): void {
+  const allLinks = deps.linkService.list();
+  const toRemove = allLinks.filter(predicate);
+  if (toRemove.length === 0) return;
+
+  const ids = toRemove.map((l) => l.id);
+  deps.linkService.removeMultiple(ids);
+
+  const remaining = deps.linkService.list();
+  const destinations = new Set(toRemove.map((l) => l.destinationPath));
+  for (const destinationPath of destinations) {
+    const stillReferenced = remaining.some((l) => l.destinationPath === destinationPath);
+    if (!stillReferenced) {
+      deps.symlinkService.remove(destinationPath);
+    }
+  }
+}
+
 /**
  * Register all IPC handlers.
  * Supports dependency injection for tests while defaulting to production services.
  */
 export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> = {}): void {
   const deps = { ...defaultDeps, ...inputDeps };
-  const skillService = deps.createSkillService();
 
   deps.log.log('Registering IPC handlers...');
 
   deps.ipcMain.handle('skills:list', () => {
     deps.log.log('IPC: skills:list called');
-    const result = skillService.list();
+    const result = deps.createSkillService().list();
     deps.log.log('IPC: skills:list returning', result.length, 'skills');
     return result;
   });
 
-  deps.ipcMain.handle('skills:get', (_event, id: string) => skillService.get(id));
-  deps.ipcMain.handle('skills:create', (_event, input: any) => skillService.create(input));
-  deps.ipcMain.handle('skills:update', (_event, id: string, input: any) => skillService.update(id, input));
+  deps.ipcMain.handle('skills:get', (_event, id: string) => deps.createSkillService().get(id));
+  deps.ipcMain.handle('skills:create', (_event, input: any) => deps.createSkillService().create(input));
+  deps.ipcMain.handle('skills:update', (_event, id: string, input: any) => deps.createSkillService().update(id, input));
   deps.ipcMain.handle('skills:delete', (_event, id: string) => {
+    const skillService = deps.createSkillService();
+    removeLinksMatching(deps, (link) => link.skillId === id);
     skillService.delete(id);
     return { success: true };
   });
-  deps.ipcMain.handle('skills:scan', () => skillService.scan());
-  deps.ipcMain.handle('skills:getContent', (_event, id: string) => skillService.getContent(id));
-  deps.ipcMain.handle('skills:saveContent', (_event, id: string, content: string) => skillService.saveContent(id, content));
-  deps.ipcMain.handle('skills:listFiles', (_event, id: string) => skillService.listFiles(id));
-  deps.ipcMain.handle('skills:readFile', (_event, id: string, filePath: string) => skillService.readFile(id, filePath));
+  deps.ipcMain.handle('skills:scan', () => deps.createSkillService().scan());
+  deps.ipcMain.handle('skills:getContent', (_event, id: string) => deps.createSkillService().getContent(id));
+  deps.ipcMain.handle('skills:saveContent', (_event, id: string, content: string) =>
+    deps.createSkillService().saveContent(id, content),
+  );
+  deps.ipcMain.handle('skills:listFiles', (_event, id: string) => deps.createSkillService().listFiles(id));
+  deps.ipcMain.handle('skills:readFile', (_event, id: string, filePath: string) =>
+    deps.createSkillService().readFile(id, filePath),
+  );
   deps.ipcMain.handle('skills:writeFile', (_event, id: string, filePath: string, content: string) => {
-    skillService.writeFile(id, filePath, content);
+    deps.createSkillService().writeFile(id, filePath, content);
     return { success: true };
   });
   deps.ipcMain.handle('skills:deleteFile', (_event, id: string, filePath: string) => {
-    skillService.deleteFile(id, filePath);
+    deps.createSkillService().deleteFile(id, filePath);
     return { success: true };
   });
-  deps.ipcMain.handle('skills:getPath', (_event, id: string) => skillService.getSkillPath(id));
+  deps.ipcMain.handle('skills:getPath', (_event, id: string) => deps.createSkillService().getSkillPath(id));
   deps.ipcMain.handle('skills:openFolder', async (_event, id: string) => {
-    const skillPath = skillService.getSkillPath(id);
+    const skillPath = deps.createSkillService().getSkillPath(id);
     await deps.shell.openPath(skillPath);
     return { success: true };
   });
@@ -198,6 +224,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   });
   deps.ipcMain.handle('projects:add', (_event, projectPath: string) => deps.projectService.add(projectPath));
   deps.ipcMain.handle('projects:remove', (_event, id: string) => {
+    removeLinksMatching(deps, (link) => link.projectId === id);
     deps.projectService.remove(id);
     return { success: true };
   });
@@ -209,6 +236,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   });
 
   deps.ipcMain.handle('links:create', (_event, input: any) => {
+    const skillService = deps.createSkillService();
     const skill = skillService.get(input.skillId);
     if (!skill) {
       throw new Error(`Skill "${input.skillId}" not found`);
@@ -229,6 +257,11 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       if (!permissionCheck.canCreate) {
         throw new Error(permissionCheck.message || 'Cannot create symlinks on Windows');
       }
+    }
+
+    const linkId = buildLinkId(input.skillId, input.projectId, input.ideName);
+    if (deps.linkService.get(linkId)) {
+      throw new Error(`Link "${linkId}" already exists`);
     }
 
     const destination = resolveLinkDestination(skill.name, project.path, ide, input.scope, deps.expandPath, deps.settingsService.get().ideRootOverrides);
@@ -288,7 +321,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
 
     for (let i = 0; i < skillIds.length; i += 1) {
       const skillId = skillIds[i];
-      const skill = skillService.get(skillId);
+      const skill = deps.createSkillService().get(skillId);
 
       if (!skill) {
         results.push({
@@ -437,7 +470,9 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   deps.ipcMain.handle('links:verifyAll', () => deps.linkService.verifyAll(deps.symlinkService));
 
   deps.ipcMain.handle('ides:list', () => deps.ideService.list());
-  deps.ipcMain.handle('ides:detect-roots', () => deps.ideService.detectRoots());
+  deps.ipcMain.handle('ides:detect-roots', () =>
+    deps.ideService.detectRoots(deps.settingsService.get().ideRootOverrides),
+  );
   deps.ipcMain.handle('detection:check-duplicates', (_event, skillId: string, projectId: string, ideId: string) =>
     deps.detectionService.checkDuplicates(skillId, projectId, ideId),
   );

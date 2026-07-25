@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { X, ChevronDown, Check, Link2, Loader2, CheckCircle2, AlertTriangle, XCircle, Search } from 'lucide-react';
@@ -63,6 +63,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
   const [progress, setProgress] = useState<LinkCreationProgress | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
+  const completedRef = useRef(false);
 
   // Subscribe to progress events when in creating phase
   useEffect(() => {
@@ -144,16 +145,24 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
     }
   };
 
-  const handleClose = () => {
-    setPhase('form-input');
-    onOpenChange(false);
-    if (creationResults.length > 0) {
+  const notifyCompleteIfNeeded = () => {
+    if (creationResults.length > 0 && !completedRef.current) {
+      completedRef.current = true;
       onComplete?.(creationResults);
     }
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      notifyCompleteIfNeeded();
+    } else {
+      completedRef.current = false;
+    }
+    onOpenChange(next);
+  };
+
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
         <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
@@ -452,7 +461,7 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
               {/* Close button */}
               <div className="flex justify-end pt-2">
                 <button
-                  onClick={handleClose}
+                  onClick={() => handleOpenChange(false)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
                   Close

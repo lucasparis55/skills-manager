@@ -119,7 +119,29 @@ export class SettingsService {
   update(updates: Partial<AppSettings>): AppSettings {
     const { githubToken: _legacyToken, hasGithubToken: _publicFlag, ...safeUpdates } =
       (updates as LegacySettings) || {};
-    this.settings = { ...this.settings, ...safeUpdates };
+
+    const next: AppSettings = { ...this.settings, ...safeUpdates };
+
+    if (Object.prototype.hasOwnProperty.call(safeUpdates, 'centralSkillsRoot')) {
+      const raw = next.centralSkillsRoot;
+      if (typeof raw !== 'string' || raw.trim().length === 0) {
+        throw new Error('centralSkillsRoot must be a non-empty path');
+      }
+      const absolute = path.resolve(raw.trim());
+      if (!fs.existsSync(absolute) || !fs.statSync(absolute).isDirectory()) {
+        throw new Error(`Central skills root must be an existing directory: ${absolute}`);
+      }
+      next.centralSkillsRoot = absolute;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(safeUpdates, 'projectScanDepth')) {
+      const depth = next.projectScanDepth;
+      if (!Number.isInteger(depth) || depth < 1 || depth > 5) {
+        throw new Error('projectScanDepth must be an integer between 1 and 5');
+      }
+    }
+
+    this.settings = next;
     this.save();
     return this.get();
   }

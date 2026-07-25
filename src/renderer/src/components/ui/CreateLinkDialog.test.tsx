@@ -6,7 +6,15 @@ import CreateLinkDialog from './CreateLinkDialog';
 import { createApiMock, renderWithProviders } from '../../test-utils';
 
 vi.mock('@radix-ui/react-dialog', () => ({
-  Root: ({ open, children }: any) => (open ? <div>{children}</div> : null),
+  Root: ({ open, onOpenChange, children }: any) =>
+    open ? (
+      <div>
+        {children}
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          SimulateRadixClose
+        </button>
+      </div>
+    ) : null,
   Portal: ({ children }: any) => <>{children}</>,
   Overlay: ({ children }: any) => <div>{children}</div>,
   Content: ({ children }: any) => <div>{children}</div>,
@@ -121,6 +129,41 @@ describe('CreateLinkDialog', () => {
     expect(screen.getByText('✗ 1 errors')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onComplete).toHaveBeenCalledWith(results);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('calls onComplete when closed via onOpenChange(false) after results', async () => {
+    const onComplete = vi.fn();
+    const onOpenChange = vi.fn();
+    const results = [{ skillId: 's1', skillName: 'Skill 1', status: 'created' as const }];
+
+    createApiMock({
+      links: {
+        createMultiple: vi.fn(async () => results),
+        onCreateProgress: vi.fn(() => () => {}),
+      },
+    });
+
+    renderWithProviders(
+      <CreateLinkDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        skills={skills}
+        projects={projects}
+        ides={ides}
+        onSubmit={vi.fn(async () => {})}
+        onComplete={onComplete}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /Project 1/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Claude Code CLI/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create 2 Links' }));
+    expect(await screen.findByText('✓ 1 created')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'SimulateRadixClose' }));
+    expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(results);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

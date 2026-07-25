@@ -38,6 +38,16 @@ export function getSkillsRoot(): string {
 }
 
 /**
+ * Resolves the effective skills root from settings or the default path.
+ */
+export function resolveSkillsRoot(centralSkillsRoot?: string | null): string {
+  if (typeof centralSkillsRoot === 'string' && centralSkillsRoot.trim().length > 0) {
+    return path.resolve(centralSkillsRoot.trim());
+  }
+  return path.resolve(getSkillsRoot());
+}
+
+/**
  * Gets the app data directory
  */
 export function getAppDataDir(): string {

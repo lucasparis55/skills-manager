@@ -72,7 +72,11 @@ export class ProjectService {
   scan(rootPath?: string, maxDepth?: number): Project[] {
     const scanPath = rootPath || process.env.USERPROFILE || process.env.HOME || '.';
     const foundProjects: Project[] = [];
-    const clampedDepth = Math.min(5, Math.max(1, maxDepth ?? 2));
+    const rawDepth = maxDepth;
+    const safeDepth = Number.isFinite(rawDepth as number) && Number.isInteger(rawDepth)
+      ? (rawDepth as number)
+      : 2;
+    const clampedDepth = Math.min(5, Math.max(1, safeDepth));
 
     this.scanDirectory(scanPath, foundProjects, clampedDepth);
 
@@ -114,7 +118,10 @@ export class ProjectService {
       this.save();
     }
 
-    return foundProjects;
+    return foundProjects.map((found) => {
+      const id = this.projectPathIndex.get(this.toCanonicalPath(found.path))!;
+      return this.projects.get(id)!;
+    });
   }
 
   /**
@@ -122,25 +129,20 @@ export class ProjectService {
    */
   detectIDEs(projectPath: string): string[] {
     const ides: string[] = [];
-
-    const checks = [
+    const checks: Array<{ dir: string; ide: string }> = [
       { dir: '.claude', ide: 'claude-code' },
       { dir: '.cursor', ide: 'cursor' },
       { dir: '.opencode', ide: 'opencode' },
-      { dir: '.agents', ide: 'codex-cli' },
-      { dir: '.agents', ide: 'codex-desktop' },
+      { dir: '.kimi', ide: 'kimi-cli' },
       { dir: '.codex', ide: 'codex-cli' },
       { dir: '.codex', ide: 'codex-desktop' },
-      { dir: '.kimi', ide: 'kimi-cli' },
-      { dir: '.agents', ide: 'kimi-cli' },
+      { dir: '.agents', ide: 'codex-cli' },
     ];
-
     for (const { dir, ide } of checks) {
       if (fs.existsSync(path.join(projectPath, dir))) {
         ides.push(ide);
       }
     }
-
     return [...new Set(ides)];
   }
 

@@ -72,7 +72,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
   };
 
   const handleSaveContent = async () => {
-    if (!skill || !content) return;
+    if (!skill) return;
     setSaving(true);
     try {
       await window.api.skills.saveContent(skill.id, content);
@@ -202,9 +202,9 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
                       </span>
                       <button
                         onClick={handleSaveContent}
-                        disabled={saving || !content}
+                        disabled={saving}
                         className={`flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors ${
-                          saving || !content ? 'opacity-50 cursor-not-allowed' : ''
+                          saving ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       >
                         {saving ? (
