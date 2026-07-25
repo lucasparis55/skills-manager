@@ -56,11 +56,14 @@ const Dashboard: React.FC = () => {
         window.api.links.list(),
       ]);
 
+      const linkList = links ?? [];
       setStats({
         skills: skills?.length || 0,
         projects: projects?.length || 0,
-        links: links?.length || 0,
-        warnings: 0,
+        links: linkList.filter((l: any) => l.status === 'linked').length,
+        warnings: linkList.filter(
+          (l: any) => l.status === 'broken' || l.status === 'conflict',
+        ).length,
       });
     } catch (err) {
       console.error('Failed to load stats:', err);

@@ -98,5 +98,49 @@ describe('DetectionService', () => {
 
     fs.rmSync(globalRoot, { recursive: true, force: true });
   });
+
+  it('reports missing project, skill, and IDE as blocking errors', () => {
+    const project = projectService.add(tempProjectRoot);
+
+    const detectionService = new DetectionService(
+      {
+        get: () => ({ centralSkillsRoot: tempSkillsRoot }),
+      } as any,
+      projectService,
+      {
+        list: () => [
+          {
+            id: 'codex-cli',
+            roots: {
+              projectRelative: ['.agents/skills'],
+              primaryGlobal: [],
+              secondaryGlobal: [],
+            },
+          },
+        ],
+      } as any,
+    );
+
+    expect(detectionService.checkDuplicates('safe-skill', 'missing-project', 'codex-cli')).toEqual({
+      hasDuplicate: true,
+      existingType: 'project-skill',
+      severity: 'error',
+      message: 'Project not found',
+    });
+
+    expect(detectionService.checkDuplicates('missing-skill', project.id, 'codex-cli')).toEqual({
+      hasDuplicate: true,
+      existingType: 'global-skill',
+      severity: 'error',
+      message: 'Skill not found',
+    });
+
+    expect(detectionService.checkDuplicates('safe-skill', project.id, 'missing-ide')).toEqual({
+      hasDuplicate: true,
+      existingType: 'global-skill',
+      severity: 'error',
+      message: 'IDE not found',
+    });
+  });
 });
 

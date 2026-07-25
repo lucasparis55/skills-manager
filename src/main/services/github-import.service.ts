@@ -1,5 +1,6 @@
 import https from 'https';
-import { getSkillsRoot } from '../utils/paths';
+import { resolveSkillsRoot } from '../utils/paths';
+import { assignFilesToDeepestSkill, isSkillMdPath } from '../utils/skill-md';
 import { SkillService } from './skill.service';
 import { SettingsService } from './settings.service';
 import type {
@@ -21,22 +22,18 @@ import type {
  */
 export class GitHubImportService {
   private settingsService: SettingsService;
-  private cancelled = false;
+  private importGeneration = 0;
 
   constructor(settingsService: SettingsService) {
     this.settingsService = settingsService;
   }
 
-  private resolveSkillsRoot(): string {
-    const configured = this.settingsService.get().centralSkillsRoot;
-    if (typeof configured === 'string' && configured.trim().length > 0) {
-      return configured;
-    }
-    return getSkillsRoot();
+  private getSkillsRootFromSettings(): string {
+    return resolveSkillsRoot(this.settingsService.get().centralSkillsRoot);
   }
 
   private createSkillService(): SkillService {
-    return new SkillService(this.resolveSkillsRoot());
+    return new SkillService(this.getSkillsRootFromSettings());
   }
 
   private getEffectiveParsed(parsed: ParsedGitHubRepo, repoInfo: GitHubRepoInfo): ParsedGitHubRepo {
@@ -139,10 +136,8 @@ export class GitHubImportService {
     // Filter out unwanted paths
     filteredTree = filteredTree.filter(e => !this.isExcludedPath(e.path));
 
-    // Find all SKILL.md files
-    const skillMdFiles = filteredTree.filter(e =>
-      e.path.endsWith('SKILL.md') || e.path.endsWith('/SKILL.md')
-    );
+    // Find all SKILL.md files (literal basename only)
+    const skillMdFiles = filteredTree.filter(e => isSkillMdPath(e.path));
 
     if (skillMdFiles.length === 0) {
       // No SKILL.md found — non-standard structure
@@ -150,9 +145,10 @@ export class GitHubImportService {
     }
 
     // Check if SKILL.md is at root level
-    const rootSkillMd = skillMdFiles.find(
-      e => e.path === 'SKILL.md' || (!e.path.includes('/') && e.path.endsWith('SKILL.md'))
-    );
+    const rootSkillMd = skillMdFiles.find(e => {
+      const normalized = e.path.replace(/\\/g, '/');
+      return normalized === 'SKILL.md';
+    });
 
     // If only root SKILL.md and no other SKILL.md files — single skill repo
     if (skillMdFiles.length === 1 && rootSkillMd) {
@@ -189,20 +185,15 @@ export class GitHubImportService {
       skillDirs.get(parentPath)!.push(skillMd);
     }
 
+    const assigned = assignFilesToDeepestSkill([...skillDirs.keys()], tree);
     const skills: DetectedSkill[] = [];
 
-    for (const [dirPath, _skillMdEntries] of skillDirs) {
-      // Collect all files under this directory
-      const prefix = dirPath ? dirPath + '/' : '';
-      const dirFiles = tree.filter(
-        e => e.path.startsWith(prefix) && e.path !== prefix
-      );
+    for (const [dirPath] of skillDirs) {
+      const dirFiles = assigned.get(dirPath) || [];
 
       // Extract skill name from directory path
       const name = this.slugifyName(dirPath.includes('/') ? dirPath.split('/').pop()! : dirPath || repoInfo.name);
 
-      // Try to read description from SKILL.md frontmatter (we'll fetch content later)
-      const skillMdFile = _skillMdEntries[0];
       const displayName = this.humanizeName(
         dirPath.includes('/') ? dirPath.split('/').pop()! : dirPath || repoInfo.name
       );
@@ -272,8 +263,9 @@ export class GitHubImportService {
    * Fetch the content of a single file from GitHub.
    */
   async fetchFileContent(parsed: ParsedGitHubRepo, filePath: string): Promise<string> {
+    const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
     const data = await this.makeGitHubRequest<any>(
-      `/repos/${parsed.owner}/${parsed.repo}/contents/${filePath}?ref=${parsed.branch}`
+      `/repos/${parsed.owner}/${parsed.repo}/contents/${encodedPath}?ref=${encodeURIComponent(parsed.branch)}`,
     );
 
     if (data.type === 'file' && data.content) {
@@ -302,7 +294,7 @@ export class GitHubImportService {
    * Cancel an in-progress import.
    */
   cancelImport(): void {
-    this.cancelled = true;
+    this.importGeneration += 1;
   }
 
   /**
@@ -314,7 +306,7 @@ export class GitHubImportService {
     resolutions: Record<string, ConflictResolution>,
     onProgress?: (progress: ImportProgress) => void,
   ): Promise<ImportResult[]> {
-    this.cancelled = false;
+    const token = ++this.importGeneration;
     const results: ImportResult[] = [];
     const skillService = this.createSkillService();
     const repoInfo = await this.fetchRepoInfo(parsed);
@@ -322,7 +314,7 @@ export class GitHubImportService {
     const total = skills.length;
 
     for (let i = 0; i < skills.length; i++) {
-      if (this.cancelled) {
+      if (this.importGeneration !== token) {
         results.push({
           skillName: skills[i].name,
           status: 'skipped',
@@ -381,7 +373,7 @@ export class GitHubImportService {
           );
         }
 
-        const importedHasSkillMd = importFiles.some(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'));
+        const importedHasSkillMd = importFiles.some(f => isSkillMdPath(f.path));
         if (skill.hasSkillMd && !importedHasSkillMd) {
           throw new Error(`Required SKILL.md could not be downloaded for "${skill.name}"`);
         }
@@ -582,6 +574,48 @@ export class GitHubImportService {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
+          if (res.statusCode === 403) {
+            const remaining = parseInt(res.headers['x-ratelimit-remaining'] as string || '1', 10);
+            const reset = parseInt(res.headers['x-ratelimit-reset'] as string || '0', 10);
+
+            if (remaining === 0) {
+              const error: GitHubApiError = {
+                status: 403,
+                message: 'GitHub API rate limit reached. Add a GitHub token in Settings for higher limits, or wait before trying again.',
+                isRateLimit: true,
+                rateLimitReset: reset,
+                rateLimitRemaining: remaining,
+              };
+              reject(error);
+              return;
+            }
+          }
+
+          if (res.statusCode === 404) {
+            reject({
+              status: 404,
+              message: 'Repository not found. Check the URL and ensure it is public, or add a GitHub token for private repos.',
+              isRateLimit: false,
+            } as GitHubApiError);
+            return;
+          }
+
+          if (res.statusCode && res.statusCode >= 400) {
+            let message = `GitHub API error (${res.statusCode})`;
+            try {
+              const parsed = JSON.parse(data);
+              message = parsed.message || message;
+            } catch {
+              // Use default message
+            }
+            reject({
+              status: res.statusCode,
+              message,
+              isRateLimit: false,
+            } as GitHubApiError);
+            return;
+          }
+
           try {
             resolve(JSON.parse(data));
           } catch {
@@ -649,11 +683,12 @@ export class GitHubImportService {
    * Convert a name to a valid slug for skill naming.
    */
   private slugifyName(name: string): string {
-    return name
+    const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .substring(0, 64);
+    return slug.length > 0 ? slug : 'skill';
   }
 
   /**

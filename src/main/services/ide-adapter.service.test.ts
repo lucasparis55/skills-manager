@@ -56,6 +56,40 @@ describe('IDEAdapterService', () => {
 
     expect(roots.length).toBeGreaterThan(0);
     expect(roots.every((root) => root.exists === false)).toBe(true);
+    expect(roots.every((root) => root.isConfigured === false)).toBe(true);
+  });
+
+  it('marks isConfigured when root exists and matches effective global root', () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+
+    const service = new IDEAdapterService();
+    const roots = service.detectRoots();
+    const cursorPrimary = roots.find((root) => root.ideId === 'cursor' && root.isPrimary);
+
+    expect(cursorPrimary).toBeDefined();
+    expect(cursorPrimary!.exists).toBe(true);
+    expect(cursorPrimary!.isConfigured).toBe(true);
+
+    const cursorSecondary = roots.filter((root) => root.ideId === 'cursor' && !root.isPrimary);
+    expect(cursorSecondary.every((root) => root.isConfigured === false)).toBe(true);
+  });
+
+  it('marks isConfigured using ideRootOverrides when override path matches a resolved root', () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+
+    const service = new IDEAdapterService();
+    const kimiSecondary = service
+      .detectRoots()
+      .find((root) => root.ideId === 'kimi-cli' && root.root.toLowerCase().endsWith('.kimi') && !root.root.toLowerCase().includes('skills'));
+
+    expect(kimiSecondary).toBeDefined();
+
+    const roots = service.detectRoots({ 'kimi-cli': kimiSecondary!.root });
+    const configured = roots.filter((root) => root.ideId === 'kimi-cli' && root.isConfigured);
+
+    expect(configured).toHaveLength(1);
+    expect(configured[0].root).toBe(kimiSecondary!.root);
+    expect(configured[0].isPrimary).toBe(false);
   });
 
   it('uses .agents/skills as first projectRelative for codex-desktop', () => {

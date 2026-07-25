@@ -140,6 +140,36 @@ describe('ZipImportService', () => {
     expect((service as any).sanitizeArchivePath('C:/escape.txt')).toBeNull();
     expect(fs.existsSync(path.join(tempRoot, 'escape.txt'))).toBe(false);
   });
+
+  it('does not treat FOOSKILL.md as skill markdown', async () => {
+    writeZip(zipPath, [
+      {
+        path: 'FOOSKILL.md',
+        content: '# not a skill md',
+      },
+    ]);
+
+    const analyzed = await service.analyze(zipPath);
+    expect(analyzed.skills).toHaveLength(1);
+    expect(analyzed.skills[0].hasSkillMd).toBe(false);
+  });
+
+  it('assigns nested files to deepest skill only', async () => {
+    writeZip(zipPath, [
+      { path: 'foo/SKILL.md', content: '---\nname: foo\n---\n' },
+      { path: 'foo/bar/SKILL.md', content: '---\nname: bar\n---\n' },
+      { path: 'foo/bar/notes.md', content: '# notes' },
+      { path: 'foo/readme.md', content: '# readme' },
+      // Prevents common-root stripping so sourcePath stays foo / foo/bar
+      { path: 'sidecar.txt', content: 'keep' },
+    ]);
+
+    const analyzed = await service.analyze(zipPath);
+    const foo = analyzed.skills.find((s) => s.sourcePath === 'foo')!;
+    const bar = analyzed.skills.find((s) => s.sourcePath === 'foo/bar')!;
+    expect(foo.files.map((f) => f.path).sort()).toEqual(['foo/SKILL.md', 'foo/readme.md']);
+    expect(bar.files.map((f) => f.path).sort()).toEqual(['foo/bar/SKILL.md', 'foo/bar/notes.md']);
+  });
 });
 
 function writeZip(targetPath: string, entries: ZipFixtureEntry[]): void {

@@ -86,6 +86,30 @@ describe('SkillEditDialog', () => {
     expect(onSave).toHaveBeenCalled();
   });
 
+  it('allows saving empty SKILL.md content', async () => {
+    const onSave = vi.fn();
+    const api = createApiMock({
+      skills: {
+        getContent: vi.fn(async () => 'temporary'),
+        saveContent: vi.fn(async () => ({ success: true })),
+      },
+    });
+
+    renderWithProviders(
+      <SkillEditDialog open={true} onOpenChange={vi.fn()} skill={skill} onSave={onSave} />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'SKILL.md' }));
+    const editor = await screen.findByPlaceholderText('Edit SKILL.md content...');
+    await userEvent.clear(editor);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Content' }));
+
+    await waitFor(() => {
+      expect(api.skills.saveContent).toHaveBeenCalledWith('skill-1', '');
+    });
+    expect(onSave).toHaveBeenCalled();
+  });
+
   it('renders files tab and bubbles file-change callback', async () => {
     const onSave = vi.fn();
     createApiMock();

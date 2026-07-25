@@ -133,4 +133,29 @@ describe('SettingsService', () => {
     expect(secureTokenMock.clearGithubToken).toHaveBeenCalledTimes(1);
     expect(await service.hasGithubToken()).toBe(false);
   });
+
+  it('rejects invalid projectScanDepth and keeps previous settings', async () => {
+    const { SettingsService } = await import('./settings.service');
+    const service = new SettingsService(createSecureTokenMock() as any);
+    const before = service.get();
+    expect(() => service.update({ projectScanDepth: Number.NaN } as any)).toThrow(/projectScanDepth/);
+    expect(service.get().projectScanDepth).toBe(before.projectScanDepth);
+  });
+
+  it('rejects non-directory centralSkillsRoot', async () => {
+    const { SettingsService } = await import('./settings.service');
+    const service = new SettingsService(createSecureTokenMock() as any);
+    const filePath = path.join(appDataDir, 'not-a-dir.txt');
+    fs.writeFileSync(filePath, 'x');
+    expect(() => service.update({ centralSkillsRoot: filePath })).toThrow(/existing directory/);
+  });
+
+  it('accepts existing directory as centralSkillsRoot', async () => {
+    const { SettingsService } = await import('./settings.service');
+    const service = new SettingsService(createSecureTokenMock() as any);
+    const dir = path.join(appDataDir, 'skills-alt');
+    fs.mkdirSync(dir);
+    const updated = service.update({ centralSkillsRoot: dir });
+    expect(updated.centralSkillsRoot).toBe(path.resolve(dir));
+  });
 });

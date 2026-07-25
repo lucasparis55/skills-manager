@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import * as yauzl from 'yauzl';
-import { getSkillsRoot } from '../utils/paths';
+import { resolveSkillsRoot } from '../utils/paths';
+import { assignFilesToDeepestSkill, isSkillMdPath } from '../utils/skill-md';
 import { SkillService } from './skill.service';
 import { SettingsService } from './settings.service';
 import type { BinaryImportFileEntry, ConflictResolution, ImportProgress, ImportResult } from '../types/import';
@@ -21,22 +22,18 @@ interface IndexedZipArchive {
  */
 export class ZipImportService {
   private settingsService: SettingsService;
-  private cancelled = false;
+  private importGeneration = 0;
 
   constructor(settingsService: SettingsService) {
     this.settingsService = settingsService;
   }
 
-  private resolveSkillsRoot(): string {
-    const configured = this.settingsService.get().centralSkillsRoot;
-    if (typeof configured === 'string' && configured.trim().length > 0) {
-      return configured;
-    }
-    return getSkillsRoot();
+  private getSkillsRootFromSettings(): string {
+    return resolveSkillsRoot(this.settingsService.get().centralSkillsRoot);
   }
 
   private createSkillService(): SkillService {
-    return new SkillService(this.resolveSkillsRoot());
+    return new SkillService(this.getSkillsRootFromSettings());
   }
 
   private assertValidFinalName(name: string): void {
@@ -63,7 +60,7 @@ export class ZipImportService {
   }
 
   cancelImport(): void {
-    this.cancelled = true;
+    this.importGeneration += 1;
   }
 
   async importSkills(
@@ -72,7 +69,7 @@ export class ZipImportService {
     resolutions: Record<string, ConflictResolution>,
     onProgress?: (progress: ImportProgress) => void,
   ): Promise<ImportResult[]> {
-    this.cancelled = false;
+    const token = ++this.importGeneration;
     const results: ImportResult[] = [];
     const archive = await this.readArchive(zipPath, true);
     const filesByArchivePath = new Map<string, IndexedZipFile>(
@@ -84,7 +81,7 @@ export class ZipImportService {
     for (let i = 0; i < skills.length; i += 1) {
       const skill = skills[i];
 
-      if (this.cancelled) {
+      if (this.importGeneration !== token) {
         results.push({
           skillName: skill.name,
           status: 'skipped',
@@ -353,13 +350,16 @@ export class ZipImportService {
   }
 
   private detectSkillStructures(files: IndexedZipFile[], archiveInfo: ZipArchiveInfo): DetectedZipSkill[] {
-    const skillMdFiles = files.filter((file) => file.path === 'SKILL.md' || file.path.endsWith('/SKILL.md'));
+    const skillMdFiles = files.filter((file) => isSkillMdPath(file.path));
 
     if (skillMdFiles.length === 0) {
       return [this.createSingleSkill(files, archiveInfo, false)];
     }
 
-    const rootSkillMd = skillMdFiles.find((file) => file.path === 'SKILL.md');
+    const rootSkillMd = skillMdFiles.find((file) => {
+      const normalized = file.path.replace(/\\/g, '/');
+      return normalized === 'SKILL.md';
+    });
     if (skillMdFiles.length === 1 && rootSkillMd) {
       return [this.createSingleSkill(files, archiveInfo, true)];
     }
@@ -385,11 +385,11 @@ export class ZipImportService {
       skillDirs.get(parentPath)!.push(skillMdFile);
     }
 
+    const assigned = assignFilesToDeepestSkill([...skillDirs.keys()], files);
     const skills: DetectedZipSkill[] = [];
 
     for (const dirPath of skillDirs.keys()) {
-      const prefix = dirPath ? `${dirPath}/` : '';
-      const dirFiles = files.filter((file) => file.path.startsWith(prefix) && file.path !== prefix);
+      const dirFiles = assigned.get(dirPath) || [];
       const rawName = dirPath ? dirPath.split('/').pop()! : archiveInfo.rootPrefix || path.basename(archiveInfo.fileName, '.zip');
 
       skills.push({
@@ -437,12 +437,13 @@ export class ZipImportService {
   }
 
   private slugifyName(name: string): string {
-    return name
+    const slug = name
       .toLowerCase()
       .replace(/\.zip$/i, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .substring(0, 64);
+    return slug.length > 0 ? slug : 'skill';
   }
 
   private humanizeName(name: string): string {

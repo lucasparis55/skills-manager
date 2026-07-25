@@ -139,6 +139,48 @@ describe('GitHubImportService advanced', () => {
     expect(nonStandard[0].sourcePath).toBe('nested/path');
   });
 
+  it('does not treat FOOSKILL.md as skill markdown', () => {
+    const repoInfo = {
+      name: 'repo',
+      fullName: 'acme/repo',
+      description: 'desc',
+      defaultBranch: 'main',
+      isPrivate: false,
+      htmlUrl: 'https://github.com/acme/repo',
+      starsCount: 0,
+    };
+
+    const skills = service.detectSkillStructures(
+      [{ path: 'FOOSKILL.md', type: 'blob', sha: 'x', size: 1 }],
+      repoInfo,
+    );
+    expect(skills[0].hasSkillMd).toBe(false);
+  });
+
+  it('assigns nested files to deepest skill only', () => {
+    const repoInfo = {
+      name: 'repo',
+      fullName: 'acme/repo',
+      description: 'desc',
+      defaultBranch: 'main',
+      isPrivate: false,
+      htmlUrl: 'https://github.com/acme/repo',
+      starsCount: 0,
+    };
+
+    const tree: GitHubTreeEntry[] = [
+      { path: 'foo/SKILL.md', type: 'blob', sha: '1', size: 1 },
+      { path: 'foo/bar/SKILL.md', type: 'blob', sha: '2', size: 1 },
+      { path: 'foo/bar/notes.md', type: 'blob', sha: '3', size: 1 },
+      { path: 'foo/readme.md', type: 'blob', sha: '4', size: 1 },
+    ];
+    const skills = service.detectSkillStructures(tree, repoInfo);
+    const foo = skills.find((s) => s.sourcePath === 'foo')!;
+    const bar = skills.find((s) => s.sourcePath === 'foo/bar')!;
+    expect(foo.files.map((f) => f.path).sort()).toEqual(['foo/SKILL.md', 'foo/readme.md']);
+    expect(bar.files.map((f) => f.path).sort()).toEqual(['foo/bar/SKILL.md', 'foo/bar/notes.md']);
+  });
+
   it('analyzes repo using effective default branch fallback', async () => {
     const fetchRepoInfo = vi.spyOn(service, 'fetchRepoInfo').mockResolvedValue({
       name: 'repo',

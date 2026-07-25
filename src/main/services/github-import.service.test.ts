@@ -137,11 +137,11 @@ tags: []
 ---
 `);
 
-    const invalidRenameResult = await service.importSkills(parsed, [skill], {
+    const symbolOnlyRename = await service.importSkills(parsed, [skill], {
       'incoming-skill': { strategy: 'rename', newName: '!!!' },
     });
-    expect(invalidRenameResult[0].status).toBe('error');
-    expect(invalidRenameResult[0].error).toContain('Invalid final skill name');
+    expect(symbolOnlyRename[0].status).toBe('renamed');
+    expect(symbolOnlyRename[0].skillName).toBe('skill');
 
     const existingSkillService = new SkillService(tempSkillsRoot);
     existingSkillService.create({

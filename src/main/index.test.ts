@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const createWindowInstance = () => ({
@@ -19,11 +22,36 @@ const createWindowInstance = () => ({
   },
 });
 
+const mockSettingsGet = vi.fn(() => ({
+  autoScanProjects: false,
+  lastProjectScanPath: '',
+  projectScanDepth: 2,
+}));
+const mockProjectScan = vi.fn(() => []);
+
+function mockBootstrapServices() {
+  vi.doMock('./services/settings.service', () => ({
+    SettingsService: vi.fn(function SettingsServiceMock() {
+      return { get: mockSettingsGet };
+    }),
+  }));
+  vi.doMock('./services/project.service', () => ({
+    ProjectService: vi.fn(function ProjectServiceMock() {
+      return { scan: mockProjectScan };
+    }),
+  }));
+}
+
 describe('main bootstrap', () => {
   afterEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+    mockSettingsGet.mockReturnValue({
+      autoScanProjects: false,
+      lastProjectScanPath: '',
+      projectScanDepth: 2,
+    });
   });
 
   it('creates window in dev mode and loads Vite URL', async () => {
@@ -52,6 +80,7 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
+    mockBootstrapServices();
 
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
     vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
@@ -64,6 +93,7 @@ describe('main bootstrap', () => {
     expect(windowInstance.loadURL).toHaveBeenCalledWith('http://localhost:5173');
     expect(windowInstance.webContents.openDevTools).toHaveBeenCalled();
     expect(windowInstance.setMenu).not.toHaveBeenCalled();
+    expect(mockProjectScan).not.toHaveBeenCalled();
   });
 
   it('loads renderer file in packaged production mode and hides native menu', async () => {
@@ -89,9 +119,14 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
-    vi.doMock('fs', () => ({
-      existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
-    }));
+    mockBootstrapServices();
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
+      return {
+        ...actual,
+        existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
+      };
+    });
 
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', undefined);
     vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
@@ -127,9 +162,14 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
-    vi.doMock('fs', () => ({
-      existsSync: vi.fn((candidate: string) => !candidate.includes('main_window') && candidate.includes('index.html')),
-    }));
+    mockBootstrapServices();
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
+      return {
+        ...actual,
+        existsSync: vi.fn((candidate: string) => !candidate.includes('main_window') && candidate.includes('index.html')),
+      };
+    });
 
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', undefined);
     vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
@@ -165,9 +205,14 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
-    vi.doMock('fs', () => ({
-      existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
-    }));
+    mockBootstrapServices();
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
+      return {
+        ...actual,
+        existsSync: vi.fn((candidate: string) => candidate.includes('main_window') && candidate.includes('index.html')),
+      };
+    });
 
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', undefined);
     vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
@@ -206,6 +251,7 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
+    mockBootstrapServices();
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
 
     await import('./index');
@@ -240,6 +286,7 @@ describe('main bootstrap', () => {
     }));
     vi.doMock('electron-squirrel-startup', () => ({ default: false }));
     vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
+    mockBootstrapServices();
     vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
 
     await import('./index');
@@ -248,5 +295,47 @@ describe('main bootstrap', () => {
 
     appHandlers.activate();
     expect(BrowserWindow).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs project scan on bootstrap when autoScanProjects is enabled', async () => {
+    const registerIPCHandlers = vi.fn();
+    const windowInstance = createWindowInstance();
+    const scanDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skills-manager-autoscan-'));
+
+    mockSettingsGet.mockReturnValue({
+      autoScanProjects: true,
+      lastProjectScanPath: scanDir,
+      projectScanDepth: 3,
+    });
+
+    const BrowserWindow = vi.fn(function BrowserWindowMock() {
+      return windowInstance as any;
+    }) as any;
+    (BrowserWindow as any).getAllWindows = vi.fn(() => []);
+
+    const app = {
+      whenReady: vi.fn(() => Promise.resolve()),
+      on: vi.fn(),
+      quit: vi.fn(),
+      isPackaged: false,
+    };
+
+    vi.doMock('electron', () => ({
+      app,
+      BrowserWindow,
+      ipcMain: { handle: vi.fn() },
+    }));
+    vi.doMock('electron-squirrel-startup', () => ({ default: false }));
+    vi.doMock('./ipc/handlers', () => ({ registerIPCHandlers }));
+    mockBootstrapServices();
+    vi.stubGlobal('MAIN_WINDOW_VITE_DEV_SERVER_URL', 'http://localhost:5173');
+
+    await import('./index');
+    await Promise.resolve();
+
+    expect(mockProjectScan).toHaveBeenCalledWith(scanDir, 3);
+    expect(BrowserWindow).toHaveBeenCalledTimes(1);
+
+    fs.rmSync(scanDir, { recursive: true, force: true });
   });
 });

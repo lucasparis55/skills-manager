@@ -23,6 +23,14 @@ describe('isVersionGreaterThan', () => {
     expect(isVersionGreaterThan('1.0', '1.0.1')).toBe(false);
     expect(isVersionGreaterThan('1.0.1', '1.0')).toBe(true);
   });
+
+  it('handles prerelease versions per SemVer-lite rules', () => {
+    expect(isVersionGreaterThan('1.0.1', '1.0.0')).toBe(true);
+    expect(isVersionGreaterThan('1.0.0', '1.0.0')).toBe(false);
+    expect(isVersionGreaterThan('1.0.0', '1.0.0-beta')).toBe(true);
+    expect(isVersionGreaterThan('1.0.0-beta', '1.0.0')).toBe(false);
+    expect(isVersionGreaterThan('2.0.0-beta', '1.9.9')).toBe(true);
+  });
 });
 
 describe('UpdateService', () => {

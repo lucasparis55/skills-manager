@@ -1,7 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import electronSquirrelStartup from 'electron-squirrel-startup';
+import fs from 'fs';
 import path from 'path';
 import { registerIPCHandlers } from './ipc/handlers';
+import { ProjectService } from './services/project.service';
+import { SettingsService } from './services/settings.service';
 
 // Declare Forge global variables (injected by @electron-forge/plugin-vite in dev mode)
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -116,6 +119,21 @@ const createWindow = (): void => {
 app.whenReady().then(() => {
   // Register all IPC handlers
   registerIPCHandlers();
+
+  try {
+    const settings = new SettingsService().get();
+    if (settings.autoScanProjects && settings.lastProjectScanPath) {
+      const scanPath = settings.lastProjectScanPath;
+      if (fs.existsSync(scanPath) && fs.statSync(scanPath).isDirectory()) {
+        const depth = Number.isInteger(settings.projectScanDepth)
+          ? settings.projectScanDepth
+          : 2;
+        new ProjectService().scan(scanPath, depth);
+      }
+    }
+  } catch (err) {
+    console.error('Auto project scan failed:', err);
+  }
 
   createWindow();
 

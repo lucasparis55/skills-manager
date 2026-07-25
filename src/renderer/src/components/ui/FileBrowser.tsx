@@ -128,8 +128,9 @@ const FileBrowser: React.FC<FileBrowserProps> = ({ skillId, onFileChange }) => {
   };
 
   const getIndentLevel = (filePath: string): number => {
-    const parts = filePath.split('/');
-    return parts.length - 1;
+    const normalized = filePath.replace(/\\/g, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    return Math.max(0, parts.length - 1);
   };
 
   if (loading && files.length === 0) {

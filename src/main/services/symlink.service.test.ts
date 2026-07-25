@@ -293,6 +293,17 @@ describe('SymlinkService', () => {
       expect(result).toBe(true);
       expect(fs.existsSync(destination)).toBe(false);
     });
+
+    it('removes a dangling symlink', () => {
+      const missingTarget = path.join(tempDir, 'gone');
+      const linkPath = path.join(tempDir, 'dangling');
+      fs.mkdirSync(missingTarget, { recursive: true });
+      fs.symlinkSync(missingTarget, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+      fs.rmSync(missingTarget, { recursive: true, force: true });
+
+      expect(symlinkService.remove(linkPath)).toBe(true);
+      expect(() => fs.lstatSync(linkPath)).toThrow();
+    });
   });
 
   describe('isSymlink()', () => {

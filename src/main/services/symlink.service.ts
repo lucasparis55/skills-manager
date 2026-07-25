@@ -107,6 +107,9 @@ export class SymlinkService {
           return this.createJunctionNative(source, destination);
         } catch (junctionErr) {
           try {
+            if (destination.includes('"') || source.includes('"')) {
+              throw new Error('Paths containing double quotes are not supported for mklink fallback');
+            }
             execSync(`cmd /c mklink /J "${destination}" "${source}"`);
             return { success: true, strategy: 'mklink-junction' };
           } catch {
@@ -114,6 +117,9 @@ export class SymlinkService {
               return this.createSymlinkNative(source, destination);
             } catch {
               try {
+                if (destination.includes('"') || source.includes('"')) {
+                  throw new Error('Paths containing double quotes are not supported for mklink fallback');
+                }
                 execSync(`cmd /c mklink /D "${destination}" "${source}"`);
                 return { success: true, strategy: 'mklink-dir' };
               } catch (symlinkErr) {
@@ -139,19 +145,19 @@ export class SymlinkService {
   }
 
   /**
-   * Remove a symlink safely
+   * Remove a symlink safely (including dangling links via lstat)
    */
   remove(destination: string): boolean {
     try {
-      if (!fs.existsSync(destination)) {
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(destination);
+      } catch {
         return false;
       }
-
-      const stat = fs.lstatSync(destination);
       if (!this.isLinkEntry(destination, stat)) {
         return false;
       }
-
       this.removeLinkAtPath(destination);
       return true;
     } catch {
@@ -160,26 +166,24 @@ export class SymlinkService {
   }
 
   /**
-   * Verify a symlink is valid
+   * Verify a symlink is valid (inspects the link entry via lstat)
    */
   verify(destination: string): { valid: boolean; target?: string } {
     try {
-      if (!fs.existsSync(destination)) {
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(destination);
+      } catch {
         return { valid: false };
       }
-
-      const stat = fs.lstatSync(destination);
       if (!this.isLinkEntry(destination, stat)) {
         return { valid: false };
       }
-
       const target = fs.readlinkSync(destination);
       const resolved = path.resolve(path.dirname(destination), target);
-
       if (fs.existsSync(resolved)) {
         return { valid: true, target };
       }
-
       return { valid: false, target };
     } catch {
       return { valid: false };

@@ -34,19 +34,29 @@ function stripVersionPrefix(version: string): string {
 }
 
 export function isVersionGreaterThan(latest: string, current: string): boolean {
-  const latestParts = stripVersionPrefix(latest).split('.').map(Number);
-  const currentParts = stripVersionPrefix(current).split('.').map(Number);
-
-  const maxLength = Math.max(latestParts.length, currentParts.length);
-
-  for (let i = 0; i < maxLength; i++) {
-    const latestPart = latestParts[i] || 0;
-    const currentPart = currentParts[i] || 0;
-
-    if (latestPart > currentPart) return true;
-    if (latestPart < currentPart) return false;
+  const split = (v: string) => {
+    const bare = stripVersionPrefix(v);
+    const [core, ...preParts] = bare.split('-');
+    const pre = preParts.length ? preParts.join('-') : null;
+    const nums = core.split('.').map((p) => {
+      const n = Number(p);
+      return Number.isFinite(n) ? n : 0;
+    });
+    return { nums, pre };
+  };
+  const a = split(latest);
+  const b = split(current);
+  const len = Math.max(a.nums.length, b.nums.length);
+  for (let i = 0; i < len; i++) {
+    const x = a.nums[i] || 0;
+    const y = b.nums[i] || 0;
+    if (x > y) return true;
+    if (x < y) return false;
   }
-
+  // equal core: no pre > with pre
+  if (a.pre === null && b.pre !== null) return true;
+  if (a.pre !== null && b.pre === null) return false;
+  if (a.pre !== null && b.pre !== null) return a.pre > b.pre;
   return false;
 }
 
