@@ -13,6 +13,10 @@ export interface SkillFileEntry {
 
 const SKILL_NAME_REGEX = /^[A-Za-z0-9._-]{1,64}$/;
 
+export function getSkillMigrationLockPath(skillsRoot: string, skillName: string): string {
+  return path.join(path.resolve(skillsRoot), `.${skillName}.migration.lock`);
+}
+
 export interface ImportFromBufferOptions {
   overwrite?: boolean;
 }
@@ -88,6 +92,33 @@ export class SkillService {
     return { name, skillDir };
   }
 
+  private assertNotMigrating(skillName: string): void {
+    const lockPath = getSkillMigrationLockPath(this.skillsRoot, skillName);
+    let hasLock = true;
+    try {
+      fs.lstatSync(lockPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        hasLock = false;
+      } else {
+        throw error;
+      }
+    }
+
+    const reclaimPrefix = `.${skillName}.migration.reclaim-`;
+    try {
+      const hasReclaim = fs.readdirSync(this.skillsRoot, { withFileTypes: true })
+        .some((entry) => entry.name.startsWith(reclaimPrefix));
+      if (!hasLock && !hasReclaim) {
+        return;
+      }
+    } catch (error) {
+      throw error;
+    }
+
+    throw new Error(`Skill "${skillName}" is being migrated. Try again after the migration completes.`);
+  }
+
   /**
    * Resolve a file path inside a skill directory with traversal checks.
    */
@@ -147,6 +178,7 @@ export class SkillService {
    */
   create(input: CreateSkillInput): Skill {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(input.name);
+    this.assertNotMigrating(skillName);
 
     if (fs.existsSync(skillDir)) {
       throw new Error(`Skill "${skillName}" already exists`);
@@ -178,6 +210,7 @@ tags: [${input.tags?.join(', ') || ''}]
    */
   update(name: string, input: UpdateSkillInput): Skill {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
     if (!fs.existsSync(skillMdPath)) {
@@ -223,6 +256,7 @@ tags: [${input.tags?.join(', ') || ''}]
    */
   delete(name: string): void {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
 
     if (!fs.existsSync(skillDir)) {
       throw new Error(`Skill "${skillName}" not found`);
@@ -330,6 +364,7 @@ tags: [${input.tags?.join(', ') || ''}]
    */
   saveContent(name: string, content: string): Skill {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
     const skillMdPath = path.join(skillDir, 'SKILL.md');
 
     if (!fs.existsSync(skillMdPath)) {
@@ -407,7 +442,8 @@ tags: [${input.tags?.join(', ') || ''}]
    * Write/create/update a file within the skill directory
    */
   writeFile(name: string, filePath: string, content: string): void {
-    const { skillDir } = this.resolveSkillDirectory(name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
     const fullPath = this.resolveSkillFilePath(skillDir, filePath);
 
     // Create parent directories if needed
@@ -423,7 +459,8 @@ tags: [${input.tags?.join(', ') || ''}]
    * Delete a file from the skill directory
    */
   deleteFile(name: string, filePath: string): void {
-    const { skillDir } = this.resolveSkillDirectory(name);
+    const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
     const fullPath = this.resolveSkillFilePath(skillDir, filePath);
 
     if (!fs.existsSync(fullPath)) {
@@ -470,6 +507,7 @@ tags: [${input.tags?.join(', ') || ''}]
     options: ImportFromBufferOptions = {},
   ): Skill {
     const { name: skillName, skillDir } = this.resolveSkillDirectory(name);
+    this.assertNotMigrating(skillName);
     const overwrite = options.overwrite === true;
 
     if (fs.existsSync(skillDir)) {

@@ -70,6 +70,7 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
     },
     shell: {
       openPath: vi.fn(async () => ''),
+      trashItem: vi.fn(async () => undefined),
     },
     settingsService: {
       get: vi.fn(() => defaultSettings),
@@ -104,9 +105,15 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
     ideService: {
       list: vi.fn(() => [ide]),
       detectRoots: vi.fn(() => []),
+      detectSkillRoots: vi.fn(() => []),
     },
     detectionService: {
       checkDuplicates: vi.fn(() => ({ hasDuplicate: false })),
+    },
+    duplicateService: {
+      scan: vi.fn(async () => ({ scannedAt: 'now', roots: [], groups: [] })),
+      removeOccurrences: vi.fn(async () => []),
+      migrateOccurrences: vi.fn(async () => []),
     },
     githubImportService: {
       parseGitHubUrl: vi.fn((url: string) => ({ owner: 'acme', repo: url })),
@@ -1050,6 +1057,29 @@ describe('registerIPCHandlers', () => {
 
     await harness.invoke('ides:detect-roots');
     expect(harness.deps.ideService.detectRoots).toHaveBeenCalledWith(overrides);
+  });
+
+  it('delegates duplicate scan and operations', async () => {
+    const harness = createHarness({
+      duplicateService: {
+        scan: vi.fn(async () => ({ scannedAt: 'now', roots: [], groups: [] })),
+        removeOccurrences: vi.fn(async (paths: string[]) => paths.map((candidatePath) => ({
+          action: 'remove' as const,
+          path: candidatePath,
+          name: 'review',
+          status: 'trashed' as const,
+        }))),
+        migrateOccurrences: vi.fn(async () => []),
+      },
+    });
+
+    await harness.invoke('duplicates:scan');
+    await harness.invoke('duplicates:remove', ['C:/claude/review']);
+    await harness.invoke('duplicates:migrate', ['C:/codex/review']);
+
+    expect(harness.deps.duplicateService.scan).toHaveBeenCalledTimes(1);
+    expect(harness.deps.duplicateService.removeOccurrences).toHaveBeenCalledWith(['C:/claude/review']);
+    expect(harness.deps.duplicateService.migrateOccurrences).toHaveBeenCalledWith(['C:/codex/review']);
   });
 
   it('handles remove dedupe and github import error fallback payload', async () => {

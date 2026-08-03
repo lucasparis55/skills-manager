@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IDEAdapterService } from './ide-adapter.service';
 
@@ -99,5 +100,40 @@ describe('IDEAdapterService', () => {
 
     expect(codexDesktop).toBeDefined();
     expect(codexDesktop!.roots.projectRelative[0]).toBe('.agents/skills');
+  });
+
+  it('deduplicates the same skill root shared by multiple IDEs', () => {
+    vi.spyOn(fs, 'lstatSync').mockReturnValue({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+    } as fs.Stats);
+
+    const roots = new IDEAdapterService().detectSkillRoots();
+    const shared = roots.find((root) => root.root.endsWith(path.normalize('.agents/skills')));
+
+    expect(shared).toBeDefined();
+    expect(shared!.ideIds).toEqual(
+      expect.arrayContaining(['codex-cli', 'codex-desktop', 'opencode', 'kimi-cli']),
+    );
+  });
+
+  it('uses an override as the only skill root for that IDE', () => {
+    vi.spyOn(fs, 'lstatSync').mockReturnValue({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+    } as fs.Stats);
+
+    const roots = new IDEAdapterService().detectSkillRoots({
+      'codex-cli': 'C:/custom/codex-skills',
+    });
+
+    expect(roots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          root: path.normalize('C:/custom/codex-skills'),
+          ideIds: ['codex-cli'],
+        }),
+      ]),
+    );
   });
 });

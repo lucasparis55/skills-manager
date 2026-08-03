@@ -94,6 +94,57 @@ interface DetectionAPI {
   checkDuplicates: (skillId: string, projectId: string, ideId: string) => Promise<any>;
 }
 
+interface DetectedSkillRoot {
+  root: string;
+  ideIds: string[];
+  ideNames: string[];
+}
+
+interface DuplicateOccurrence {
+  path: string;
+  name: string;
+  contentHash: string;
+  rootPaths: string[];
+  ideIds: string[];
+  ideNames: string[];
+}
+
+interface DuplicateGroup {
+  id: string;
+  name: string;
+  contentHash: string;
+  occurrences: DuplicateOccurrence[];
+}
+
+interface DuplicateScanResult {
+  scannedAt: string;
+  roots: DetectedSkillRoot[];
+  groups: DuplicateGroup[];
+}
+
+type DuplicateOperationAction = 'remove' | 'migrate';
+type DuplicateOperationStatus =
+  | 'trashed'
+  | 'migrated'
+  | 'already-missing'
+  | 'blocked'
+  | 'failed';
+
+interface DuplicateOperationResult {
+  action: DuplicateOperationAction;
+  path: string;
+  name: string;
+  status: DuplicateOperationStatus;
+  message?: string;
+  centralPath?: string;
+}
+
+interface DuplicatesAPI {
+  scan: () => Promise<DuplicateScanResult>;
+  remove: (paths: string[]) => Promise<DuplicateOperationResult[]>;
+  migrate: (paths: string[]) => Promise<DuplicateOperationResult[]>;
+}
+
 interface SettingsAPI {
   get: () => Promise<{
     centralSkillsRoot: string;
@@ -160,6 +211,7 @@ interface ElectronAPI {
   links: LinksAPI;
   ides: IDEsAPI;
   detection: DetectionAPI;
+  duplicates: DuplicatesAPI;
   settings: SettingsAPI;
   dialog: DialogAPI;
   githubImport: GitHubImportAPI;

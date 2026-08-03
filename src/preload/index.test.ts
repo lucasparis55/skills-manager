@@ -28,6 +28,7 @@ describe('preload bridge', () => {
         links: expect.any(Object),
         ides: expect.any(Object),
         detection: expect.any(Object),
+        duplicates: expect.any(Object),
         settings: expect.any(Object),
         dialog: expect.any(Object),
         githubImport: expect.any(Object),
@@ -71,6 +72,10 @@ describe('preload bridge', () => {
     await api.ides.list();
     await api.ides.detectRoots();
     await api.detection.checkDuplicates('s1', 'p1', 'ide');
+
+    await api.duplicates.scan();
+    await api.duplicates.remove(['C:/skills/review']);
+    await api.duplicates.migrate(['C:/skills/review']);
 
     await api.settings.get();
     await api.settings.update({ theme: 'dark' });
@@ -126,6 +131,9 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('ides:list');
     expect(invoke).toHaveBeenCalledWith('ides:detect-roots');
     expect(invoke).toHaveBeenCalledWith('detection:check-duplicates', 's1', 'p1', 'ide');
+    expect(invoke).toHaveBeenCalledWith('duplicates:scan');
+    expect(invoke).toHaveBeenCalledWith('duplicates:remove', ['C:/skills/review']);
+    expect(invoke).toHaveBeenCalledWith('duplicates:migrate', ['C:/skills/review']);
 
     expect(invoke).toHaveBeenCalledWith('settings:get');
     expect(invoke).toHaveBeenCalledWith('settings:update', { theme: 'dark' });

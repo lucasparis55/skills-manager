@@ -9,6 +9,7 @@ import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
 import { UpdateService } from '../services/update.service';
+import { DuplicateService } from '../services/duplicate.service';
 import { expandPath, resolveSkillsRoot } from '../utils/paths';
 import type {
   AppSettings,
@@ -39,8 +40,9 @@ type SkillServiceLike = Pick<
 type ProjectServiceLike = Pick<ProjectService, 'list' | 'add' | 'remove' | 'scan'>;
 type SymlinkServiceLike = Pick<SymlinkService, 'create' | 'remove' | 'verify' | 'checkPermissions'>;
 type LinkServiceLike = Pick<LinkService, 'list' | 'create' | 'get' | 'remove' | 'removeMultiple' | 'verify' | 'verifyAll'>;
-type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots'>;
+type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots' | 'detectSkillRoots'>;
 type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
+type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
   Partial<Pick<SettingsService, 'getPublicSettings' | 'setGithubToken' | 'clearGithubToken'>>;
 type GitHubImportServiceLike = Pick<
@@ -65,13 +67,17 @@ type IdeRootsShape = {
 export interface IPCHandlerDependencies {
   ipcMain: { handle: (channel: string, listener: Handler) => void };
   dialog: { showOpenDialog: (options: any) => Promise<{ canceled: boolean; filePaths: string[] }> };
-  shell: { openPath: (path: string) => Promise<string> };
+  shell: {
+    openPath: (path: string) => Promise<string>;
+    trashItem: (path: string) => Promise<void>;
+  };
   settingsService: SettingsServiceLike;
   projectService: ProjectServiceLike;
   symlinkService: SymlinkServiceLike;
   linkService: LinkServiceLike;
   ideService: IdeServiceLike;
   detectionService: DetectionServiceLike;
+  duplicateService: DuplicateServiceLike;
   githubImportService: GitHubImportServiceLike;
   zipImportService: ZipImportServiceLike;
   updateService: UpdateServiceLike;
@@ -90,6 +96,11 @@ const defaultSettingsService = new SettingsService();
 const defaultGithubImportService = new GitHubImportService(defaultSettingsService);
 const defaultZipImportService = new ZipImportService(defaultSettingsService);
 const defaultUpdateService = new UpdateService();
+const defaultDuplicateService = new DuplicateService({
+  settingsService: defaultSettingsService,
+  ideService: defaultIdeService,
+  trashItem: (targetPath) => shell.trashItem(targetPath),
+});
 
 const defaultDeps: IPCHandlerDependencies = {
   ipcMain,
@@ -101,6 +112,7 @@ const defaultDeps: IPCHandlerDependencies = {
   linkService: defaultLinkService,
   ideService: defaultIdeService,
   detectionService: defaultDetectionService,
+  duplicateService: defaultDuplicateService,
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
   updateService: defaultUpdateService,
@@ -475,6 +487,13 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   );
   deps.ipcMain.handle('detection:check-duplicates', (_event, skillId: string, projectId: string, ideId: string) =>
     deps.detectionService.checkDuplicates(skillId, projectId, ideId),
+  );
+  deps.ipcMain.handle('duplicates:scan', () => deps.duplicateService.scan());
+  deps.ipcMain.handle('duplicates:remove', (_event, paths: string[]) =>
+    deps.duplicateService.removeOccurrences(paths),
+  );
+  deps.ipcMain.handle('duplicates:migrate', (_event, paths: string[]) =>
+    deps.duplicateService.migrateOccurrences(paths),
   );
 
   deps.ipcMain.handle('settings:get', async () => {

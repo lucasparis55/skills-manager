@@ -57,6 +57,13 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('detection:check-duplicates', skillId, projectId, ideId),
   },
 
+  // Duplicate skills
+  duplicates: {
+    scan: () => ipcRenderer.invoke('duplicates:scan'),
+    remove: (paths: string[]) => ipcRenderer.invoke('duplicates:remove', paths),
+    migrate: (paths: string[]) => ipcRenderer.invoke('duplicates:migrate', paths),
+  },
+
   // Settings
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

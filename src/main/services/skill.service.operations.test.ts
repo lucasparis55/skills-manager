@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SkillService } from './skill.service';
+import { getSkillMigrationLockPath, SkillService } from './skill.service';
 import type { CreateSkillInput } from '../types/domain';
 
 describe('SkillService operations', () => {
@@ -87,6 +87,30 @@ describe('SkillService operations', () => {
 
     expect(() => service.deleteFile('alpha-skill', 'docs')).toThrow('Cannot delete directory');
     expect(() => service.deleteFile('alpha-skill', 'missing.txt')).toThrow('not found');
+  });
+
+  it('blocks every central writer while a duplicate migration owns the skill lock', () => {
+    service.create(input);
+    service.writeFile('alpha-skill', 'docs/guide.md', 'Guide');
+
+    const lockPath = getSkillMigrationLockPath(tempDir, 'alpha-skill');
+    fs.writeFileSync(lockPath, '{}', 'utf8');
+
+    expect(() => service.update('alpha-skill', { description: 'blocked' })).toThrow(/being migrated/);
+    expect(() => service.delete('alpha-skill')).toThrow(/being migrated/);
+    expect(() => service.saveContent('alpha-skill', 'blocked')).toThrow(/being migrated/);
+    expect(() => service.writeFile('alpha-skill', 'docs/new.md', 'blocked')).toThrow(/being migrated/);
+    expect(() => service.deleteFile('alpha-skill', 'docs/guide.md')).toThrow(/being migrated/);
+    expect(() => service.importFromBuffer(
+      'alpha-skill',
+      [{ path: 'SKILL.md', content: '---\nname: alpha-skill\n---\n# blocked' }],
+      undefined,
+      { overwrite: true },
+    )).toThrow(/being migrated/);
+
+    const newSkillLockPath = getSkillMigrationLockPath(tempDir, 'new-skill');
+    fs.writeFileSync(newSkillLockPath, '{}', 'utf8');
+    expect(() => service.create({ ...input, name: 'new-skill' })).toThrow(/being migrated/);
   });
 
   it('imports from file buffer with generated SKILL.md and overwrite behavior', () => {

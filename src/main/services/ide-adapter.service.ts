@@ -1,7 +1,8 @@
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 import { expandPath } from '../utils/paths';
-import type { IDEDefinition, ResolvedIDERoot } from '../types/domain';
+import type { DetectedSkillRoot, IDEDefinition, ResolvedIDERoot } from '../types/domain';
 
 /**
  * IDE Adapter Service - Manages IDE definitions and root detection
@@ -18,6 +19,7 @@ export class IDEAdapterService {
         secondaryGlobal: ['%APPDATA%/Claude', '%LOCALAPPDATA%/Claude'],
         projectRelative: ['.claude/agents'],
       },
+      skillRootTemplates: ['~/.claude/skills', '%APPDATA%/Claude/skills', '%LOCALAPPDATA%/Claude/skills'],
     },
     {
       id: 'codex-cli',
@@ -29,6 +31,7 @@ export class IDEAdapterService {
         secondaryGlobal: [],
         projectRelative: ['.agents/skills'],
       },
+      skillRootTemplates: ['~/.agents/skills'],
     },
     {
       id: 'codex-desktop',
@@ -46,6 +49,12 @@ export class IDEAdapterService {
         ],
         projectRelative: ['.agents/skills', '.codex'],
       },
+      skillRootTemplates: [
+        '~/.codex/skills',
+        '~/.agents/skills',
+        '%APPDATA%/Codex/skills',
+        '%LOCALAPPDATA%/Codex/skills',
+      ],
     },
     {
       id: 'opencode',
@@ -62,6 +71,13 @@ export class IDEAdapterService {
         ],
         projectRelative: ['.opencode/skills', '.claude/skills'],
       },
+      skillRootTemplates: [
+        '~/.config/opencode/skills',
+        '~/.claude/skills',
+        '~/.agents/skills',
+        '%APPDATA%/opencode/skills',
+        '%LOCALAPPDATA%/opencode/skills',
+      ],
     },
     {
       id: 'kimi-cli',
@@ -73,6 +89,7 @@ export class IDEAdapterService {
         secondaryGlobal: ['~/.kimi', '~/.config/agents/skills', '~/.agents/skills'],
         projectRelative: ['.kimi/skills', '.agents/skills'],
       },
+      skillRootTemplates: ['~/.kimi/skills', '~/.config/agents/skills', '~/.agents/skills'],
     },
     {
       id: 'cursor',
@@ -84,6 +101,7 @@ export class IDEAdapterService {
         secondaryGlobal: ['%APPDATA%/Cursor', '%LOCALAPPDATA%/Cursor'],
         projectRelative: ['.cursor/rules'],
       },
+      skillRootTemplates: ['~/.cursor/skills', '%APPDATA%/Cursor/skills', '%LOCALAPPDATA%/Cursor/skills'],
     },
   ];
 
@@ -138,6 +156,41 @@ export class IDEAdapterService {
   }
 
   /**
+   * Detect existing, explicit global roots that contain skills for each IDE.
+   * Unlike detectRoots(), this intentionally does not include project roots.
+   */
+  detectSkillRoots(overrides?: Record<string, string>): DetectedSkillRoot[] {
+    const byPath = new Map<string, DetectedSkillRoot>();
+
+    for (const ide of this.ides) {
+      const templates = overrides?.[ide.id] ? [overrides[ide.id]] : ide.skillRootTemplates;
+
+      for (const template of templates) {
+        const root = expandPath(template);
+        if (!this.isExistingDirectory(root) || this.isLinkEntry(root)) {
+          continue;
+        }
+
+        const key = this.pathKey(root);
+        const current = byPath.get(key);
+        if (current) {
+          if (!current.ideIds.includes(ide.id)) current.ideIds.push(ide.id);
+          if (!current.ideNames.includes(ide.name)) current.ideNames.push(ide.name);
+          continue;
+        }
+
+        byPath.set(key, {
+          root,
+          ideIds: [ide.id],
+          ideNames: [ide.name],
+        });
+      }
+    }
+
+    return [...byPath.values()].sort((a, b) => a.root.localeCompare(b.root));
+  }
+
+  /**
    * Check if a path exists
    */
   private pathExists(p: string): boolean {
@@ -147,5 +200,40 @@ export class IDEAdapterService {
     } catch {
       return false;
     }
+  }
+
+  private isExistingDirectory(p: string): boolean {
+    try {
+      return fs.lstatSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  private isLinkEntry(p: string, stat?: fs.Stats): boolean {
+    try {
+      const entryStat = stat || fs.lstatSync(p);
+      if (entryStat.isSymbolicLink()) {
+        return true;
+      }
+
+      if (process.platform === 'win32' && entryStat.isDirectory()) {
+        try {
+          fs.readlinkSync(p);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  private pathKey(p: string): string {
+    const normalized = path.resolve(path.normalize(p));
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
   }
 }

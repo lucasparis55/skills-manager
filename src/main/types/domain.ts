@@ -42,6 +42,7 @@ export interface IDEDefinition {
   configFormat: 'json' | 'yaml' | 'markdown';
   mode: 'skills' | 'subagents' | 'rules';
   roots: IDERoots;
+  skillRootTemplates: string[];
 }
 
 export interface IDERoots {
@@ -127,4 +128,50 @@ export interface LinkCreationProgress {
   total: number;
   currentSkillName: string;
   percentComplete: number;
+}
+
+export interface DetectedSkillRoot {
+  root: string;
+  ideIds: string[];
+  ideNames: string[];
+}
+
+export interface DuplicateOccurrence {
+  path: string;
+  name: string;
+  contentHash: string;
+  rootPaths: string[];
+  ideIds: string[];
+  ideNames: string[];
+}
+
+export interface DuplicateGroup {
+  id: string;
+  name: string;
+  contentHash: string;
+  occurrences: DuplicateOccurrence[];
+}
+
+export interface DuplicateScanResult {
+  scannedAt: string;
+  roots: DetectedSkillRoot[];
+  groups: DuplicateGroup[];
+}
+
+export type DuplicateOperationAction = 'remove' | 'migrate';
+
+export type DuplicateOperationStatus =
+  | 'trashed'
+  | 'migrated'
+  | 'already-missing'
+  | 'blocked'
+  | 'failed';
+
+export interface DuplicateOperationResult {
+  action: DuplicateOperationAction;
+  path: string;
+  name: string;
+  status: DuplicateOperationStatus;
+  message?: string;
+  centralPath?: string;
 }

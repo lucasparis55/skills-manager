@@ -8,6 +8,7 @@ import SkillsPage from './pages/SkillsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import LinksPage from './pages/LinksPage';
 import SettingsPage from './pages/SettingsPage';
+import DuplicatesPage from './pages/DuplicatesPage';
 import UpdateDialog from './components/ui/UpdateDialog';
 import { ToastProvider } from './components/ui/Toast';
 import { useUpdateChecker } from './hooks/useUpdateChecker';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/skills" element={<SkillsPage />} />
+              <Route path="/duplicates" element={<DuplicatesPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/links" element={<LinksPage />} />
               <Route path="/settings" element={<SettingsPage />} />

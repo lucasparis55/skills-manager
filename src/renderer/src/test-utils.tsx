@@ -10,6 +10,7 @@ type ApiMock = {
   links: Record<string, ReturnType<typeof vi.fn>>;
   ides: Record<string, ReturnType<typeof vi.fn>>;
   detection: Record<string, ReturnType<typeof vi.fn>>;
+  duplicates: Record<string, ReturnType<typeof vi.fn>>;
   settings: Record<string, ReturnType<typeof vi.fn>>;
   dialog: Record<string, ReturnType<typeof vi.fn>>;
   githubImport: Record<string, ReturnType<typeof vi.fn>>;
@@ -62,6 +63,12 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
     detection: {
       checkDuplicates: vi.fn(async () => ({ hasDuplicate: false })),
       ...(partial.detection || {}),
+    },
+    duplicates: {
+      scan: vi.fn(async () => ({ scannedAt: 'now', roots: [], groups: [] })),
+      remove: vi.fn(async () => []),
+      migrate: vi.fn(async () => []),
+      ...(partial.duplicates || {}),
     },
     settings: {
       get: vi.fn(async () => ({
