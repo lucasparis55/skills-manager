@@ -48,6 +48,45 @@ export function resolveSkillsRoot(centralSkillsRoot?: string | null): string {
 }
 
 /**
+ * Resolves an integration root to the directory reserved for skills.
+ * A configured skills path is kept unchanged; broader tool roots receive
+ * a single `skills` segment.
+ */
+export function ensureSkillsRoot(root: string): string {
+  const normalized = path.normalize(root.trim());
+  const lastSegment = normalized.replace(/[\\/]+$/, '').split(/[\\/]/).pop()?.toLowerCase();
+  return lastSegment === 'skills' ? normalized : path.join(normalized, 'skills');
+}
+
+export interface SkillLinkIDE {
+  id?: string;
+  roots: {
+    primaryGlobal: string[];
+    projectRelative: string[];
+  };
+  skillRootTemplates?: string[];
+}
+
+export function resolveSkillLinkDestination(
+  skillName: string,
+  projectPath: string,
+  ide: SkillLinkIDE,
+  scope: 'global' | 'project',
+  expandPathFn: (input: string) => string = expandPath,
+  overrides?: Record<string, string>,
+): string {
+  if (scope === 'global') {
+    const overrideRoot = overrides?.[ide.id as string]?.trim();
+    const configuredRoot = ide.skillRootTemplates?.[0] || ide.roots.primaryGlobal[0];
+    const globalRoot = ensureSkillsRoot(overrideRoot || configuredRoot);
+    return path.join(expandPathFn(globalRoot), skillName);
+  }
+
+  const projectRelativeRoot = ide.roots.projectRelative[0];
+  return path.join(projectPath, projectRelativeRoot, skillName);
+}
+
+/**
  * Gets the app data directory
  */
 export function getAppDataDir(): string {

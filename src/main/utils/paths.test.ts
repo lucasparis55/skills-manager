@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { expandPath, getAppDataDir, getSkillsRoot, isSubDirectory, resolveSkillsRoot } from './paths';
+import { ensureSkillsRoot, expandPath, getAppDataDir, getSkillsRoot, isSubDirectory, resolveSkillsRoot } from './paths';
 
 describe('paths utils', () => {
   it('expands home and environment variables', () => {
@@ -40,5 +40,10 @@ describe('paths utils', () => {
   it('resolveSkillsRoot falls back to getSkillsRoot', () => {
     expect(resolveSkillsRoot('')).toBe(path.resolve(getSkillsRoot()));
     expect(resolveSkillsRoot(null)).toBe(path.resolve(getSkillsRoot()));
+  });
+
+  it('keeps an existing skills segment and appends it to broader tool roots', () => {
+    expect(ensureSkillsRoot('C:/Users/test/.cursor')).toBe(path.normalize('C:/Users/test/.cursor/skills'));
+    expect(ensureSkillsRoot('C:/Users/test/.cursor/skills')).toBe(path.normalize('C:/Users/test/.cursor/skills'));
   });
 });

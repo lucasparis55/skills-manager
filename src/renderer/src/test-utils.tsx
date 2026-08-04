@@ -46,6 +46,8 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
     },
     links: {
       list: vi.fn(async () => []),
+      previewMigration: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
+      migrate: vi.fn(async () => []),
       create: vi.fn(async () => ({})),
       createMultiple: vi.fn(async () => []),
       onCreateProgress: vi.fn(() => () => {}),

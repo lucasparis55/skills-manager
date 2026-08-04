@@ -99,6 +99,41 @@ describe('DetectionService', () => {
     fs.rmSync(globalRoot, { recursive: true, force: true });
   });
 
+  it('should detect duplicate in the IDE canonical skills root', () => {
+    const project = projectService.add(tempProjectRoot);
+    const globalRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'detection-global-root-'));
+    const skillsRoot = path.join(globalRoot, 'skills');
+    const duplicatePath = path.join(skillsRoot, 'safe-skill');
+    fs.mkdirSync(duplicatePath, { recursive: true });
+
+    const detectionService = new DetectionService(
+      {
+        get: () => ({ centralSkillsRoot: tempSkillsRoot }),
+      } as any,
+      projectService,
+      {
+        list: () => [
+          {
+            id: 'cursor',
+            roots: {
+              projectRelative: ['.cursor/rules'],
+              primaryGlobal: [globalRoot],
+              secondaryGlobal: [],
+            },
+            skillRootTemplates: [skillsRoot],
+          },
+        ],
+      } as any,
+    );
+
+    const report = detectionService.checkDuplicates('safe-skill', project.id, 'cursor');
+
+    expect(report.hasDuplicate).toBe(true);
+    expect(report.existingPath).toBe(duplicatePath);
+
+    fs.rmSync(globalRoot, { recursive: true, force: true });
+  });
+
   it('reports missing project, skill, and IDE as blocking errors', () => {
     const project = projectService.add(tempProjectRoot);
 

@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('api', {
   // Links
   links: {
     list: () => ipcRenderer.invoke('links:list'),
+    previewMigration: () => ipcRenderer.invoke('links:migration:preview'),
+    migrate: (linkIds: string[]) => ipcRenderer.invoke('links:migration:apply', linkIds),
     create: (input: any) => ipcRenderer.invoke('links:create', input),
     createMultiple: (input: any) => ipcRenderer.invoke('links:createMultiple', input),
     onCreateProgress: (callback: (progress: any) => void) => {

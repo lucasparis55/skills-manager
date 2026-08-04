@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { DuplicateReport } from '../types/domain';
-import { expandPath, resolveSkillsRoot } from '../utils/paths';
+import { ensureSkillsRoot, expandPath, resolveSkillsRoot } from '../utils/paths';
 import { SkillService } from './skill.service';
 import { ProjectService } from './project.service';
 import { IDEAdapterService } from './ide-adapter.service';
@@ -33,6 +33,7 @@ export class DetectionService {
    * Check for duplicates before linking a skill
    */
   checkDuplicates(skillId: string, projectId: string, ideId: string): DuplicateReport {
+    const settings = this.settingsService.get();
     const skillService = this.createSkillService();
     const project = this.projectService.list().find(p => p.id === projectId);
     if (!project) {
@@ -79,24 +80,15 @@ export class DetectionService {
       }
     }
 
-    // Check primary global paths
-    for (const globRoot of ideRoots.roots.primaryGlobal) {
-      const expandedRoot = expandPath(globRoot);
-      const checkPath = path.join(expandedRoot, skill.name);
+    const overrideRoot = settings.ideRootOverrides?.[ideId];
+    const globalRoots = overrideRoot
+      ? [ensureSkillsRoot(overrideRoot)]
+      : ideRoots.skillRootTemplates?.length
+        ? ideRoots.skillRootTemplates
+        : [...ideRoots.roots.primaryGlobal, ...ideRoots.roots.secondaryGlobal];
 
-      if (fs.existsSync(checkPath)) {
-        return {
-          hasDuplicate: true,
-          existingPath: checkPath,
-          existingType: 'global-skill',
-          severity: 'warning',
-          message: `A skill with the same name already exists globally at ${checkPath}`,
-        };
-      }
-    }
-
-    // Check secondary global paths
-    for (const globRoot of ideRoots.roots.secondaryGlobal) {
+    // Check canonical global skill paths
+    for (const globRoot of globalRoots) {
       const expandedRoot = expandPath(globRoot);
       const checkPath = path.join(expandedRoot, skill.name);
 

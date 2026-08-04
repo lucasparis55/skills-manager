@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { expandPath } from '../utils/paths';
+import { ensureSkillsRoot, expandPath } from '../utils/paths';
 import type { DetectedSkillRoot, IDEDefinition, ResolvedIDERoot } from '../types/domain';
 
 /**
@@ -163,7 +163,8 @@ export class IDEAdapterService {
     const byPath = new Map<string, DetectedSkillRoot>();
 
     for (const ide of this.ides) {
-      const templates = overrides?.[ide.id] ? [overrides[ide.id]] : ide.skillRootTemplates;
+      const overrideRoot = overrides?.[ide.id]?.trim();
+      const templates = overrideRoot ? [ensureSkillsRoot(overrideRoot)] : ide.skillRootTemplates;
 
       for (const template of templates) {
         const root = expandPath(template);

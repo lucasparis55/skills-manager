@@ -130,6 +130,32 @@ export interface LinkCreationProgress {
   percentComplete: number;
 }
 
+export type LinkMigrationCandidateStatus = 'ready' | 'conflict' | 'blocked';
+
+export interface LinkMigrationCandidate {
+  linkId: string;
+  skillId: string;
+  skillName: string;
+  ideId: string;
+  ideName: string;
+  sourcePath: string;
+  currentPath: string;
+  targetPath: string;
+  status: LinkMigrationCandidateStatus;
+  message?: string;
+}
+
+export interface LinkMigrationPreview {
+  scannedAt: string;
+  candidates: LinkMigrationCandidate[];
+}
+
+export type LinkMigrationResultStatus = 'migrated' | 'skipped' | 'failed';
+
+export interface LinkMigrationResult extends Omit<LinkMigrationCandidate, 'status'> {
+  status: LinkMigrationResultStatus;
+}
+
 export interface DetectedSkillRoot {
   root: string;
   ideIds: string[];

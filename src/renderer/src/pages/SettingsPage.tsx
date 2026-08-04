@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, FolderOpen, Monitor, Github, Loader2, CheckCircle2, AlertCircle, Code2, XCircle } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
+import SkillLinkMigrationPanel from '../components/ui/SkillLinkMigrationPanel';
 import { useToast } from '../components/ui/Toast';
 
 interface AppSettings {
@@ -316,6 +317,9 @@ const SettingsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-white/50 mb-1.5">Custom Global Root Override</label>
+                  <p className="text-xs text-white/40 mb-1.5">
+                    Skill links use this path&apos;s <code className="text-white/60">skills</code> subdirectory.
+                  </p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -359,6 +363,8 @@ const SettingsPage: React.FC = () => {
           })}
         </div>
       </div>
+
+      <SkillLinkMigrationPanel />
 
       {/* GitHub Integration */}
       <div className="glass-panel p-6">

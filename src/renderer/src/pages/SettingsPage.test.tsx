@@ -13,6 +13,15 @@ vi.mock('../components/ui/FormDialog', () => ({
     ) : null,
 }));
 
+vi.mock('../components/ui/ConfirmDialog', () => ({
+  default: (props: any) => props.open ? (
+    <div>
+      <p>{props.description}</p>
+      <button onClick={props.onConfirm}>confirm-migration</button>
+    </div>
+  ) : null,
+}));
+
 describe('SettingsPage', () => {
   it('loads and updates settings controls', async () => {
     const api = createApiMock({
@@ -131,5 +140,82 @@ describe('SettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Test' }));
     expect(await screen.findByText('Connection Failed')).toBeInTheDocument();
     expect(screen.getByText('Rate limit exceeded')).toBeInTheDocument();
+  });
+
+  it('previews misplaced links and applies only ready migrations after confirmation', async () => {
+    const api = createApiMock({
+      settings: {
+        get: vi.fn(async () => ({
+          centralSkillsRoot: 'C:/skills',
+          checkForUpdates: true,
+          autoScanProjects: true,
+          symlinkStrategy: 'auto',
+          theme: 'dark',
+          hasGithubToken: false,
+          ideRootOverrides: {},
+        })),
+      },
+      ides: {
+        list: vi.fn(async () => []),
+        detectRoots: vi.fn(async () => []),
+      },
+      links: {
+        previewMigration: vi.fn(async () => ({
+          scannedAt: 'now',
+          candidates: [
+            {
+              linkId: 'cursor-review',
+              skillId: 'review',
+              skillName: 'review',
+              ideId: 'cursor',
+              ideName: 'Cursor',
+              sourcePath: 'C:/skills/review',
+              currentPath: 'C:/Users/test/.cursor/review',
+              targetPath: 'C:/Users/test/.cursor/skills/review',
+              status: 'ready',
+            },
+            {
+              linkId: 'codex-conflict',
+              skillId: 'conflict',
+              skillName: 'conflict',
+              ideId: 'codex-desktop',
+              ideName: 'Codex Desktop',
+              sourcePath: 'C:/skills/conflict',
+              currentPath: 'C:/Users/test/.codex/conflict',
+              targetPath: 'C:/Users/test/.codex/skills/conflict',
+              status: 'conflict',
+              message: 'Canonical destination already exists.',
+            },
+          ],
+        })),
+        migrate: vi.fn(async () => [{
+          linkId: 'cursor-review',
+          skillId: 'review',
+          skillName: 'review',
+          ideId: 'cursor',
+          ideName: 'Cursor',
+          sourcePath: 'C:/skills/review',
+          currentPath: 'C:/Users/test/.cursor/review',
+          targetPath: 'C:/Users/test/.cursor/skills/review',
+          status: 'migrated',
+        }]),
+      },
+    });
+
+    renderWithProviders(<SettingsPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Scan for misplaced links' }));
+
+    expect(await screen.findByText('C:/Users/test/.cursor/review')).toBeInTheDocument();
+    expect(screen.getByText('Conflict')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Migrate 1 ready link' }));
+    expect(screen.getByText(/This will create canonical links/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'confirm-migration' }));
+
+    await waitFor(() => {
+      expect(api.links.migrate).toHaveBeenCalledWith(['cursor-review']);
+    });
+    expect(await screen.findByText('Migration completed')).toBeInTheDocument();
   });
 });

@@ -51,13 +51,11 @@ export class SymlinkService {
     return { success: true, strategy: 'symlink' };
   }
 
-  /**
-   * Create a symlink or junction point
-   */
-  create(
+  private createInternal(
     source: string,
     destination: string,
     strategy: SymlinkStrategy = 'auto',
+    replaceExisting: boolean,
   ): { success: boolean; strategy: string; error?: string } {
     try {
       // Ensure source exists
@@ -79,6 +77,9 @@ export class SymlinkService {
       if (existingStat) {
         if (!this.isLinkEntry(destination, existingStat)) {
           throw new Error(`Destination already exists and is not a link: ${destination}`);
+        }
+        if (!replaceExisting) {
+          throw new Error(`Destination already exists: ${destination}`);
         }
         this.removeLinkAtPath(destination);
       }
@@ -142,6 +143,28 @@ export class SymlinkService {
         error: errorMessage,
       };
     }
+  }
+
+  /**
+   * Create a symlink or junction point, replacing an existing link safely.
+   */
+  create(
+    source: string,
+    destination: string,
+    strategy: SymlinkStrategy = 'auto',
+  ): { success: boolean; strategy: string; error?: string } {
+    return this.createInternal(source, destination, strategy, true);
+  }
+
+  /**
+   * Create a symlink or junction point without replacing any existing entry.
+   */
+  createExclusive(
+    source: string,
+    destination: string,
+    strategy: SymlinkStrategy = 'auto',
+  ): { success: boolean; strategy: string; error?: string } {
+    return this.createInternal(source, destination, strategy, false);
   }
 
   /**

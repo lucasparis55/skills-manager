@@ -10,7 +10,9 @@ import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
 import { UpdateService } from '../services/update.service';
 import { DuplicateService } from '../services/duplicate.service';
-import { expandPath, resolveSkillsRoot } from '../utils/paths';
+import { LinkMigrationService } from '../services/link-migration.service';
+import { expandPath, resolveSkillLinkDestination, resolveSkillsRoot } from '../utils/paths';
+import type { SkillLinkIDE } from '../utils/paths';
 import type {
   AppSettings,
   CreateMultipleLinksInput,
@@ -43,6 +45,7 @@ type LinkServiceLike = Pick<LinkService, 'list' | 'create' | 'get' | 'remove' | 
 type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots' | 'detectSkillRoots'>;
 type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
 type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
+type LinkMigrationServiceLike = Pick<LinkMigrationService, 'preview' | 'migrate'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
   Partial<Pick<SettingsService, 'getPublicSettings' | 'setGithubToken' | 'clearGithubToken'>>;
 type GitHubImportServiceLike = Pick<
@@ -56,13 +59,7 @@ type ZipImportServiceLike = Pick<
 type UpdateServiceLike = Pick<UpdateService, 'checkForUpdates' | 'openReleasePage'>;
 
 type LinkScope = 'global' | 'project';
-type IdeRootsShape = {
-  id?: string;
-  roots: {
-    primaryGlobal: string[];
-    projectRelative: string[];
-  };
-};
+type IdeRootsShape = SkillLinkIDE;
 
 export interface IPCHandlerDependencies {
   ipcMain: { handle: (channel: string, listener: Handler) => void };
@@ -78,6 +75,7 @@ export interface IPCHandlerDependencies {
   ideService: IdeServiceLike;
   detectionService: DetectionServiceLike;
   duplicateService: DuplicateServiceLike;
+  linkMigrationService: LinkMigrationServiceLike;
   githubImportService: GitHubImportServiceLike;
   zipImportService: ZipImportServiceLike;
   updateService: UpdateServiceLike;
@@ -93,6 +91,8 @@ const defaultLinkService = new LinkService();
 const defaultIdeService = new IDEAdapterService();
 const defaultDetectionService = new DetectionService();
 const defaultSettingsService = new SettingsService();
+const createDefaultSkillService = () =>
+  new SkillService(resolveSkillsRoot(defaultSettingsService.get().centralSkillsRoot));
 const defaultGithubImportService = new GitHubImportService(defaultSettingsService);
 const defaultZipImportService = new ZipImportService(defaultSettingsService);
 const defaultUpdateService = new UpdateService();
@@ -100,6 +100,13 @@ const defaultDuplicateService = new DuplicateService({
   settingsService: defaultSettingsService,
   ideService: defaultIdeService,
   trashItem: (targetPath) => shell.trashItem(targetPath),
+});
+const defaultLinkMigrationService = new LinkMigrationService({
+  settingsService: defaultSettingsService,
+  skillService: { get: (id: string) => createDefaultSkillService().get(id) },
+  linkService: defaultLinkService,
+  symlinkService: defaultSymlinkService,
+  ideService: defaultIdeService,
 });
 
 const defaultDeps: IPCHandlerDependencies = {
@@ -113,11 +120,11 @@ const defaultDeps: IPCHandlerDependencies = {
   ideService: defaultIdeService,
   detectionService: defaultDetectionService,
   duplicateService: defaultDuplicateService,
+  linkMigrationService: defaultLinkMigrationService,
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
   updateService: defaultUpdateService,
-  createSkillService: () =>
-    new SkillService(resolveSkillsRoot(defaultSettingsService.get().centralSkillsRoot)),
+  createSkillService: createDefaultSkillService,
   expandPath,
   platform: process.platform,
   log: console,
@@ -131,15 +138,7 @@ export function resolveLinkDestination(
   expandPathFn: (input: string) => string = expandPath,
   overrides?: Record<string, string>,
 ): string {
-  const pathLib = require('path');
-  if (scope === 'global') {
-    const overrideRoot = overrides?.[ide.id as string];
-    const globalRoot = overrideRoot ?? ide.roots.primaryGlobal[0];
-    return pathLib.join(expandPathFn(globalRoot), skillName);
-  }
-
-  const projectRelativeRoot = ide.roots.projectRelative[0];
-  return pathLib.join(projectPath, projectRelativeRoot, skillName);
+  return resolveSkillLinkDestination(skillName, projectPath, ide, scope, expandPathFn, overrides);
 }
 
 function resolveSymlinkStrategy(settings: AppSettings): SymlinkStrategy {
@@ -245,6 +244,14 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   deps.ipcMain.handle('links:list', () => {
     deps.log.log('IPC: links:list called');
     return deps.linkService.list();
+  });
+
+  deps.ipcMain.handle('links:migration:preview', () => deps.linkMigrationService.preview());
+  deps.ipcMain.handle('links:migration:apply', (_event, linkIds: unknown) => {
+    if (!Array.isArray(linkIds) || linkIds.some((id) => typeof id !== 'string')) {
+      throw new Error('linkIds must be an array of strings');
+    }
+    return deps.linkMigrationService.migrate([...new Set(linkIds)]);
   });
 
   deps.ipcMain.handle('links:create', (_event, input: any) => {

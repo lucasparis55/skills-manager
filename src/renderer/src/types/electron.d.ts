@@ -50,6 +50,28 @@ interface LinkCreationProgress {
   percentComplete: number;
 }
 
+interface LinkMigrationCandidate {
+  linkId: string;
+  skillId: string;
+  skillName: string;
+  ideId: string;
+  ideName: string;
+  sourcePath: string;
+  currentPath: string;
+  targetPath: string;
+  status: 'ready' | 'conflict' | 'blocked';
+  message?: string;
+}
+
+interface LinkMigrationPreview {
+  scannedAt: string;
+  candidates: LinkMigrationCandidate[];
+}
+
+interface LinkMigrationResult extends Omit<LinkMigrationCandidate, 'status'> {
+  status: 'migrated' | 'skipped' | 'failed';
+}
+
 interface SkillsAPI {
   list: () => Promise<any[]>;
   get: (id: string) => Promise<any>;
@@ -76,6 +98,8 @@ interface ProjectsAPI {
 
 interface LinksAPI {
   list: () => Promise<Link[]>;
+  previewMigration: () => Promise<LinkMigrationPreview>;
+  migrate: (linkIds: string[]) => Promise<LinkMigrationResult[]>;
   create: (input: CreateLinkInput) => Promise<Link>;
   createMultiple: (input: CreateMultipleLinksInput) => Promise<LinkCreationResult[]>;
   onCreateProgress: (callback: (progress: LinkCreationProgress) => void) => () => void;

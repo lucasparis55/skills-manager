@@ -69,6 +69,29 @@ export class LinkService {
   }
 
   /**
+   * Update a persisted link destination after a successful filesystem move.
+   */
+  updateDestination(id: string, destinationPath: string): Link | undefined {
+    const link = this.links.get(id);
+    if (!link) {
+      return undefined;
+    }
+
+    const previousDestinationPath = link.destinationPath;
+    const previousStatus = link.status;
+    link.destinationPath = destinationPath;
+    link.status = 'linked';
+    try {
+      this.save();
+    } catch (error) {
+      link.destinationPath = previousDestinationPath;
+      link.status = previousStatus;
+      throw error;
+    }
+    return link;
+  }
+
+  /**
    * Create a new link
    */
   create(input: CreateLinkInput, sourcePath: string, destinationPath: string): Link {

@@ -108,6 +108,26 @@ describe('LinkService', () => {
     expect(found!.skillId).toBe('brainstorming');
   });
 
+  it('should update and persist a link destination', () => {
+    linkService.create(
+      { skillId: 'skill1', projectId: 'project1', ideName: 'cursor', scope: 'global' },
+      '/src1',
+      '/old/cursor/skill1',
+    );
+
+    const updated = linkService.updateDestination('skill1-project1-cursor', '/new/cursor/skills/skill1');
+
+    expect(updated?.destinationPath).toBe('/new/cursor/skills/skill1');
+    expect(updated?.status).toBe('linked');
+    expect(linkService.get('skill1-project1-cursor')?.destinationPath).toBe('/new/cursor/skills/skill1');
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'links.json'), 'utf-8'))[0].destinationPath)
+      .toBe('/new/cursor/skills/skill1');
+  });
+
+  it('should return undefined when updating a missing link destination', () => {
+    expect(linkService.updateDestination('missing', '/new/path')).toBeUndefined();
+  });
+
   it('should return undefined for non-existent id via get()', () => {
     const found = linkService.get('non-existent-id');
     expect(found).toBeUndefined();

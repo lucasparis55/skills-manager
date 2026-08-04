@@ -62,6 +62,8 @@ describe('preload bridge', () => {
     await api.projects.scan('C:/root', 3);
 
     await api.links.list();
+    await api.links.previewMigration();
+    await api.links.migrate(['link-id']);
     await api.links.create({ skillId: 's1', projectId: 'p1', ideName: 'ide', scope: 'project' });
     await api.links.createMultiple({ skillIds: ['a'], projectId: 'p', ideName: 'i', scope: 'project' });
     await api.links.remove('l1');
@@ -115,6 +117,8 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('projects:scan', 'C:/root', 3);
 
     expect(invoke).toHaveBeenCalledWith('links:list');
+    expect(invoke).toHaveBeenCalledWith('links:migration:preview');
+    expect(invoke).toHaveBeenCalledWith('links:migration:apply', ['link-id']);
     expect(invoke).toHaveBeenCalledWith(
       'links:create',
       { skillId: 's1', projectId: 'p1', ideName: 'ide', scope: 'project' },

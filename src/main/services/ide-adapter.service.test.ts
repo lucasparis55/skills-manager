@@ -124,14 +124,34 @@ describe('IDEAdapterService', () => {
     } as fs.Stats);
 
     const roots = new IDEAdapterService().detectSkillRoots({
-      'codex-cli': 'C:/custom/codex-skills',
+      'codex-cli': 'C:/custom/codex',
     });
 
     expect(roots).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          root: path.normalize('C:/custom/codex-skills'),
+          root: path.normalize('C:/custom/codex/skills'),
           ideIds: ['codex-cli'],
+        }),
+      ]),
+    );
+  });
+
+  it('keeps overridden skill roots inside a skills directory', () => {
+    vi.spyOn(fs, 'lstatSync').mockReturnValue({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+    } as fs.Stats);
+
+    const roots = new IDEAdapterService().detectSkillRoots({
+      cursor: 'C:/custom/cursor',
+    });
+
+    expect(roots).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          root: path.normalize('C:/custom/cursor/skills'),
+          ideIds: ['cursor'],
         }),
       ]),
     );

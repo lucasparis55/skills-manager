@@ -163,6 +163,19 @@ describe('SymlinkService', () => {
       expect(fs.existsSync(destination)).toBe(true);
       expect(symlinkService.isSymlink(destination)).toBe(true);
     });
+
+    it('should refuse an existing destination in exclusive mode', () => {
+      const source = path.join(tempDir, 'source');
+      const destination = path.join(tempDir, 'destination');
+      fs.mkdirSync(source, { recursive: true });
+      fs.symlinkSync(source, destination, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = symlinkService.createExclusive(source, destination, 'auto');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+      expect(symlinkService.isSymlink(destination)).toBe(true);
+    });
   });
 
   describe('checkPermissions()', () => {

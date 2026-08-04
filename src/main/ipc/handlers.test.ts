@@ -84,6 +84,7 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
     },
     symlinkService: {
       create: vi.fn(() => ({ success: true, strategy: 'junction' })),
+      createExclusive: vi.fn(() => ({ success: true, strategy: 'junction' })),
       remove: vi.fn(() => true),
       verify: vi.fn(() => ({ valid: true })),
       checkPermissions: vi.fn(() => ({ canCreate: true })),
@@ -97,6 +98,7 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
         sourcePath,
       })),
       get: vi.fn(),
+      updateDestination: vi.fn((id: string, destinationPath: string) => ({ id, destinationPath })),
       remove: vi.fn(() => true),
       removeMultiple: vi.fn((ids: string[]) => ids.map((id) => ({ id, success: true }))),
       verify: vi.fn(() => ({ valid: true })),
@@ -114,6 +116,10 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
       scan: vi.fn(async () => ({ scannedAt: 'now', roots: [], groups: [] })),
       removeOccurrences: vi.fn(async () => []),
       migrateOccurrences: vi.fn(async () => []),
+    },
+    linkMigrationService: {
+      preview: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
+      migrate: vi.fn(async () => []),
     },
     githubImportService: {
       parseGitHubUrl: vi.fn((url: string) => ({ owner: 'acme', repo: url })),
@@ -181,6 +187,41 @@ describe('resolveLinkDestination', () => {
     expect(destination).toContain('brainstorming');
   });
 
+  it('uses the IDE canonical skills root for global links', () => {
+    const codexDestination = resolveLinkDestination(
+      'brainstorming',
+      'C:/repo/project',
+      {
+        id: 'codex-desktop',
+        roots: {
+          primaryGlobal: ['~/.codex'],
+          projectRelative: ['.agents/skills'],
+        },
+        skillRootTemplates: ['~/.codex/skills'],
+      },
+      'global',
+      (value) => value.replace('~', 'C:/Users/me'),
+    );
+
+    const cursorDestination = resolveLinkDestination(
+      'brainstorming',
+      'C:/repo/project',
+      {
+        id: 'cursor',
+        roots: {
+          primaryGlobal: ['~/.cursor'],
+          projectRelative: ['.cursor/rules'],
+        },
+        skillRootTemplates: ['~/.cursor/skills'],
+      },
+      'global',
+      (value) => value.replace('~', 'C:/Users/me'),
+    );
+
+    expect(codexDestination).toContain(path.normalize('C:/Users/me/.codex/skills/brainstorming'));
+    expect(cursorDestination).toContain(path.normalize('C:/Users/me/.cursor/skills/brainstorming'));
+  });
+
   it('builds project destination for project scope', () => {
     const destination = resolveLinkDestination(
       'brainstorming',
@@ -232,8 +273,7 @@ describe('resolveLinkDestination', () => {
       { 'claude-code': 'D:/custom/claude' },
     );
 
-    expect(destination).toContain(path.normalize('D:/custom/claude'));
-    expect(destination).toContain('brainstorming');
+    expect(destination).toBe(path.normalize('D:/custom/claude/skills/brainstorming'));
     expect(destination).not.toContain('C:/Users/me');
   });
 });
@@ -248,11 +288,21 @@ describe('registerIPCHandlers', () => {
 
     expect(handlers.has('skills:list')).toBe(true);
     expect(handlers.has('links:create')).toBe(true);
+    expect(handlers.has('links:migration:preview')).toBe(true);
+    expect(handlers.has('links:migration:apply')).toBe(true);
     expect(handlers.has('links:createMultiple')).toBe(true);
     expect(handlers.has('dialog:selectFolder')).toBe(true);
     expect(handlers.has('dialog:selectFile')).toBe(true);
     expect(handlers.has('github:analyze')).toBe(true);
     expect(handlers.has('zip:analyze')).toBe(true);
+  });
+
+  it('validates migration ids before delegating to the migration service', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('links:migration:apply', ['valid-id', 42] as any))
+      .rejects.toThrow('linkIds must be an array of strings');
+    expect(harness.deps.linkMigrationService.migrate).not.toHaveBeenCalled();
   });
 
   it('returns null for canceled folder dialog', async () => {
@@ -1008,6 +1058,8 @@ describe('registerIPCHandlers', () => {
     await harness.invoke('projects:scan', 'C:/repo');
 
     await harness.invoke('links:list');
+    await harness.invoke('links:migration:preview');
+    await harness.invoke('links:migration:apply', ['link-id']);
     await harness.invoke('links:verify', 'l1');
     await harness.invoke('links:verifyAll');
     await expect(harness.invoke('links:remove', 'missing')).resolves.toEqual({ success: false });
@@ -1044,6 +1096,8 @@ describe('registerIPCHandlers', () => {
     expect(harness.deps.settingsService.update).toHaveBeenCalledWith({ theme: 'light' });
     expect(harness.deps.githubImportService.cancelImport).toHaveBeenCalledTimes(1);
     expect(harness.deps.zipImportService.cancelImport).toHaveBeenCalledTimes(1);
+    expect(harness.deps.linkMigrationService.preview).toHaveBeenCalledTimes(1);
+    expect(harness.deps.linkMigrationService.migrate).toHaveBeenCalledWith(['link-id']);
   });
 
   it('passes ideRootOverrides from settings to detectRoots', async () => {
