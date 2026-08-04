@@ -117,6 +117,39 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
       removeOccurrences: vi.fn(async () => []),
       migrateOccurrences: vi.fn(async () => []),
     },
+    globalSkillService: {
+      scan: vi.fn(() => ({
+        scannedAt: 'now',
+        tools: [],
+        totalSkills: 0,
+        managedCount: 0,
+        externalCount: 0,
+        brokenCount: 0,
+        protectedCount: 0,
+      })),
+      preview: vi.fn(async (id: string) => ({
+        id,
+        name: 'review',
+        displayName: 'Review',
+        description: '',
+        path: 'C:/global/review',
+        rootPath: 'C:/global',
+        origin: 'external' as const,
+        status: 'available' as const,
+        content: '# Review',
+        truncated: false,
+      })),
+      remove: vi.fn(async (ids: string[]) => ids.map((id) => ({
+        id,
+        name: id,
+        status: 'trashed' as const,
+        canUndo: false,
+      }))),
+      undo: vi.fn(async (tokens: string[]) => tokens.map((token) => ({
+        token,
+        status: 'restored' as const,
+      }))),
+    },
     linkMigrationService: {
       preview: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
       migrate: vi.fn(async () => []),
@@ -295,6 +328,43 @@ describe('registerIPCHandlers', () => {
     expect(handlers.has('dialog:selectFile')).toBe(true);
     expect(handlers.has('github:analyze')).toBe(true);
     expect(handlers.has('zip:analyze')).toBe(true);
+    expect(handlers.has('global-skills:scan')).toBe(true);
+    expect(handlers.has('global-skills:preview')).toBe(true);
+    expect(handlers.has('global-skills:remove')).toBe(true);
+    expect(handlers.has('global-skills:undo')).toBe(true);
+  });
+
+  it('delegates global inventory and preview calls with validated ids', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('global-skills:scan')).resolves.toMatchObject({ totalSkills: 0 });
+    await expect(harness.invoke('global-skills:preview', 'skill-id')).resolves.toMatchObject({
+      id: 'skill-id',
+    });
+
+    await expect(harness.invoke('global-skills:preview', 42 as any))
+      .rejects.toThrow('Global skill id must be a string');
+    expect(harness.deps.globalSkillService.preview).toHaveBeenCalledWith('skill-id');
+  });
+
+  it('deduplicates and validates ids before global removal', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('global-skills:remove', ['a', 'a', 'b'])).resolves.toHaveLength(2);
+    expect(harness.deps.globalSkillService.remove).toHaveBeenCalledWith(['a', 'b']);
+
+    await expect(harness.invoke('global-skills:remove', ['a', 42] as any))
+      .rejects.toThrow('Global skill ids must be an array of strings');
+  });
+
+  it('deduplicates and validates undo tokens before delegating', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('global-skills:undo', ['undo-a', 'undo-a', 'undo-b'])).resolves.toHaveLength(2);
+    expect(harness.deps.globalSkillService.undo).toHaveBeenCalledWith(['undo-a', 'undo-b']);
+
+    await expect(harness.invoke('global-skills:undo', ['undo-a', 42] as any))
+      .rejects.toThrow('Global skill undo tokens must be an array of strings');
   });
 
   it('validates migration ids before delegating to the migration service', async () => {

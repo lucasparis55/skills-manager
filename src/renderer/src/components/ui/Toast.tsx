@@ -8,6 +8,10 @@ interface ToastOptions {
   title: string;
   description?: string;
   variant: ToastVariant;
+  action?: {
+    label: string;
+    onClick: () => void | Promise<void>;
+  };
 }
 
 interface ToastEntry extends ToastOptions {
@@ -53,7 +57,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {toasts.map((t) => (
           <ToastPrimitive.Root
             key={t.id}
-            duration={t.variant === 'error' ? 6000 : 4000}
+            duration={t.action ? 8000 : t.variant === 'error' ? 6000 : 4000}
             onOpenChange={(open) => {
               if (!open) removeToast(t.id);
             }}
@@ -70,6 +74,19 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 </ToastPrimitive.Description>
               )}
             </div>
+            {t.action && (
+              <button
+                type="button"
+                aria-label={t.action.label}
+                className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-blue-300 hover:bg-blue-500/10 hover:text-blue-200"
+                onClick={() => {
+                  void t.action?.onClick();
+                  removeToast(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <ToastPrimitive.Close className="text-white/40 hover:text-white/80 shrink-0">
               <X className="w-4 h-4" />
             </ToastPrimitive.Close>

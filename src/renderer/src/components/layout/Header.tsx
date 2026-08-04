@@ -12,7 +12,9 @@ const pageTitles: Record<string, string> = {
 
 const Header: React.FC = () => {
   const location = useLocation();
-  const title = pageTitles[location.pathname] || 'Skills Manager';
+  const title = location.pathname.startsWith('/skills')
+    ? 'Skills'
+    : pageTitles[location.pathname] || 'Skills Manager';
 
   return (
     <header className="glass-header px-6 py-4">

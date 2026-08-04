@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Plus, Trash2, Edit, Search, Download, ChevronDown } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -6,6 +7,7 @@ import SkillEditDialog from '../components/ui/SkillEditDialog';
 import GitHubImportDialog from '../components/ui/GitHubImportDialog';
 import ZipImportDialog from '../components/ui/ZipImportDialog';
 import { useToast } from '../components/ui/Toast';
+import GlobalSkillsView from '../components/ui/GlobalSkillsView';
 
 interface Skill {
   id: string;
@@ -25,6 +27,8 @@ const createSkillFields: FormField[] = [
 ];
 
 const SkillsPage: React.FC = () => {
+  const location = useLocation();
+  const showGlobalSkills = location.pathname === '/skills/global';
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,8 +45,10 @@ const SkillsPage: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadSkills();
-  }, []);
+    if (!showGlobalSkills) {
+      loadSkills();
+    }
+  }, [showGlobalSkills]);
 
   const loadSkills = async () => {
     try {
@@ -178,12 +184,22 @@ const SkillsPage: React.FC = () => {
     }
   };
 
+  if (showGlobalSkills) {
+    return (
+      <div className="space-y-6">
+        <SkillsScopeTabs />
+        <GlobalSkillsView />
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="text-center py-12">Loading skills...</div>;
   }
 
   return (
     <div className="space-y-6">
+      <SkillsScopeTabs />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 flex-1">
@@ -360,6 +376,35 @@ const SkillsPage: React.FC = () => {
         onImportComplete={loadSkills}
       />
     </div>
+  );
+};
+
+const SkillsScopeTabs: React.FC = () => {
+  const tabs = [
+    { to: '/skills', label: 'Managed', end: true },
+    { to: '/skills/global', label: 'Global by tool', end: false },
+    { to: '/projects', label: 'Project', end: true },
+  ];
+
+  return (
+    <nav className="flex flex-wrap items-center gap-1 border-b border-white/[0.08]" aria-label="Skill scopes">
+      {tabs.map((tab) => (
+        <NavLink
+          key={tab.to}
+          to={tab.to}
+          end={tab.end}
+          className={({ isActive }) =>
+            `border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              isActive
+                ? 'border-blue-400 text-white'
+                : 'border-transparent text-white/45 hover:border-white/20 hover:text-white/80'
+            }`
+          }
+        >
+          {tab.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 };
 

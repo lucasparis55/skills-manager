@@ -1,4 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  GlobalSkillInventory,
+  GlobalSkillPreview,
+  GlobalSkillRemovalResult,
+  GlobalSkillUndoResult,
+} from '../main/types/domain';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -64,6 +70,16 @@ contextBridge.exposeInMainWorld('api', {
     scan: () => ipcRenderer.invoke('duplicates:scan'),
     remove: (paths: string[]) => ipcRenderer.invoke('duplicates:remove', paths),
     migrate: (paths: string[]) => ipcRenderer.invoke('duplicates:migrate', paths),
+  },
+
+  // Global skills
+  globalSkills: {
+    scan: (): Promise<GlobalSkillInventory> => ipcRenderer.invoke('global-skills:scan'),
+    preview: (id: string): Promise<GlobalSkillPreview> => ipcRenderer.invoke('global-skills:preview', id),
+    remove: (ids: string[]): Promise<GlobalSkillRemovalResult[]> =>
+      ipcRenderer.invoke('global-skills:remove', ids),
+    undo: (tokens: string[]): Promise<GlobalSkillUndoResult[]> =>
+      ipcRenderer.invoke('global-skills:undo', tokens),
   },
 
   // Settings

@@ -11,6 +11,7 @@ type ApiMock = {
   ides: Record<string, ReturnType<typeof vi.fn>>;
   detection: Record<string, ReturnType<typeof vi.fn>>;
   duplicates: Record<string, ReturnType<typeof vi.fn>>;
+  globalSkills: Record<string, ReturnType<typeof vi.fn>>;
   settings: Record<string, ReturnType<typeof vi.fn>>;
   dialog: Record<string, ReturnType<typeof vi.fn>>;
   githubImport: Record<string, ReturnType<typeof vi.fn>>;
@@ -71,6 +72,40 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
       remove: vi.fn(async () => []),
       migrate: vi.fn(async () => []),
       ...(partial.duplicates || {}),
+    },
+    globalSkills: {
+      scan: vi.fn(async () => ({
+        scannedAt: 'now',
+        tools: [],
+        totalSkills: 0,
+        managedCount: 0,
+        externalCount: 0,
+        brokenCount: 0,
+        protectedCount: 0,
+      })),
+      preview: vi.fn(async (id: string) => ({
+        id,
+        name: 'skill',
+        displayName: 'Skill',
+        description: '',
+        path: 'C:/global/skill',
+        rootPath: 'C:/global',
+        origin: 'external',
+        status: 'available',
+        content: '# Skill',
+        truncated: false,
+      })),
+      remove: vi.fn(async (ids: string[]) => ids.map((id: string) => ({
+        id,
+        name: id,
+        status: 'trashed',
+        canUndo: false,
+      }))),
+      undo: vi.fn(async (tokens: string[]) => tokens.map((token: string) => ({
+        token,
+        status: 'restored',
+      }))),
+      ...(partial.globalSkills || {}),
     },
     settings: {
       get: vi.fn(async () => ({

@@ -203,3 +203,87 @@ export interface DuplicateOperationResult {
   message?: string;
   centralPath?: string;
 }
+
+export type GlobalSkillOrigin = 'managed' | 'external' | 'central';
+export type GlobalSkillStatus = 'available' | 'broken' | 'protected';
+
+export interface GlobalSkillRoot {
+  path: string;
+  exists: boolean;
+  isConfigured: boolean;
+}
+
+export interface GlobalSkillEntry {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  path: string;
+  rootPath: string;
+  sourcePath?: string;
+  origin: GlobalSkillOrigin;
+  status: GlobalSkillStatus;
+  ideIds: string[];
+  ideNames: string[];
+  sharedWith: string[];
+}
+
+export interface GlobalSkillTool {
+  ideId: string;
+  ideName: string;
+  detected: boolean;
+  roots: GlobalSkillRoot[];
+  skills: GlobalSkillEntry[];
+}
+
+export interface GlobalSkillInventory {
+  scannedAt: string;
+  tools: GlobalSkillTool[];
+  totalSkills: number;
+  managedCount: number;
+  externalCount: number;
+  brokenCount: number;
+  protectedCount: number;
+}
+
+export interface GlobalSkillPreview {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  path: string;
+  rootPath: string;
+  origin: GlobalSkillOrigin;
+  status: GlobalSkillStatus;
+  content: string;
+  truncated: boolean;
+}
+
+export type GlobalSkillRemovalStatus =
+  | 'trashed'
+  | 'already-missing'
+  | 'blocked'
+  | 'failed';
+
+export interface GlobalSkillRemovalResult {
+  id: string;
+  name: string;
+  path?: string;
+  status: GlobalSkillRemovalStatus;
+  message?: string;
+  canUndo: boolean;
+  undoToken?: string;
+}
+
+export type GlobalSkillUndoStatus =
+  | 'restored'
+  | 'already-present'
+  | 'expired'
+  | 'failed';
+
+export interface GlobalSkillUndoResult {
+  token: string;
+  path?: string;
+  status: GlobalSkillUndoStatus;
+  message?: string;
+}

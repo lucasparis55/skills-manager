@@ -177,4 +177,17 @@ describe('SkillsPage', () => {
     expect(api.skills.delete).not.toHaveBeenCalledWith('s3');
     expect(await screen.findByText('Partial removal')).toBeInTheDocument();
   });
+
+  it('renders the global scope without loading the managed skills list', async () => {
+    const api = createApiMock();
+
+    renderWithProviders(<SkillsPage />, '/skills/global');
+
+    expect(await screen.findByText('Global inventory across detected tools')).toBeInTheDocument();
+    expect(api.skills.list).not.toHaveBeenCalled();
+    expect(api.globalSkills.scan).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('link', { name: 'Global by tool' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Managed' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Project' })).toBeInTheDocument();
+  });
 });

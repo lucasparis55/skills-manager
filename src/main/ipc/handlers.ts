@@ -10,6 +10,7 @@ import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
 import { UpdateService } from '../services/update.service';
 import { DuplicateService } from '../services/duplicate.service';
+import { GlobalSkillService } from '../services/global-skill.service';
 import { LinkMigrationService } from '../services/link-migration.service';
 import { expandPath, resolveSkillLinkDestination, resolveSkillsRoot } from '../utils/paths';
 import type { SkillLinkIDE } from '../utils/paths';
@@ -42,11 +43,12 @@ type SkillServiceLike = Pick<
 >;
 
 type ProjectServiceLike = Pick<ProjectService, 'list' | 'add' | 'remove' | 'scan'>;
-type SymlinkServiceLike = Pick<SymlinkService, 'create' | 'remove' | 'verify' | 'checkPermissions'>;
+type SymlinkServiceLike = Pick<SymlinkService, 'create' | 'createExclusive' | 'remove' | 'verify' | 'checkPermissions'>;
 type LinkServiceLike = Pick<LinkService, 'list' | 'create' | 'get' | 'remove' | 'removeMultiple' | 'verify' | 'verifyAll'>;
 type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots' | 'detectSkillRoots'>;
 type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
 type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
+type GlobalSkillServiceLike = Pick<GlobalSkillService, 'scan' | 'preview' | 'remove' | 'undo'>;
 type LinkMigrationServiceLike = Pick<LinkMigrationService, 'preview' | 'migrate'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
   Partial<Pick<SettingsService, 'getPublicSettings' | 'setGithubToken' | 'clearGithubToken'>>;
@@ -77,6 +79,7 @@ export interface IPCHandlerDependencies {
   ideService: IdeServiceLike;
   detectionService: DetectionServiceLike;
   duplicateService: DuplicateServiceLike;
+  globalSkillService: GlobalSkillServiceLike;
   linkMigrationService: LinkMigrationServiceLike;
   githubImportService: GitHubImportServiceLike;
   zipImportService: ZipImportServiceLike;
@@ -103,6 +106,13 @@ const defaultDuplicateService = new DuplicateService({
   ideService: defaultIdeService,
   trashItem: (targetPath) => shell.trashItem(targetPath),
 });
+const defaultGlobalSkillService = new GlobalSkillService({
+  settingsService: defaultSettingsService,
+  ideService: defaultIdeService,
+  linkService: defaultLinkService,
+  symlinkService: defaultSymlinkService,
+  trashItem: (targetPath) => shell.trashItem(targetPath),
+});
 const defaultLinkMigrationService = new LinkMigrationService({
   settingsService: defaultSettingsService,
   skillService: { get: (id: string) => createDefaultSkillService().get(id) },
@@ -122,6 +132,7 @@ const defaultDeps: IPCHandlerDependencies = {
   ideService: defaultIdeService,
   detectionService: defaultDetectionService,
   duplicateService: defaultDuplicateService,
+  globalSkillService: defaultGlobalSkillService,
   linkMigrationService: defaultLinkMigrationService,
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
@@ -524,6 +535,26 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   deps.ipcMain.handle('duplicates:migrate', (_event, paths: string[]) =>
     deps.duplicateService.migrateOccurrences(paths),
   );
+
+  deps.ipcMain.handle('global-skills:scan', () => deps.globalSkillService.scan());
+  deps.ipcMain.handle('global-skills:preview', (_event, id: unknown) => {
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      throw new Error('Global skill id must be a string');
+    }
+    return deps.globalSkillService.preview(id);
+  });
+  deps.ipcMain.handle('global-skills:remove', (_event, ids: unknown) => {
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+      throw new Error('Global skill ids must be an array of strings');
+    }
+    return deps.globalSkillService.remove([...new Set(ids)]);
+  });
+  deps.ipcMain.handle('global-skills:undo', (_event, tokens: unknown) => {
+    if (!Array.isArray(tokens) || tokens.some((token) => typeof token !== 'string')) {
+      throw new Error('Global skill undo tokens must be an array of strings');
+    }
+    return deps.globalSkillService.undo([...new Set(tokens)]);
+  });
 
   deps.ipcMain.handle('settings:get', async () => {
     if (typeof deps.settingsService.getPublicSettings === 'function') {

@@ -1,21 +1,67 @@
-# Tasks: Links globais sem projeto
+# Tasks: Gestão de skills globais por ferramenta
 
-- [x] Task 1: Adicionar testes de regressão para formulário, IPC e persistência.
-  - Acceptance: Os testes expressam que `Global` não exige projeto e que `Project` exige.
-  - Verify: `npx vitest run src/renderer/src/components/ui/CreateLinkDialog.test.tsx src/main/ipc/handlers.test.ts src/main/services/link.service.test.ts` falha pela ausência do comportamento.
-  - Files: `src/renderer/src/components/ui/CreateLinkDialog.test.tsx`, `src/main/ipc/handlers.test.ts`, `src/main/services/link.service.test.ts`
+## Task 1: Contratos e inventário global seguro
 
-- [x] Task 2: Aceitar projeto opcional apenas em links globais.
-  - Acceptance: Criação global sem projeto usa a raiz global, persiste `null` e mantém IDs antigos; criação de projeto sem projeto é rejeitada.
-  - Verify: Testes focados e `npm run typecheck`.
-  - Files: `src/main/types/domain.ts`, `src/renderer/src/types/electron.d.ts`, `src/main/services/link.service.ts`, `src/main/ipc/handlers.ts`
+- [x] Acceptance: O serviço lista cada ferramenta do catálogo atual, marca
+      diretórios detectados/não detectados, descobre skills válidas e deduplica
+      raízes compartilhadas.
+- [x] Acceptance: Itens gerenciados, externos, quebrados e protegidos são
+      classificados de forma determinística; raiz central e raízes de projeto
+      nunca entram como alvo removível.
+- [x] Verify: `npx vitest run src/main/services/global-skill.service.test.ts` e
+      `npm run typecheck`.
+- [ ] Files: `src/main/types/domain.ts`,
+      `src/main/services/global-skill.service.ts`,
+      `src/main/services/global-skill.service.test.ts`.
 
-- [x] Task 3: Ajustar o diálogo e a listagem.
-  - Acceptance: O seletor de projeto não é obrigatório/visível em `Global`; o fluxo `Project` permanece obrigatório; links sem projeto aparecem como `Global`.
-  - Verify: Testes de componente, lint e build.
-  - Files: `src/renderer/src/components/ui/CreateLinkDialog.tsx`, `src/renderer/src/pages/LinksPage.tsx`
+## Task 2: Contrato IPC e operações de filesystem
 
-- [x] Task 4: Verificação final e revisão.
-  - Acceptance: Não há regressões nem problemas críticos de correção, simplicidade, arquitetura, segurança ou performance.
-  - Verify: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`.
-  - Files: arquivos alterados nas tarefas anteriores
+- [x] Acceptance: `globalSkills.scan`, `globalSkills.preview`,
+      `globalSkills.remove` e `globalSkills.undo` estão disponíveis no preload e nos tipos do
+      renderer.
+- [x] Acceptance: preview/remove/undo revalidam o ID/token no processo principal, leem
+      somente `SKILL.md` limitado e retornam resultado por item sem expor
+      detalhes internos desnecessários.
+- [x] Verify: testes focados de IPC e `npm run typecheck`.
+- [ ] Files: `src/main/ipc/handlers.ts`, `src/main/ipc/handlers.test.ts`,
+      `src/preload/index.ts`, `src/renderer/src/types/electron.d.ts`.
+
+## Task 3: Visão global e estados de inventário
+
+- [x] Acceptance: `GlobalSkillsView` exibe resumo, busca/filtro, ferramentas
+      detectadas e não detectadas, caminhos, contagens e estados vazio/erro/
+      carregamento.
+- [x] Acceptance: cards/linhas identificam Gerenciada, Externa, Quebrada e
+      Compartilhada com texto e controles acessíveis.
+- [ ] Verify: `npx vitest run src/renderer/src/components/ui/GlobalSkillsView.test.tsx`
+      e `npm run lint` (o lint global está bloqueado pela configuração legada
+      `.eslintrc.js` incompatível com ESLint 9; os arquivos da feature foram
+      verificados sem erros).
+- [ ] Files: `src/renderer/src/components/ui/GlobalSkillsView.tsx`,
+      `src/renderer/src/components/ui/GlobalSkillsView.test.tsx`.
+
+## Task 4: Abas, prévia e remoção guiada
+
+- [x] Acceptance: Skills navega entre Gerenciadas, Global por ferramenta e
+      Projeto sem alterar os fluxos existentes.
+- [x] Acceptance: prévia somente leitura, seleção entre ferramentas,
+      confirmação agrupada por caminho/ferramenta, exclusão individual/lote,
+      falha parcial e feedback de desfazer/Lixeira funcionam.
+- [ ] Verify: testes de `SkillsPage` e `GlobalSkillsView`, `npm run lint` e
+      `npm run build` (testes/build passam; lint global permanece bloqueado pela
+      configuração legada).
+- [ ] Files: `src/renderer/src/pages/SkillsPage.tsx`,
+      `src/renderer/src/pages/SkillsPage.test.tsx`,
+      `src/renderer/src/components/ui/GlobalSkillsView.tsx`,
+      `src/renderer/src/components/ui/GlobalSkillsView.test.tsx`.
+
+## Task 5: Revisão e verificação final
+
+- [x] Acceptance: revisão de correção, simplicidade, arquitetura, segurança,
+      performance e acessibilidade sem problemas críticos ou obrigatórios.
+- [ ] Verify: `npm test`, `npm run lint`, `npm run typecheck` e `npm run build`.
+      Suíte, typecheck e build passam; o lint global permanece bloqueado pela
+      incompatibilidade da configuração legada com ESLint 9 e por erros
+      preexistentes fora desta feature. O lint focado nos arquivos alterados
+      passa sem erros (somente warnings preexistentes).
+- [ ] Files: arquivos alterados nas tarefas anteriores.

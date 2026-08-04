@@ -163,10 +163,89 @@ interface DuplicateOperationResult {
   centralPath?: string;
 }
 
+interface GlobalSkillRoot {
+  path: string;
+  exists: boolean;
+  isConfigured: boolean;
+}
+
+type GlobalSkillOrigin = 'managed' | 'external' | 'central';
+type GlobalSkillStatus = 'available' | 'broken' | 'protected';
+
+interface GlobalSkillEntry {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  path: string;
+  rootPath: string;
+  sourcePath?: string;
+  origin: GlobalSkillOrigin;
+  status: GlobalSkillStatus;
+  ideIds: string[];
+  ideNames: string[];
+  sharedWith: string[];
+}
+
+interface GlobalSkillTool {
+  ideId: string;
+  ideName: string;
+  detected: boolean;
+  roots: GlobalSkillRoot[];
+  skills: GlobalSkillEntry[];
+}
+
+interface GlobalSkillInventory {
+  scannedAt: string;
+  tools: GlobalSkillTool[];
+  totalSkills: number;
+  managedCount: number;
+  externalCount: number;
+  brokenCount: number;
+  protectedCount: number;
+}
+
+interface GlobalSkillPreview {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  path: string;
+  rootPath: string;
+  origin: GlobalSkillOrigin;
+  status: GlobalSkillStatus;
+  content: string;
+  truncated: boolean;
+}
+
+interface GlobalSkillRemovalResult {
+  id: string;
+  name: string;
+  path?: string;
+  status: 'trashed' | 'already-missing' | 'blocked' | 'failed';
+  message?: string;
+  canUndo: boolean;
+  undoToken?: string;
+}
+
+interface GlobalSkillUndoResult {
+  token: string;
+  path?: string;
+  status: 'restored' | 'already-present' | 'expired' | 'failed';
+  message?: string;
+}
+
 interface DuplicatesAPI {
   scan: () => Promise<DuplicateScanResult>;
   remove: (paths: string[]) => Promise<DuplicateOperationResult[]>;
   migrate: (paths: string[]) => Promise<DuplicateOperationResult[]>;
+}
+
+interface GlobalSkillsAPI {
+  scan: () => Promise<GlobalSkillInventory>;
+  preview: (id: string) => Promise<GlobalSkillPreview>;
+  remove: (ids: string[]) => Promise<GlobalSkillRemovalResult[]>;
+  undo: (tokens: string[]) => Promise<GlobalSkillUndoResult[]>;
 }
 
 interface SettingsAPI {
@@ -236,6 +315,7 @@ interface ElectronAPI {
   ides: IDEsAPI;
   detection: DetectionAPI;
   duplicates: DuplicatesAPI;
+  globalSkills: GlobalSkillsAPI;
   settings: SettingsAPI;
   dialog: DialogAPI;
   githubImport: GitHubImportAPI;

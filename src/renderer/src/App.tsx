@@ -44,7 +44,7 @@ const App: React.FC = () => {
           <main className="flex-1 overflow-auto p-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/skills" element={<SkillsPage />} />
+              <Route path="/skills/*" element={<SkillsPage />} />
               <Route path="/duplicates" element={<DuplicatesPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/links" element={<LinksPage />} />

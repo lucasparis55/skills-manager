@@ -29,6 +29,7 @@ describe('preload bridge', () => {
         ides: expect.any(Object),
         detection: expect.any(Object),
         duplicates: expect.any(Object),
+        globalSkills: expect.any(Object),
         settings: expect.any(Object),
         dialog: expect.any(Object),
         githubImport: expect.any(Object),
@@ -78,6 +79,11 @@ describe('preload bridge', () => {
     await api.duplicates.scan();
     await api.duplicates.remove(['C:/skills/review']);
     await api.duplicates.migrate(['C:/skills/review']);
+
+    await api.globalSkills.scan();
+    await api.globalSkills.preview('global-skill-id');
+    await api.globalSkills.remove(['global-skill-id']);
+    await api.globalSkills.undo(['undo-token']);
 
     await api.settings.get();
     await api.settings.update({ theme: 'dark' });
@@ -138,6 +144,11 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('duplicates:scan');
     expect(invoke).toHaveBeenCalledWith('duplicates:remove', ['C:/skills/review']);
     expect(invoke).toHaveBeenCalledWith('duplicates:migrate', ['C:/skills/review']);
+
+    expect(invoke).toHaveBeenCalledWith('global-skills:scan');
+    expect(invoke).toHaveBeenCalledWith('global-skills:preview', 'global-skill-id');
+    expect(invoke).toHaveBeenCalledWith('global-skills:remove', ['global-skill-id']);
+    expect(invoke).toHaveBeenCalledWith('global-skills:undo', ['undo-token']);
 
     expect(invoke).toHaveBeenCalledWith('settings:get');
     expect(invoke).toHaveBeenCalledWith('settings:update', { theme: 'dark' });
