@@ -667,6 +667,31 @@ describe('registerIPCHandlers', () => {
     expect(harness.deps.symlinkService.create).not.toHaveBeenCalled();
   });
 
+  it('allows links:create global without a project', async () => {
+    const projectService = {
+      list: vi.fn(() => []),
+      add: vi.fn(),
+      remove: vi.fn(),
+      scan: vi.fn(() => []),
+    };
+    const harness = createHarness({ projectService });
+
+    await expect(
+      harness.invoke('links:create', {
+        skillId: 'brainstorming',
+        ideName: 'claude-code',
+        scope: 'global',
+      }),
+    ).resolves.toEqual(expect.objectContaining({ scope: 'global' }));
+
+    expect(projectService.list).not.toHaveBeenCalled();
+    expect(harness.deps.linkService.create).toHaveBeenCalledWith(
+      { skillId: 'brainstorming', projectId: null, ideName: 'claude-code', scope: 'global' },
+      'C:/skills/brainstorming',
+      expect.stringContaining(path.normalize('C:/Users/test')),
+    );
+  });
+
   it('rolls back symlink when links:create persistence fails', async () => {
     const harness = createHarness({
       linkService: {
@@ -701,6 +726,15 @@ describe('registerIPCHandlers', () => {
   });
 
   it('throws createMultiple when project or ide is missing', async () => {
+    const missingProjectIdHarness = createHarness();
+    await expect(
+      missingProjectIdHarness.invoke('links:createMultiple', {
+        skillIds: ['s1'],
+        ideName: 'claude-code',
+        scope: 'project',
+      }),
+    ).rejects.toThrow('Project is required for project-scoped links');
+
     const missingProjectHarness = createHarness({
       projectService: {
         list: vi.fn(() => []),
@@ -785,6 +819,30 @@ describe('registerIPCHandlers', () => {
       },
     ]);
     expect(harness.deps.symlinkService.create).not.toHaveBeenCalled();
+  });
+
+  it('allows links:createMultiple global without a project', async () => {
+    const projectService = {
+      list: vi.fn(() => []),
+      add: vi.fn(),
+      remove: vi.fn(),
+      scan: vi.fn(() => []),
+    };
+    const harness = createHarness({ projectService });
+
+    const result = await harness.invoke('links:createMultiple', {
+      skillIds: ['brainstorming'],
+      ideName: 'claude-code',
+      scope: 'global',
+    });
+
+    expect(result).toEqual([expect.objectContaining({ skillId: 'brainstorming', status: 'created' })]);
+    expect(projectService.list).not.toHaveBeenCalled();
+    expect(harness.deps.linkService.create).toHaveBeenCalledWith(
+      { skillId: 'brainstorming', projectId: null, ideName: 'claude-code', scope: 'global' },
+      'C:/skills/brainstorming',
+      expect.stringContaining(path.normalize('C:/Users/test')),
+    );
   });
 
   it('rolls back symlink in createMultiple when persistence fails', async () => {

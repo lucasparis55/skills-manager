@@ -8,7 +8,7 @@ import { useToast } from '../components/ui/Toast';
 interface LinkData {
   id: string;
   skillId: string;
-  projectId: string;
+  projectId: string | null;
   ideName: string;
   scope: 'global' | 'project';
   sourcePath: string;
@@ -122,7 +122,9 @@ const LinksPage: React.FC = () => {
 
   const projectCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    links.forEach(l => { counts[l.projectId] = (counts[l.projectId] || 0) + 1; });
+    links.forEach(l => {
+      if (l.projectId) counts[l.projectId] = (counts[l.projectId] || 0) + 1;
+    });
     return counts;
   }, [links]);
 
@@ -181,7 +183,7 @@ const LinksPage: React.FC = () => {
     }
   };
 
-  const handleCreateLink = async (values: { skillIds: string[]; projectId: string; ideName: string; scope: 'global' | 'project' }) => {
+  const handleCreateLink = async () => {
     // The dialog handles the actual creation internally now.
     // This callback is called after creation completes for data refresh.
     await loadData();
@@ -256,9 +258,9 @@ const LinksPage: React.FC = () => {
     return skill?.displayName || skill?.name || skillId;
   };
 
-  const getProjectName = (projectId: string): string => {
+  const getProjectName = (projectId: string | null): string => {
     const project = projects.find(p => p.id === projectId);
-    return project?.name || projectId;
+    return project?.name || projectId || 'Global';
   };
 
   const getIdeName = (ideId: string): string => {

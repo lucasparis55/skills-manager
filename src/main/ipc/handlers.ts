@@ -16,9 +16,11 @@ import type { SkillLinkIDE } from '../utils/paths';
 import type {
   AppSettings,
   CreateMultipleLinksInput,
+  CreateLinkInput,
   LinkCreationProgress,
   LinkCreationResult,
 } from '../types/domain';
+import { GLOBAL_LINK_PROJECT_ID } from '../types/domain';
 
 type Handler = (event: any, ...args: any[]) => any;
 
@@ -153,8 +155,29 @@ function findGlobalDestinationConflict(links: any[], destinationPath: string): a
   return links.find((link) => link.scope === 'global' && link.destinationPath === destinationPath);
 }
 
-function buildLinkId(skillId: string, projectId: string, ideName: string): string {
-  return `${skillId}-${projectId}-${ideName}`;
+function buildLinkId(skillId: string, projectId: string | null | undefined, ideName: string): string {
+  return `${skillId}-${projectId ?? GLOBAL_LINK_PROJECT_ID}-${ideName}`;
+}
+
+function resolveProjectForLink(
+  deps: IPCHandlerDependencies,
+  projectId: string | null | undefined,
+  scope: LinkScope,
+): { projectId: string | null; path: string } {
+  if (scope === 'global') {
+    return { projectId: projectId ?? null, path: '' };
+  }
+
+  if (!projectId) {
+    throw new Error('Project is required for project-scoped links');
+  }
+
+  const project = deps.projectService.list().find((candidate: any) => candidate.id === projectId);
+  if (!project) {
+    throw new Error(`Project "${projectId}" not found`);
+  }
+
+  return { projectId, path: project.path };
 }
 
 function removeLinksMatching(
@@ -261,10 +284,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       throw new Error(`Skill "${input.skillId}" not found`);
     }
 
-    const project = deps.projectService.list().find((candidate: any) => candidate.id === input.projectId);
-    if (!project) {
-      throw new Error(`Project "${input.projectId}" not found`);
-    }
+    const project = resolveProjectForLink(deps, input.projectId, input.scope);
 
     const ide = deps.ideService.list().find((candidate: any) => candidate.id === input.ideName);
     if (!ide) {
@@ -278,7 +298,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       }
     }
 
-    const linkId = buildLinkId(input.skillId, input.projectId, input.ideName);
+    const linkId = buildLinkId(input.skillId, project.projectId, input.ideName);
     if (deps.linkService.get(linkId)) {
       throw new Error(`Link "${linkId}" already exists`);
     }
@@ -301,7 +321,8 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
     }
 
     try {
-      return deps.linkService.create(input, source, destination);
+      const linkInput: CreateLinkInput = { ...input, projectId: project.projectId };
+      return deps.linkService.create(linkInput, source, destination);
     } catch (err) {
       deps.symlinkService.remove(destination);
       throw err;
@@ -312,10 +333,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
     const { skillIds, projectId, ideName, scope } = input;
     const results: LinkCreationResult[] = [];
 
-    const project = deps.projectService.list().find((candidate: any) => candidate.id === projectId);
-    if (!project) {
-      throw new Error(`Project "${projectId}" not found`);
-    }
+    const project = resolveProjectForLink(deps, projectId, scope);
 
     const ide = deps.ideService.list().find((candidate: any) => candidate.id === ideName);
     if (!ide) {
@@ -368,7 +386,7 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
         }
       }
 
-      const linkId = buildLinkId(skillId, projectId, ideName);
+      const linkId = buildLinkId(skillId, project.projectId, ideName);
       const existingLink = allLinks.find((link: any) => link.id === linkId);
       if (existingLink) {
         results.push({
@@ -400,7 +418,11 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       }
 
       try {
-        const link = deps.linkService.create({ skillId, projectId, ideName, scope }, source, destination);
+        const link = deps.linkService.create(
+          { skillId, projectId: project.projectId, ideName, scope },
+          source,
+          destination,
+        );
         results.push({
           skillId,
           skillName: skill.displayName || skill.name,

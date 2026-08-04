@@ -108,6 +108,34 @@ describe('LinksPage', () => {
     expect(await screen.findByText('Verification complete')).toBeInTheDocument();
   });
 
+  it('labels a global link without a project as Global', async () => {
+    createApiMock({
+      links: {
+        list: vi.fn(async () => [{
+          ...linksPayload[0],
+          id: 'global-link',
+          projectId: null,
+          scope: 'global',
+          destinationPath: 'C:/users/test/.agents/skills/s1',
+        }]),
+      },
+      skills: {
+        list: vi.fn(async () => [{ id: 's1', name: 's1', displayName: 'Skill 1' }]),
+      },
+      projects: {
+        list: vi.fn(async () => []),
+      },
+      ides: {
+        list: vi.fn(async () => idesPayload.slice(0, 1)),
+      },
+    });
+
+    renderWithProviders(<LinksPage />);
+
+    expect(await screen.findByText('1 Links')).toBeInTheDocument();
+    expect(screen.getByText('Global')).toBeInTheDocument();
+  });
+
   it('removes selected links in bulk and reports partial failures', async () => {
     const api = createApiMock({
       links: {

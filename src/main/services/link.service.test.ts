@@ -79,6 +79,24 @@ describe('LinkService', () => {
     expect(linkService.list()).toHaveLength(1);
   });
 
+  it('should persist a global link without a project using a stable id', () => {
+    const link = linkService.create(
+      { skillId: 'global-skill', projectId: null, ideName: 'cursor', scope: 'global' },
+      '/skills/global-skill',
+      '/global/cursor/skills/global-skill',
+    );
+
+    expect(link.id).toBe('global-skill-__global__-cursor');
+    expect(link.projectId).toBeNull();
+
+    const persisted = JSON.parse(fs.readFileSync(path.join(tempDir, 'links.json'), 'utf-8'));
+    expect(persisted[0]).toMatchObject({
+      id: 'global-skill-__global__-cursor',
+      projectId: null,
+      scope: 'global',
+    });
+  });
+
   it('should throw on duplicate id in create()', () => {
     const input: CreateLinkInput = {
       skillId: 'brainstorming',

@@ -133,6 +133,49 @@ describe('CreateLinkDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('creates global links without selecting a project', async () => {
+    const onSubmit = vi.fn(async () => {});
+    const results = [{ skillId: 's1', skillName: 'Skill 1', status: 'created' as const }];
+    const api = createApiMock({
+      links: {
+        createMultiple: vi.fn(async () => results),
+        onCreateProgress: vi.fn(() => () => {}),
+      },
+    });
+
+    renderWithProviders(
+      <CreateLinkDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        skills={skills}
+        projects={projects}
+        ides={ides}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /Global \(symlink in global IDE dir\)/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Claude Code CLI/i }));
+
+    expect(screen.getByRole('button', { name: 'Create 2 Links' })).not.toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Create 2 Links' }));
+
+    await waitFor(() => {
+      expect(api.links.createMultiple).toHaveBeenCalledWith({
+        skillIds: ['s1', 's2'],
+        projectId: null,
+        ideName: 'claude-code',
+        scope: 'global',
+      });
+    });
+    expect(onSubmit).toHaveBeenCalledWith({
+      skillIds: ['s1', 's2'],
+      projectId: null,
+      ideName: 'claude-code',
+      scope: 'global',
+    });
+  });
+
   it('calls onComplete when closed via onOpenChange(false) after results', async () => {
     const onComplete = vi.fn();
     const onOpenChange = vi.fn();

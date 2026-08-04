@@ -41,7 +41,7 @@ interface CreateLinkDialogProps {
   skills: Skill[];
   projects: Project[];
   ides: IDE[];
-  onSubmit: (values: { skillIds: string[]; projectId: string; ideName: string; scope: 'global' | 'project' }) => void;
+  onSubmit: (values: { skillIds: string[]; projectId: string | null; ideName: string; scope: 'global' | 'project' }) => void;
   onComplete?: (results: LinkCreationResult[]) => void;
 }
 
@@ -117,7 +117,8 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
     );
   }, [skills, searchQuery]);
 
-  const isSubmitDisabled = selectedSkills.size === 0 || !projectId || !ideName;
+  const resolvedProjectId = scope === 'project' ? projectId : null;
+  const isSubmitDisabled = selectedSkills.size === 0 || !ideName || (scope === 'project' && !projectId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,13 +129,13 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
     try {
       const results = await window.api.links.createMultiple({
         skillIds: Array.from(selectedSkills),
-        projectId,
+        projectId: resolvedProjectId,
         ideName,
         scope,
       });
       setCreationResults(results);
       setPhase('results');
-      await onSubmit({ skillIds: Array.from(selectedSkills), projectId, ideName, scope });
+      await onSubmit({ skillIds: Array.from(selectedSkills), projectId: resolvedProjectId, ideName, scope });
     } catch (err: any) {
       setPhase('form-input');
       toast({
@@ -178,7 +179,9 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
             </DialogPrimitive.Close>
           </div>
           <DialogPrimitive.Description className="text-sm text-white/45 mb-4">
-            Link skills to a project for a specific IDE. Symlinks will be created in the project's IDE directory.
+            {scope === 'global'
+              ? 'Link skills globally for a specific IDE. Symlinks will be created in the IDE global skills directory.'
+              : 'Link skills to a project for a specific IDE. Symlinks will be created in the project IDE directory.'}
           </DialogPrimitive.Description>
 
           {phase === 'form-input' && (
@@ -257,37 +260,39 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
               </div>
 
               {/* Project Select */}
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-1">
-                  Project <span className="text-red-400">*</span>
-                </label>
-                <SelectPrimitive.Root value={projectId} onValueChange={setProjectId}>
-                  <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
-                    <SelectPrimitive.Value placeholder="Select a project..." />
-                    <SelectPrimitive.Icon>
-                      <ChevronDown className="w-4 h-4 text-white/45" />
-                    </SelectPrimitive.Icon>
-                  </SelectPrimitive.Trigger>
-                  <SelectPrimitive.Portal>
-                    <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
-                      <SelectPrimitive.Viewport>
-                        {projects.map((project) => (
-                          <SelectPrimitive.Item
-                            key={project.id}
-                            value={project.id}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
-                          >
-                            <SelectPrimitive.ItemText>{project.name}</SelectPrimitive.ItemText>
-                            <SelectPrimitive.ItemIndicator>
-                              <Check className="w-4 h-4 text-blue-400" />
-                            </SelectPrimitive.ItemIndicator>
-                          </SelectPrimitive.Item>
-                        ))}
-                      </SelectPrimitive.Viewport>
-                    </SelectPrimitive.Content>
-                  </SelectPrimitive.Portal>
-                </SelectPrimitive.Root>
-              </div>
+              {scope === 'project' && (
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-1">
+                    Project <span className="text-red-400">*</span>
+                  </label>
+                  <SelectPrimitive.Root value={projectId} onValueChange={setProjectId}>
+                    <SelectPrimitive.Trigger className="flex items-center justify-between w-full px-3 py-2 glass-input text-white placeholder:text-white/35 focus:outline-none focus:border-blue-500">
+                      <SelectPrimitive.Value placeholder="Select a project..." />
+                      <SelectPrimitive.Icon>
+                        <ChevronDown className="w-4 h-4 text-white/45" />
+                      </SelectPrimitive.Icon>
+                    </SelectPrimitive.Trigger>
+                    <SelectPrimitive.Portal>
+                      <SelectPrimitive.Content className="glass-dialog border-white/[0.08] rounded-lg shadow-xl z-50 max-h-60 overflow-auto">
+                        <SelectPrimitive.Viewport>
+                          {projects.map((project) => (
+                            <SelectPrimitive.Item
+                              key={project.id}
+                              value={project.id}
+                              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] data-[highlighted]:bg-white/[0.06]"
+                            >
+                              <SelectPrimitive.ItemText>{project.name}</SelectPrimitive.ItemText>
+                              <SelectPrimitive.ItemIndicator>
+                                <Check className="w-4 h-4 text-blue-400" />
+                              </SelectPrimitive.ItemIndicator>
+                            </SelectPrimitive.Item>
+                          ))}
+                        </SelectPrimitive.Viewport>
+                      </SelectPrimitive.Content>
+                    </SelectPrimitive.Portal>
+                  </SelectPrimitive.Root>
+                </div>
+              )}
 
               {/* IDE Select */}
               <div>
@@ -367,6 +372,12 @@ const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({
                   </SelectPrimitive.Portal>
                 </SelectPrimitive.Root>
               </div>
+
+              {scope === 'global' && (
+                <p className="text-xs text-white/45">
+                  Global links are installed in the selected IDE and do not require a project.
+                </p>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-2">

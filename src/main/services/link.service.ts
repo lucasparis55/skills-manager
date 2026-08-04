@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getAppDataDir } from '../utils/paths';
+import { GLOBAL_LINK_PROJECT_ID } from '../types/domain';
 import type { Link, CreateLinkInput } from '../types/domain';
 import type { SymlinkService } from './symlink.service';
 
@@ -95,7 +96,8 @@ export class LinkService {
    * Create a new link
    */
   create(input: CreateLinkInput, sourcePath: string, destinationPath: string): Link {
-    const id = `${input.skillId}-${input.projectId}-${input.ideName}`;
+    const projectId = input.projectId ?? null;
+    const id = `${input.skillId}-${projectId ?? GLOBAL_LINK_PROJECT_ID}-${input.ideName}`;
 
     if (this.links.has(id)) {
       throw new Error(`Link "${id}" already exists`);
@@ -104,7 +106,7 @@ export class LinkService {
     const link: Link = {
       id,
       skillId: input.skillId,
-      projectId: input.projectId,
+      projectId,
       ideName: input.ideName,
       scope: input.scope,
       sourcePath,

@@ -23,10 +23,12 @@ export interface Project {
   metadata: Record<string, unknown>;
 }
 
+export const GLOBAL_LINK_PROJECT_ID = '__global__';
+
 export interface Link {
   id: string;
   skillId: string;
-  projectId: string;
+  projectId: string | null;
   ideName: string;
   scope: 'global' | 'project';
   sourcePath: string;
@@ -103,14 +105,14 @@ export interface UpdateSkillInput {
 
 export interface CreateLinkInput {
   skillId: string;
-  projectId: string;
+  projectId?: string | null;
   ideName: string;
   scope: 'global' | 'project';
 }
 
 export interface CreateMultipleLinksInput {
   skillIds: string[];
-  projectId: string;
+  projectId?: string | null;
   ideName: string;
   scope: 'global' | 'project';
 }

@@ -12,7 +12,7 @@ interface SkillFileEntry {
 interface Link {
   id: string;
   skillId: string;
-  projectId: string;
+  projectId: string | null;
   ideName: string;
   scope: 'global' | 'project';
   sourcePath: string;
@@ -23,14 +23,14 @@ interface Link {
 
 interface CreateLinkInput {
   skillId: string;
-  projectId: string;
+  projectId?: string | null;
   ideName: string;
   scope: 'global' | 'project';
 }
 
 interface CreateMultipleLinksInput {
   skillIds: string[];
-  projectId: string;
+  projectId?: string | null;
   ideName: string;
   scope: 'global' | 'project';
 }
