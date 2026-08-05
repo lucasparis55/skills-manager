@@ -136,6 +136,38 @@ describe('LinksPage', () => {
     expect(screen.getByText('Global')).toBeInTheDocument();
   });
 
+  it('keeps discovery controls visible and filters links by search', async () => {
+    createApiMock({
+      links: { list: vi.fn(async () => linksPayload) },
+      skills: {
+        list: vi.fn(async () => [
+          { id: 's1', name: 's1', displayName: 'Skill 1' },
+          { id: 's2', name: 's2', displayName: 'Skill 2' },
+        ]),
+      },
+      projects: {
+        list: vi.fn(async () => [{ id: 'p1', name: 'Project 1', path: 'C:/repo', detectedIDEs: [] }]),
+      },
+      ides: { list: vi.fn(async () => idesPayload.slice(0, 2)) },
+    });
+
+    renderWithProviders(<LinksPage />);
+    await screen.findByText('2 Links');
+
+    expect(screen.getByRole('searchbox', { name: 'Search links' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by project' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by IDE' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by status' })).toBeInTheDocument();
+    expect(screen.getByText('1 healthy')).toBeInTheDocument();
+    expect(screen.getByText('1 needs attention')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search links' }), 'Skill 2');
+
+    expect(screen.getByText('1 of 2 Links')).toBeInTheDocument();
+    expect(screen.queryByText('Skill 1')).not.toBeInTheDocument();
+    expect(screen.getByText('Skill 2')).toBeInTheDocument();
+  });
+
   it('removes selected links in bulk and reports partial failures', async () => {
     const api = createApiMock({
       links: {
