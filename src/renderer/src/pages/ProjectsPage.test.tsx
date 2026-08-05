@@ -128,4 +128,53 @@ describe('ProjectsPage', () => {
     expect(api.projects.remove).toHaveBeenNthCalledWith(2, 'p2');
     expect(await screen.findByText('Partial removal')).toBeInTheDocument();
   });
+
+  it('keeps discovery controls visible and filters projects by search', async () => {
+    createApiMock({
+      projects: {
+        list: vi.fn(async () => [
+          {
+            id: 'p1',
+            name: 'Alpha Workspace',
+            path: 'C:/repos/alpha',
+            detectedIDEs: ['claude-code'],
+            addedAt: '2024-01-01',
+            metadata: { hasGit: true },
+          },
+          {
+            id: 'p2',
+            name: 'Beta Workspace',
+            path: 'C:/repos/beta',
+            detectedIDEs: [],
+            addedAt: '2024-01-02',
+            metadata: { hasGit: false },
+          },
+        ]),
+      },
+    });
+
+    renderWithProviders(<ProjectsPage />);
+    await screen.findByText('2 Projects');
+
+    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by IDE' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by repository' })).toBeInTheDocument();
+    expect(screen.getByText('1 IDE-ready')).toBeInTheDocument();
+    expect(screen.getByText('1 needs setup')).toBeInTheDocument();
+
+    const searchInput = screen.getByRole('searchbox', { name: 'Search projects' });
+    await userEvent.type(searchInput, 'Beta');
+
+    expect(screen.getByText('1 of 2 Projects')).toBeInTheDocument();
+    expect(screen.queryByText('Alpha Workspace')).not.toBeInTheDocument();
+    expect(screen.getByText('Beta Workspace')).toBeInTheDocument();
+
+    await userEvent.clear(searchInput);
+    expect(await screen.findByText('Alpha Workspace')).toBeInTheDocument();
+    screen.getByRole('combobox', { name: 'Filter by repository' }).focus();
+    await userEvent.keyboard('{Enter}{End}{Enter}');
+
+    expect(screen.queryByText('Alpha Workspace')).not.toBeInTheDocument();
+    expect(screen.getByText('Beta Workspace')).toBeInTheDocument();
+  });
 });
