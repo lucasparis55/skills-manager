@@ -104,14 +104,14 @@ describe('SkillsPage', () => {
     expect(await screen.findByText('Skill created')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Import' }));
-    await userEvent.click(screen.getByRole('button', { name: 'From GitHub' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'From GitHub' }));
     await userEvent.click(screen.getByRole('button', { name: 'import-complete' }));
     await waitFor(() => {
       expect(api.skills.list).toHaveBeenCalledTimes(3);
     });
 
     await userEvent.click(screen.getByRole('button', { name: 'Import' }));
-    await userEvent.click(screen.getByRole('button', { name: 'From ZIP' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'From ZIP' }));
     await userEvent.click(screen.getByRole('button', { name: 'zip-import-complete' }));
     await waitFor(() => {
       expect(api.skills.list).toHaveBeenCalledTimes(4);
@@ -189,5 +189,54 @@ describe('SkillsPage', () => {
     expect(screen.getByRole('link', { name: 'Global by tool' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Managed' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Project' })).toBeInTheDocument();
+  });
+
+  it('summarizes and filters managed skills by search and target IDE', async () => {
+    createApiMock({
+      skills: {
+        list: vi.fn(async () => [
+          {
+            id: 's1',
+            name: 'review-code',
+            displayName: 'Review Code',
+            description: 'Review changes before merge',
+            version: '1.2.0',
+            targetIDEs: ['codex-cli'],
+            tags: ['quality'],
+            sourcePath: 'C:/skills/review-code',
+          },
+          {
+            id: 's2',
+            name: 'write-docs',
+            displayName: 'Write Docs',
+            description: 'Document important decisions',
+            version: '1.0.0',
+            targetIDEs: [],
+            tags: ['documentation'],
+            sourcePath: 'C:/skills/write-docs',
+          },
+        ]),
+      },
+    });
+
+    renderWithProviders(<SkillsPage />);
+
+    expect(await screen.findByText('2 Managed Skills')).toBeInTheDocument();
+    expect(screen.getByText('1 IDE-targeted')).toBeInTheDocument();
+    expect(screen.getByText('1 without target')).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search managed skills' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by target IDE' })).toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search managed skills' }), 'documentation');
+    expect(screen.getByText('1 of 2 Managed Skills')).toBeInTheDocument();
+    expect(screen.queryByText('Review Code')).not.toBeInTheDocument();
+    expect(screen.getByText('Write Docs')).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Search managed skills' }));
+    screen.getByRole('combobox', { name: 'Filter by target IDE' }).focus();
+    await userEvent.keyboard('{Enter}{End}{Enter}');
+
+    expect(screen.queryByText('Review Code')).not.toBeInTheDocument();
+    expect(screen.getByText('Write Docs')).toBeInTheDocument();
   });
 });

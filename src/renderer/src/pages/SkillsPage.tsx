@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Plus, Trash2, Edit, Search, Download, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Download, ChevronDown, Check, X, Target, Library, CircleSlash2 } from 'lucide-react';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SkillEditDialog from '../components/ui/SkillEditDialog';
@@ -32,6 +33,7 @@ const SkillsPage: React.FC = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [targetIdeFilter, setTargetIdeFilter] = useState('__all__');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
@@ -112,11 +114,42 @@ const SkillsPage: React.FC = () => {
     await loadSkills();
   };
 
-  const filteredSkills = skills.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.displayName.toLowerCase().includes(search.toLowerCase()) ||
-    s.description.toLowerCase().includes(search.toLowerCase())
+  const availableTargetIdes = useMemo(
+    () => Array.from(new Set(skills.flatMap(skill => skill.targetIDEs))).sort(),
+    [skills],
   );
+  const targetedCount = skills.filter(skill => skill.targetIDEs.length > 0).length;
+  const withoutTargetCount = skills.length - targetedCount;
+  const hasActiveFilters = search.trim() !== '' || targetIdeFilter !== '__all__';
+
+  const filteredSkills = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase();
+
+    return skills.filter(skill => {
+      if (targetIdeFilter === '__none__' && skill.targetIDEs.length > 0) return false;
+      if (targetIdeFilter !== '__all__' && targetIdeFilter !== '__none__' && !skill.targetIDEs.includes(targetIdeFilter)) return false;
+
+      if (!normalizedSearch) return true;
+
+      return [skill.name, skill.displayName, skill.description, ...skill.targetIDEs, ...skill.tags]
+        .join(' ')
+        .toLocaleLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [skills, search, targetIdeFilter]);
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredSkills.map(skill => skill.id));
+    setSelectedIds(previous => {
+      const next = new Set(Array.from(previous).filter(id => visibleIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [filteredSkills]);
+
+  const clearFilters = () => {
+    setSearch('');
+    setTargetIdeFilter('__all__');
+  };
 
   const selectedVisibleCount = filteredSkills.filter(skill => selectedIds.has(skill.id)).length;
 
@@ -193,45 +226,54 @@ const SkillsPage: React.FC = () => {
     );
   }
 
-  if (loading) {
-    return <div className="text-center py-12">Loading skills...</div>;
-  }
+  if (loading) return <SkillsPageSkeleton />;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-screen-2xl space-y-5">
       <SkillsScopeTabs />
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/45" />
-            <input
-              type="text"
-              placeholder="Search skills..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 glass-input rounded-lg focus:outline-none focus:border-blue-500"
-            />
+
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between" aria-labelledby="managed-skills-title">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 id="managed-skills-title" className="text-xl font-semibold text-white">
+              {hasActiveFilters ? `${filteredSkills.length} of ${skills.length} Managed Skills` : `${skills.length} Managed Skills`}
+            </h3>
+            {skills.length > 0 && (
+              <div className="flex items-center gap-3 text-xs" aria-label="Managed skill target summary">
+                <span className="flex items-center gap-1.5 text-blue-400">
+                  <Target className="h-3.5 w-3.5" aria-hidden="true" />
+                  {targetedCount} IDE-targeted
+                </span>
+                <span className="flex items-center gap-1.5 text-white/45">
+                  <CircleSlash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {withoutTargetCount} without target
+                </span>
+              </div>
+            )}
           </div>
+          <p className="mt-1 text-sm text-white/45">Create, import, and maintain the reusable instructions managed by Skills Manager.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <button
               onClick={() => setShowImportMenu((prev) => !prev)}
-              className="flex items-center gap-2 px-4 py-2 glass hover:bg-white/10 rounded-lg transition-colors text-white/70"
+              aria-expanded={showImportMenu}
+              aria-haspopup="menu"
+              className="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/75 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Download className="w-4 h-4" />
               Import
               <ChevronDown className="w-4 h-4" />
             </button>
             {showImportMenu && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-white/[0.08] glass-dialog shadow-xl z-10 overflow-hidden">
+              <div role="menu" className="glass-dialog absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-lg border-white/[0.08] shadow-xl">
                 <button
                   onClick={() => {
                     setShowImportMenu(false);
                     setShowGithubImportDialog(true);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] transition-colors"
+                  role="menuitem"
+                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.08] focus-visible:outline-none"
                 >
                   From GitHub
                 </button>
@@ -240,7 +282,8 @@ const SkillsPage: React.FC = () => {
                     setShowImportMenu(false);
                     setShowZipImportDialog(true);
                   }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] transition-colors"
+                  role="menuitem"
+                  className="w-full px-4 py-2.5 text-left text-sm text-white/80 transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.08] focus-visible:outline-none"
                 >
                   From ZIP
                 </button>
@@ -249,47 +292,101 @@ const SkillsPage: React.FC = () => {
           </div>
           <button
             onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             <Plus className="w-4 h-4" />
             New Skill
           </button>
         </div>
-      </div>
+      </section>
+
+      {skills.length > 0 && (
+        <section className="glass-panel p-3" aria-label="Find and filter managed skills">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Search managed skills"
+                placeholder="Search skills..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="glass-input h-10 w-full pl-9 pr-3 text-sm focus-visible:ring-2 focus-visible:ring-blue-500/40"
+              />
+            </div>
+
+            <SelectPrimitive.Root value={targetIdeFilter} onValueChange={setTargetIdeFilter}>
+              <SelectPrimitive.Trigger aria-label="Filter by target IDE" className="glass-input flex h-10 min-w-52 items-center justify-between gap-2 px-3 text-sm text-white/80 focus-visible:ring-2 focus-visible:ring-blue-500/40">
+                <SelectPrimitive.Value />
+                <SelectPrimitive.Icon><ChevronDown className="h-4 w-4 text-white/45" /></SelectPrimitive.Icon>
+              </SelectPrimitive.Trigger>
+              <SelectPrimitive.Portal>
+                <SelectPrimitive.Content className="glass-dialog z-50 max-h-60 overflow-auto rounded-lg border-white/[0.08] shadow-xl">
+                  <SelectPrimitive.Viewport>
+                    <SkillFilterItem value="__all__">All target IDEs ({skills.length})</SkillFilterItem>
+                    {availableTargetIdes.map(ide => (
+                      <SkillFilterItem key={ide} value={ide}>
+                        {ide} ({skills.filter(skill => skill.targetIDEs.includes(ide)).length})
+                      </SkillFilterItem>
+                    ))}
+                    <SkillFilterItem value="__none__">Without target ({withoutTargetCount})</SkillFilterItem>
+                  </SelectPrimitive.Viewport>
+                </SelectPrimitive.Content>
+              </SelectPrimitive.Portal>
+            </SelectPrimitive.Root>
+
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex h-10 items-center gap-1.5 px-2 text-sm text-white/50 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 border border-white/[0.08] rounded-lg glass p-3">
-          <span className="text-sm text-white/45">{selectedIds.size} selected</span>
-          <button
-            onClick={() => setShowBulkConfirm(true)}
-            disabled={bulkDeleting}
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg text-sm transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Remove Selected
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3" role="status">
+          <span className="text-sm font-medium text-blue-100">{selectedIds.size} skill{selectedIds.size !== 1 ? 's' : ''} selected</span>
+          <div className="flex items-center gap-3">
+            <button onClick={deselectAll} className="text-sm text-white/60 hover:text-white">Clear selection</button>
+            <button
+              onClick={() => setShowBulkConfirm(true)}
+              disabled={bulkDeleting}
+              className="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium transition-colors hover:bg-red-500 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Remove Selected
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Skills List */}
       {filteredSkills.length === 0 ? (
-        <div className="text-center py-12 glass-panel">
-          <p className="text-white/45 mb-4">
-            {search ? 'No skills match your search' : 'No skills yet'}
-          </p>
-          {!search && (
+        skills.length === 0 ? (
+          <div className="glass-panel flex flex-col items-center px-6 py-16 text-center" role="status">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400"><Library className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-white">No Managed Skills Yet</h3>
+            <p className="mb-5 mt-2 max-w-md text-sm text-white/50">Create a skill from scratch or import an existing package from GitHub or ZIP.</p>
             <button
               onClick={() => setShowCreateDialog(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             >
               Create your first skill
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="glass-panel flex flex-col items-center px-6 py-14 text-center" role="status">
+            <Search className="mb-4 h-8 w-8 text-white/30" />
+            <h3 className="text-lg font-semibold text-white">No Matching Skills</h3>
+            <p className="mb-4 mt-1 text-sm text-white/45">No skills match your search or target filter.</p>
+            <span className="sr-only">No skills match your search</span>
+            <button onClick={clearFilters} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white">Clear all filters</button>
+          </div>
+        )
       ) : (
-        <div className="grid gap-4">
-          <div className="flex items-center gap-3 px-1">
-            <label className="flex items-center gap-2 cursor-pointer">
+        <section className="glass-panel overflow-hidden" aria-label="Managed skills list">
+          <div className="flex min-h-11 items-center gap-4 border-b border-white/[0.08] bg-white/[0.025] px-4 text-xs font-medium uppercase tracking-wide text-white/35">
+            <label className="flex cursor-pointer items-center gap-3 normal-case tracking-normal">
               <input
                 type="checkbox"
                 checked={selectedVisibleCount === filteredSkills.length && filteredSkills.length > 0}
@@ -299,24 +396,29 @@ const SkillsPage: React.FC = () => {
                   }
                 }}
                 onChange={toggleSelectAll}
-                className="accent-blue-500 w-4 h-4"
+                className="h-4 w-4 accent-blue-500"
               />
-              <span className="text-sm text-white/45">
+              <span className="whitespace-nowrap text-xs text-white/45">
                 {selectedVisibleCount > 0 ? `${selectedVisibleCount} of ${filteredSkills.length} selected` : 'Select all'}
               </span>
             </label>
+            <span className="ml-auto hidden lg:block lg:w-60">Targets & tags</span>
+            <span className="hidden md:block md:w-20">Version</span>
+            <span className="w-20 text-right">Actions</span>
           </div>
-          {filteredSkills.map((skill) => (
-            <SkillCard
-              key={skill.id}
-              skill={skill}
-              onDelete={(s) => setConfirmState({ skill: s })}
-              onEdit={handleEditSkill}
-              selected={selectedIds.has(skill.id)}
-              onToggleSelect={() => toggleSelection(skill.id)}
-            />
-          ))}
-        </div>
+          <div className="divide-y divide-white/[0.06]">
+            {filteredSkills.map((skill) => (
+              <SkillRow
+                key={skill.id}
+                skill={skill}
+                onDelete={(item) => setConfirmState({ skill: item })}
+                onEdit={handleEditSkill}
+                selected={selectedIds.has(skill.id)}
+                onToggleSelect={() => toggleSelection(skill.id)}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <FormDialog
@@ -408,7 +510,16 @@ const SkillsScopeTabs: React.FC = () => {
   );
 };
 
-const SkillCard: React.FC<{
+const ideColors: Record<string, string> = {
+  'claude-code': 'bg-purple-500/20 text-purple-400',
+  'cursor': 'bg-blue-500/20 text-blue-400',
+  'opencode': 'bg-green-500/20 text-green-400',
+  'codex-cli': 'bg-yellow-500/20 text-yellow-400',
+  'codex-desktop': 'bg-white/[0.08] text-white/65',
+  'kimi-cli': 'bg-red-500/20 text-red-400',
+};
+
+const SkillRow: React.FC<{
   skill: Skill;
   onDelete: (skill: Skill) => void;
   onEdit: (skill: Skill) => void;
@@ -416,59 +527,94 @@ const SkillCard: React.FC<{
   onToggleSelect?: () => void;
 }> = ({ skill, onDelete, onEdit, selected = false, onToggleSelect }) => {
   return (
-    <div className={`border rounded-lg p-4 transition-colors ${
-      selected ? 'border-blue-500/50 bg-blue-500/5' : 'glass-card'
-    }`}>
-      <div className="flex items-start gap-2">
-        {onToggleSelect && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onToggleSelect}
-            aria-label={`Select ${skill.displayName}`}
-            className="accent-blue-500 w-4 h-4 mt-1 flex-shrink-0"
-          />
-        )}
-        <div className="flex items-start justify-between flex-1">
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white">{skill.displayName}</h3>
-            <p className="text-sm text-white/45 mt-1">{skill.description || 'No description'}</p>
-            <div className="flex items-center gap-4 mt-3 text-sm text-white/40">
-              <span>v{skill.version}</span>
-              {skill.targetIDEs.length > 0 && (
-                <span>IDEs: {skill.targetIDEs.join(', ')}</span>
-              )}
-            </div>
-            {skill.tags.length > 0 && (
-              <div className="flex gap-2 mt-2">
-                {skill.tags.map((tag, i) => (
-                  <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs text-white/70">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
+    <div className={`group flex min-h-20 items-center gap-4 px-4 py-3 transition-colors hover:bg-white/[0.025] ${selected ? 'bg-blue-500/[0.08]' : ''}`}>
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={`Select ${skill.displayName}`}
+          className="h-4 w-4 flex-shrink-0 accent-blue-500"
+        />
+      )}
+
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-white/35 xl:flex">
+          <Library className="h-4 w-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-white">{skill.displayName}</h3>
+            {skill.name !== skill.displayName && <span className="hidden truncate font-mono text-xs text-white/30 sm:inline">{skill.name}</span>}
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onEdit(skill)}
-              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
-              title="Edit skill"
-            >
-              <Edit className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onDelete(skill)}
-              className="p-2 text-red-400 hover:bg-red-500/10 rounded transition-colors"
-              title="Delete skill"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">{skill.description || 'No description provided'}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5 lg:hidden">
+            {skill.targetIDEs.length > 0 ? skill.targetIDEs.map(ide => (
+              <span key={ide} className={`rounded px-1.5 py-0.5 text-xs ${ideColors[ide] || 'bg-white/[0.08] text-white/65'}`}>{ide}</span>
+            )) : <span className="text-xs text-white/35">No IDE target</span>}
+            {skill.tags.slice(0, 2).map(tag => <span key={tag} className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-white/50">#{tag}</span>)}
           </div>
         </div>
+      </div>
+
+      <div className="hidden w-60 flex-wrap items-center gap-1.5 lg:flex">
+        {skill.targetIDEs.length > 0 ? skill.targetIDEs.map(ide => (
+          <span key={ide} className={`rounded px-2 py-1 text-xs ${ideColors[ide] || 'bg-white/[0.08] text-white/65'}`}>{ide}</span>
+        )) : (
+          <span className="flex items-center gap-1.5 text-xs text-white/35"><Target className="h-3.5 w-3.5" />No IDE target</span>
+        )}
+        {skill.tags.slice(0, 2).map(tag => <span key={tag} className="rounded bg-white/[0.06] px-2 py-1 text-xs text-white/50">#{tag}</span>)}
+        {skill.tags.length > 2 && <span className="text-xs text-white/35">+{skill.tags.length - 2}</span>}
+      </div>
+
+      <div className="hidden w-20 md:block">
+        <span className="rounded bg-white/[0.05] px-2 py-1 font-mono text-xs text-white/50">v{skill.version}</span>
+      </div>
+
+      <div className="flex w-20 flex-shrink-0 justify-end gap-1">
+        <button
+          onClick={() => onEdit(skill)}
+          className="rounded-md p-2 text-white/30 transition-colors hover:bg-blue-500/10 hover:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          title="Edit skill"
+          aria-label={`Edit ${skill.displayName}`}
+        >
+          <Edit className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => onDelete(skill)}
+          className="rounded-md p-2 text-white/30 transition-colors hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          title="Delete skill"
+          aria-label={`Delete ${skill.displayName}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
 };
+
+const SkillFilterItem: React.FC<React.PropsWithChildren<{ value: string }>> = ({ value, children }) => (
+  <SelectPrimitive.Item value={value} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-white/80 outline-none data-[highlighted]:bg-white/[0.08]">
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemIndicator><Check className="h-4 w-4 text-blue-400" /></SelectPrimitive.ItemIndicator>
+  </SelectPrimitive.Item>
+);
+
+const SkillsPageSkeleton: React.FC = () => (
+  <div className="mx-auto max-w-screen-2xl space-y-5" aria-busy="true" aria-label="Loading skills">
+    <div className="h-12 border-b border-white/[0.08]" />
+    <div className="flex items-start justify-between gap-4">
+      <div className="space-y-2">
+        <div className="h-6 w-40 animate-pulse rounded bg-white/[0.08]" />
+        <div className="h-4 w-96 max-w-full animate-pulse rounded bg-white/[0.05]" />
+      </div>
+      <div className="h-10 w-32 animate-pulse rounded-lg bg-white/[0.08]" />
+    </div>
+    <div className="h-16 animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.03]" />
+    <div className="space-y-px overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03]">
+      {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse border-b border-white/[0.04] bg-white/[0.015]" />)}
+    </div>
+  </div>
+);
 
 export default SkillsPage;
