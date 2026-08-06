@@ -31,8 +31,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
-        <DialogPrimitive.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass-dialog rounded-xl p-6 w-full max-w-md shadow-xl data-[state=open]:animate-contentShow focus:outline-none">
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[60] bg-black/50 data-[state=open]:animate-overlayShow" />
+        <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl glass-dialog p-5 shadow-xl data-[state=open]:animate-contentShow focus:outline-none sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               {variant === 'danger' && (
@@ -42,7 +42,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 {title}
               </DialogPrimitive.Title>
             </div>
-            <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
+            <DialogPrimitive.Close aria-label="Close confirmation dialog" className="text-white/40 hover:text-white/80">
               <X className="w-4 h-4" />
             </DialogPrimitive.Close>
           </div>

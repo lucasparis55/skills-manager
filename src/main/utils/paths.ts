@@ -63,6 +63,7 @@ export interface SkillLinkIDE {
   roots: {
     primaryGlobal: string[];
     projectRelative: string[];
+    secondaryGlobal?: string[];
   };
   skillRootTemplates?: string[];
 }
@@ -84,6 +85,38 @@ export function resolveSkillLinkDestination(
 
   const projectRelativeRoot = ide.roots.projectRelative[0];
   return path.join(projectPath, projectRelativeRoot, skillName);
+}
+
+/**
+ * Resolves destinations that are known to belong to the current or legacy
+ * layout for a skill link. Used as a safety allowlist before moving a link.
+ */
+export function resolveKnownSkillLinkDestinations(
+  skillName: string,
+  projectPath: string,
+  ide: SkillLinkIDE,
+  scope: 'global' | 'project',
+  expandPathFn: (input: string) => string = expandPath,
+  overrides?: Record<string, string>,
+): string[] {
+  if (scope === 'project') {
+    return (ide.roots.projectRelative || []).map((root) => path.join(projectPath, root, skillName));
+  }
+
+  const overrideRoot = overrides?.[ide.id as string]?.trim();
+  const configuredRoots = overrideRoot
+    ? [overrideRoot]
+    : [
+      ...(ide.skillRootTemplates || []),
+      ...ide.roots.primaryGlobal,
+      ...(ide.roots.secondaryGlobal || []),
+    ];
+
+  return [...new Set(configuredRoots.flatMap((root) => {
+    const expandedRoot = expandPathFn(root);
+    const skillsRoot = expandPathFn(ensureSkillsRoot(root));
+    return [path.join(expandedRoot, skillName), path.join(skillsRoot, skillName)];
+  }))];
 }
 
 /**

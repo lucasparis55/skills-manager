@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Plus, Trash2, Edit, Search, Download, ChevronDown, Check, X, Target, Library, CircleSlash2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Download, ChevronDown, Check, X, Target, Library, CircleSlash2, Wrench } from 'lucide-react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SkillEditDialog from '../components/ui/SkillEditDialog';
+import SkillHealthDialog from '../components/ui/SkillHealthDialog';
 import GitHubImportDialog from '../components/ui/GitHubImportDialog';
 import ZipImportDialog from '../components/ui/ZipImportDialog';
 import { useToast } from '../components/ui/Toast';
@@ -38,6 +39,8 @@ const SkillsPage: React.FC = () => {
   const [confirmState, setConfirmState] = useState<{ skill: Skill } | null>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [healthSkill, setHealthSkill] = useState<Skill | null>(null);
+  const [showHealthDialog, setShowHealthDialog] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [showGithubImportDialog, setShowGithubImportDialog] = useState(false);
   const [showZipImportDialog, setShowZipImportDialog] = useState(false);
@@ -52,12 +55,15 @@ const SkillsPage: React.FC = () => {
     }
   }, [showGlobalSkills]);
 
-  const loadSkills = async () => {
+  const loadSkills = async (): Promise<Skill[]> => {
     try {
       const data = await window.api.skills.list();
-      setSkills(data || []);
+      const nextSkills = data || [];
+      setSkills(nextSkills);
+      return nextSkills;
     } catch (err) {
       console.error('Failed to load skills:', err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -110,8 +116,44 @@ const SkillsPage: React.FC = () => {
     setShowEditDialog(true);
   };
 
-  const handleSaveEdit = async () => {
-    await loadSkills();
+  const handleSaveEdit = (skillId: string) => {
+    const pendingSkill = editingSkill;
+    setShowEditDialog(false);
+    setEditingSkill(null);
+    setShowHealthDialog(false);
+
+    void (async () => {
+      const refreshedSkills = await loadSkills();
+      const savedSkill = refreshedSkills.find((item) => item.id === skillId) || pendingSkill;
+      if (!savedSkill) return;
+
+      setHealthSkill(savedSkill);
+      try {
+        const report = await window.api.skills.checkDistribution(skillId);
+        if (report.summary.attention > 0) {
+          toast({
+            title: 'Distribution needs attention',
+            description: `${report.summary.attention} destination${report.summary.attention === 1 ? '' : 's'} need review.`,
+            variant: 'info',
+            action: { label: 'View report', onClick: () => setShowHealthDialog(true) },
+          });
+        } else {
+          toast({ title: 'Distribution verified', description: 'All persisted destinations are healthy.', variant: 'success' });
+        }
+      } catch (err: unknown) {
+        toast({
+          title: 'Verification unavailable',
+          description: err instanceof Error ? err.message : 'The skill was saved, but distribution could not be checked.',
+          variant: 'error',
+          action: { label: 'View report', onClick: () => setShowHealthDialog(true) },
+        });
+      }
+    })();
+  };
+
+  const handleCheckHealth = (skill: Skill) => {
+    setHealthSkill(skill);
+    setShowHealthDialog(true);
   };
 
   const availableTargetIdes = useMemo(
@@ -404,7 +446,7 @@ const SkillsPage: React.FC = () => {
             </label>
             <span className="ml-auto hidden lg:block lg:w-60">Targets & tags</span>
             <span className="hidden md:block md:w-20">Version</span>
-            <span className="w-20 text-right">Actions</span>
+            <span className="w-28 text-right">Actions</span>
           </div>
           <div className="divide-y divide-white/[0.06]">
             {filteredSkills.map((skill) => (
@@ -413,6 +455,7 @@ const SkillsPage: React.FC = () => {
                 skill={skill}
                 onDelete={(item) => setConfirmState({ skill: item })}
                 onEdit={handleEditSkill}
+                onHealthCheck={handleCheckHealth}
                 selected={selectedIds.has(skill.id)}
                 onToggleSelect={() => toggleSelection(skill.id)}
               />
@@ -436,6 +479,16 @@ const SkillsPage: React.FC = () => {
         onOpenChange={setShowEditDialog}
         skill={editingSkill}
         onSave={handleSaveEdit}
+      />
+
+      <SkillHealthDialog
+        open={showHealthDialog}
+        onOpenChange={(open) => {
+          setShowHealthDialog(open);
+          if (!open) setHealthSkill(null);
+        }}
+        skill={healthSkill}
+        onRepairComplete={loadSkills}
       />
 
       {confirmState && (
@@ -523,9 +576,10 @@ const SkillRow: React.FC<{
   skill: Skill;
   onDelete: (skill: Skill) => void;
   onEdit: (skill: Skill) => void;
+  onHealthCheck: (skill: Skill) => void;
   selected?: boolean;
   onToggleSelect?: () => void;
-}> = ({ skill, onDelete, onEdit, selected = false, onToggleSelect }) => {
+}> = ({ skill, onDelete, onEdit, onHealthCheck, selected = false, onToggleSelect }) => {
   return (
     <div className={`group flex min-h-20 items-center gap-4 px-4 py-3 transition-colors hover:bg-white/[0.025] ${selected ? 'bg-blue-500/[0.08]' : ''}`}>
       {onToggleSelect && (
@@ -571,7 +625,15 @@ const SkillRow: React.FC<{
         <span className="rounded bg-white/[0.05] px-2 py-1 font-mono text-xs text-white/50">v{skill.version}</span>
       </div>
 
-      <div className="flex w-20 flex-shrink-0 justify-end gap-1">
+      <div className="flex w-28 flex-shrink-0 justify-end gap-1">
+        <button
+          onClick={() => onHealthCheck(skill)}
+          className="rounded-md p-2 text-white/30 transition-colors hover:bg-blue-500/10 hover:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          title="Check distribution health"
+          aria-label={`Check distribution health for ${skill.displayName}`}
+        >
+          <Wrench className="h-4 w-4" />
+        </button>
         <button
           onClick={() => onEdit(skill)}
           className="rounded-md p-2 text-white/30 transition-colors hover:bg-blue-500/10 hover:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"

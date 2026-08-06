@@ -19,7 +19,7 @@ interface SkillEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   skill: Skill | null;
-  onSave: () => void;
+  onSave: (skillId: string) => void | Promise<void>;
 }
 
 type Tab = 'metadata' | 'content' | 'files';
@@ -76,7 +76,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
     setSaving(true);
     try {
       await window.api.skills.saveContent(skill.id, content);
-      onSave();
+      await onSave(skill.id);
       toast({ title: 'Saved', description: 'SKILL.md content updated.', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
@@ -99,7 +99,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
           ? values.tags.split(',').map((s: string) => s.trim()).filter(Boolean)
           : [],
       });
-      onSave();
+      await onSave(skill.id);
       setFormKey((k) => k + 1);
       toast({ title: 'Saved', description: 'Skill metadata updated.', variant: 'success' });
     } catch (err: any) {
@@ -221,7 +221,7 @@ const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
             )}
 
             {activeTab === 'files' && (
-              <FileBrowser skillId={skill.id} onFileChange={onSave} />
+              <FileBrowser skillId={skill.id} onFileChange={() => void onSave(skill.id)} />
             )}
           </div>
         </DialogPrimitive.Content>

@@ -2,12 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import type {
   AppSettings,
+  IDEDefinition,
   Link,
   LinkMigrationCandidate,
   LinkMigrationPreview,
   LinkMigrationResult,
 } from '../types/domain';
-import { resolveSkillLinkDestination } from '../utils/paths';
+import { resolveKnownSkillLinkDestinations, resolveSkillLinkDestination } from '../utils/paths';
 import { IDEAdapterService } from './ide-adapter.service';
 import { LinkService } from './link.service';
 import { SkillService } from './skill.service';
@@ -134,6 +135,29 @@ export class LinkMigrationService {
       return null;
     }
 
+    if (!this.isKnownLegacyDestination(link.destinationPath, skillName, ide, link.scope)) {
+      return {
+        link,
+        candidate: {
+          ...candidateBase,
+          status: 'blocked',
+          message: 'Current destination is outside a known IDE skills root.',
+        },
+      };
+    }
+
+    const targetState = this.getPathState(targetPath);
+    if (targetState === 'unavailable') {
+      return {
+        link,
+        candidate: {
+          ...candidateBase,
+          status: 'blocked',
+          message: 'Canonical destination is unavailable.',
+        },
+      };
+    }
+
     const linkValidation = this.validateManagedLink(link);
     if (!linkValidation.ok) {
       return { link, candidate: { ...candidateBase, status: 'blocked', message: linkValidation.message } };
@@ -161,6 +185,14 @@ export class LinkMigrationService {
     destinationPath: string,
     sourcePath: string,
   ): { ok: true } | { ok: false; message: string } {
+    const destinationState = this.getPathState(destinationPath);
+    if (destinationState === 'missing') {
+      return { ok: false, message: 'Current link is missing.' };
+    }
+    if (destinationState === 'unavailable') {
+      return { ok: false, message: 'Current link is unavailable.' };
+    }
+
     if (!this.deps.symlinkService.isSymlink(destinationPath)) {
       return { ok: false, message: 'Current destination is not a managed symlink or junction.' };
     }
@@ -188,6 +220,17 @@ export class LinkMigrationService {
       return this.failedResult(candidate, created.error || 'Failed to create canonical link.');
     }
 
+    const createdValidation = this.validateManagedDestination(candidate.targetPath, link.sourcePath);
+    if (!createdValidation.ok) {
+      const cleaned = this.deps.symlinkService.remove(candidate.targetPath);
+      return this.failedResult(
+        candidate,
+        cleaned
+          ? `New canonical link failed verification: ${createdValidation.message}`
+          : `New canonical link failed verification and could not be cleaned up safely: ${createdValidation.message}`,
+      );
+    }
+
     let persisted = false;
     try {
       if (!this.deps.linkService.updateDestination(link.id, candidate.targetPath)) {
@@ -201,15 +244,24 @@ export class LinkMigrationService {
       }
       persisted = true;
 
-      if (this.hasExistingPath(candidate.currentPath)) {
+      const currentState = this.getPathState(candidate.currentPath);
+      if (currentState === 'unavailable') {
+        throw new Error('Original link became unavailable before it could be removed.');
+      }
+      if (currentState === 'present') {
         const currentValidation = this.validateManagedDestination(candidate.currentPath, link.sourcePath);
         if (!currentValidation.ok) {
           throw new Error(`Original link changed and was not removed: ${currentValidation.message}`);
         }
       }
 
+      const currentTargetValidation = this.validateManagedDestination(candidate.targetPath, link.sourcePath);
+      if (!currentTargetValidation.ok) {
+        throw new Error(`New canonical link changed before completion: ${currentTargetValidation.message}`);
+      }
+
       const removed = this.deps.symlinkService.remove(candidate.currentPath);
-      if (!removed && this.hasExistingPath(candidate.currentPath)) {
+      if (!removed && this.getPathState(candidate.currentPath) !== 'missing') {
         throw new Error('Original link could not be removed; migration was rolled back.');
       }
 
@@ -236,9 +288,11 @@ export class LinkMigrationService {
   }
 
   private removeCreatedTarget(destinationPath: string, sourcePath: string): boolean {
-    if (!this.hasExistingPath(destinationPath)) {
+    const state = this.getPathState(destinationPath);
+    if (state === 'missing') {
       return true;
     }
+    if (state === 'unavailable') return false;
 
     const validation = this.validateManagedDestination(destinationPath, sourcePath);
     if (!validation.ok) {
@@ -297,12 +351,34 @@ export class LinkMigrationService {
   }
 
   private hasExistingPath(candidatePath: string): boolean {
+    return this.getPathState(candidatePath) === 'present';
+  }
+
+  private getPathState(candidatePath: string): 'present' | 'missing' | 'unavailable' {
     try {
       fs.lstatSync(candidatePath);
-      return true;
-    } catch {
-      return false;
+      return 'present';
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'unavailable';
     }
+  }
+
+  private isKnownLegacyDestination(
+    destinationPath: string,
+    skillName: string,
+    ide: IDEDefinition,
+    scope: 'global' | 'project',
+  ): boolean {
+    const settings = this.deps.settingsService.get();
+    const knownPaths = resolveKnownSkillLinkDestinations(
+      skillName,
+      '',
+      ide,
+      scope,
+      undefined,
+      settings.ideRootOverrides,
+    );
+    return knownPaths.some((knownPath) => this.samePath(knownPath, destinationPath));
   }
 
   private samePath(left: string, right: string): boolean {

@@ -12,6 +12,7 @@ import { UpdateService, type UpdateOperationStatus } from '../services/update.se
 import { DuplicateService } from '../services/duplicate.service';
 import { GlobalSkillService } from '../services/global-skill.service';
 import { LinkMigrationService } from '../services/link-migration.service';
+import { SkillHealthService } from '../services/skill-health.service';
 import { expandPath, resolveSkillLinkDestination, resolveSkillsRoot } from '../utils/paths';
 import type { SkillLinkIDE } from '../utils/paths';
 import type {
@@ -50,6 +51,7 @@ type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
 type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
 type GlobalSkillServiceLike = Pick<GlobalSkillService, 'scan' | 'preview' | 'remove' | 'undo'>;
 type LinkMigrationServiceLike = Pick<LinkMigrationService, 'preview' | 'migrate'>;
+type SkillHealthServiceLike = Pick<SkillHealthService, 'checkDistribution' | 'repairDistribution'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
   Partial<Pick<SettingsService, 'getPublicSettings' | 'setGithubToken' | 'clearGithubToken'>>;
 type GitHubImportServiceLike = Pick<
@@ -81,6 +83,7 @@ export interface IPCHandlerDependencies {
   duplicateService: DuplicateServiceLike;
   globalSkillService: GlobalSkillServiceLike;
   linkMigrationService: LinkMigrationServiceLike;
+  skillHealthService: SkillHealthServiceLike;
   githubImportService: GitHubImportServiceLike;
   zipImportService: ZipImportServiceLike;
   updateService: UpdateServiceLike;
@@ -120,6 +123,15 @@ const defaultLinkMigrationService = new LinkMigrationService({
   symlinkService: defaultSymlinkService,
   ideService: defaultIdeService,
 });
+const defaultSkillHealthService = new SkillHealthService({
+  settingsService: defaultSettingsService,
+  skillService: { get: (id: string) => createDefaultSkillService().get(id) },
+  linkService: defaultLinkService,
+  symlinkService: defaultSymlinkService,
+  ideService: defaultIdeService,
+  projectService: defaultProjectService,
+  linkMigrationService: defaultLinkMigrationService,
+});
 
 const defaultDeps: IPCHandlerDependencies = {
   ipcMain,
@@ -134,6 +146,7 @@ const defaultDeps: IPCHandlerDependencies = {
   duplicateService: defaultDuplicateService,
   globalSkillService: defaultGlobalSkillService,
   linkMigrationService: defaultLinkMigrationService,
+  skillHealthService: defaultSkillHealthService,
   githubImportService: defaultGithubImportService,
   zipImportService: defaultZipImportService,
   updateService: defaultUpdateService,
@@ -678,6 +691,21 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
       event.sender.send('update:status', status);
     });
     return { success: true };
+  });
+  deps.ipcMain.handle('skills:checkDistribution', (_event, skillId: unknown) => {
+    if (typeof skillId !== 'string' || skillId.trim().length === 0) {
+      throw new Error('Skill id must be a non-empty string');
+    }
+    return deps.skillHealthService.checkDistribution(skillId);
+  });
+  deps.ipcMain.handle('skills:repairDistribution', (_event, skillId: unknown, linkIds: unknown) => {
+    if (typeof skillId !== 'string' || skillId.trim().length === 0) {
+      throw new Error('Skill id must be a non-empty string');
+    }
+    if (!Array.isArray(linkIds) || linkIds.some((id) => typeof id !== 'string' || id.trim().length === 0)) {
+      throw new Error('Link ids must be an array of non-empty strings');
+    }
+    return deps.skillHealthService.repairDistribution(skillId, [...new Set(linkIds)]);
   });
 
   deps.ipcMain.handle('update:openRelease', async (_event, version: string) => {

@@ -158,6 +158,50 @@ export interface LinkMigrationResult extends Omit<LinkMigrationCandidate, 'statu
   status: LinkMigrationResultStatus;
 }
 
+export type SkillDistributionStatus = 'healthy' | 'broken' | 'legacy' | 'conflict' | 'unavailable';
+
+export interface SkillDistributionDestination {
+  linkId: string;
+  skillId: string;
+  skillName: string;
+  ideId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+  projectId: string | null;
+  projectName: string;
+  sourcePath: string;
+  destinationPath: string;
+  expectedPath: string | null;
+  status: SkillDistributionStatus;
+  repairable: boolean;
+  message?: string;
+}
+
+export interface SkillDistributionSummary {
+  total: number;
+  healthy: number;
+  attention: number;
+  blocked: number;
+  repairable: number;
+}
+
+export interface SkillDistributionReport {
+  checkedAt: string;
+  skillId: string;
+  skillName: string;
+  sourcePath: string;
+  destinations: SkillDistributionDestination[];
+  summary: SkillDistributionSummary;
+}
+
+export type SkillDistributionRepairStatus = 'repaired' | 'blocked' | 'failed';
+
+export interface SkillDistributionRepairResult extends Omit<SkillDistributionDestination, 'status' | 'repairable'> {
+  status: SkillDistributionRepairStatus;
+  previousPath?: string;
+  message?: string;
+}
+
 export interface DetectedSkillRoot {
   root: string;
   ideIds: string[];

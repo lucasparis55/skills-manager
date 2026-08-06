@@ -57,6 +57,8 @@ describe('preload bridge', () => {
     await api.skills.deleteFile('s1', 'README.md');
     await api.skills.getPath('s1');
     await api.skills.openFolder('s1');
+    await api.skills.checkDistribution('s1');
+    await api.skills.repairDistribution('s1', ['link-id']);
 
     await api.projects.list();
     await api.projects.add('C:/repo');
@@ -119,6 +121,8 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('skills:deleteFile', 's1', 'README.md');
     expect(invoke).toHaveBeenCalledWith('skills:getPath', 's1');
     expect(invoke).toHaveBeenCalledWith('skills:openFolder', 's1');
+    expect(invoke).toHaveBeenCalledWith('skills:checkDistribution', 's1');
+    expect(invoke).toHaveBeenCalledWith('skills:repairDistribution', 's1', ['link-id']);
 
     expect(invoke).toHaveBeenCalledWith('projects:list');
     expect(invoke).toHaveBeenCalledWith('projects:add', 'C:/repo');

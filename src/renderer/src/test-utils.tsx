@@ -36,6 +36,15 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
       deleteFile: vi.fn(async () => ({ success: true })),
       getPath: vi.fn(async () => ''),
       openFolder: vi.fn(async () => ({ success: true })),
+      checkDistribution: vi.fn(async () => ({
+        checkedAt: 'now',
+        skillId: 'skill',
+        skillName: 'skill',
+        sourcePath: 'C:/skills/skill',
+        destinations: [],
+        summary: { total: 0, healthy: 0, attention: 0, blocked: 0, repairable: 0 },
+      })),
+      repairDistribution: vi.fn(async () => []),
       ...(partial.skills || {}),
     },
     projects: {

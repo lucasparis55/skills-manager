@@ -154,6 +154,10 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
       preview: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
       migrate: vi.fn(async () => []),
     },
+    skillHealthService: {
+      checkDistribution: vi.fn(async (skillId: string) => ({ skillId })),
+      repairDistribution: vi.fn(async (skillId: string, linkIds: string[]) => ({ skillId, linkIds })),
+    },
     githubImportService: {
       parseGitHubUrl: vi.fn((url: string) => ({ owner: 'acme', repo: url })),
       analyze: vi.fn(async () => ({ skills: [] })),
@@ -338,6 +342,8 @@ describe('registerIPCHandlers', () => {
     expect(handlers.has('links:create')).toBe(true);
     expect(handlers.has('links:migration:preview')).toBe(true);
     expect(handlers.has('links:migration:apply')).toBe(true);
+    expect(handlers.has('skills:checkDistribution')).toBe(true);
+    expect(handlers.has('skills:repairDistribution')).toBe(true);
     expect(handlers.has('links:createMultiple')).toBe(true);
     expect(handlers.has('dialog:selectFolder')).toBe(true);
     expect(handlers.has('dialog:selectFile')).toBe(true);
@@ -400,6 +406,23 @@ describe('registerIPCHandlers', () => {
     await expect(harness.invoke('links:migration:apply', ['valid-id', 42] as any))
       .rejects.toThrow('linkIds must be an array of strings');
     expect(harness.deps.linkMigrationService.migrate).not.toHaveBeenCalled();
+  });
+
+  it('validates skill distribution requests and deduplicates repair ids', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('skills:checkDistribution', '')).rejects.toThrow('Skill id must be a non-empty string');
+    await expect(harness.invoke('skills:repairDistribution', 'brainstorming', ['link-a', 42] as any))
+      .rejects.toThrow('Link ids must be an array of non-empty strings');
+
+    await expect(harness.invoke('skills:checkDistribution', 'brainstorming')).resolves.toEqual({
+      skillId: 'brainstorming',
+    });
+    await expect(harness.invoke('skills:repairDistribution', 'brainstorming', ['link-a', 'link-a', 'link-b']))
+      .resolves.toEqual({ skillId: 'brainstorming', linkIds: ['link-a', 'link-b'] });
+    expect(harness.deps.skillHealthService.checkDistribution).toHaveBeenCalledWith('brainstorming');
+    expect(harness.deps.skillHealthService.repairDistribution)
+      .toHaveBeenCalledWith('brainstorming', ['link-a', 'link-b']);
   });
 
   it('returns null for canceled folder dialog', async () => {

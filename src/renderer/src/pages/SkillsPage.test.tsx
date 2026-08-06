@@ -4,6 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import SkillsPage from './SkillsPage';
 import { createApiMock, renderWithProviders } from '../test-utils';
 
+Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
+  configurable: true,
+  value: () => false,
+});
+
 vi.mock('../components/ui/FormDialog', () => ({
   default: (props: any) =>
     props.open ? (
@@ -34,7 +39,11 @@ vi.mock('../components/ui/ConfirmDialog', () => ({
 }));
 
 vi.mock('../components/ui/SkillEditDialog', () => ({
-  default: () => null,
+  default: (props: any) => props.open ? <button onClick={() => props.onSave('s1')}>simulate-skill-save</button> : null,
+}));
+
+vi.mock('../components/ui/SkillHealthDialog', () => ({
+  default: (props: any) => props.open ? <div>health-check-for-{props.skill?.id}</div> : null,
 }));
 
 vi.mock('../components/ui/GitHubImportDialog', () => ({
@@ -238,5 +247,42 @@ describe('SkillsPage', () => {
 
     expect(screen.queryByText('Review Code')).not.toBeInTheDocument();
     expect(screen.getByText('Write Docs')).toBeInTheDocument();
+  });
+
+  it('opens distribution health from a skill row and after saving the skill', async () => {
+    createApiMock({
+      skills: {
+        list: vi.fn(async () => [{
+          id: 's1',
+          name: 'review-code',
+          displayName: 'Review Code',
+          description: 'Review changes',
+          version: '1.0.0',
+          targetIDEs: [],
+          tags: [],
+          sourcePath: 'C:/skills/review-code',
+        }]),
+        checkDistribution: vi.fn(async () => ({
+          checkedAt: 'now',
+          skillId: 's1',
+          skillName: 'review-code',
+          sourcePath: 'C:/skills/review-code',
+          destinations: [],
+          summary: { total: 1, healthy: 0, attention: 1, blocked: 1, repairable: 0 },
+        })),
+      },
+    });
+
+    renderWithProviders(<SkillsPage />);
+
+    expect(await screen.findByText('Review Code')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Check distribution health for Review Code' }));
+    expect(screen.getByText('health-check-for-s1')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Review Code' }));
+    await userEvent.click(screen.getByRole('button', { name: 'simulate-skill-save' }));
+    expect(await screen.findByText('Distribution needs attention')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View report' }));
+    expect(screen.getByText('health-check-for-s1')).toBeInTheDocument();
   });
 });

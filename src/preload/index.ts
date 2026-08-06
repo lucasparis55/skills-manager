@@ -4,6 +4,8 @@ import type {
   GlobalSkillPreview,
   GlobalSkillRemovalResult,
   GlobalSkillUndoResult,
+  SkillDistributionRepairResult,
+  SkillDistributionReport,
 } from '../main/types/domain';
 import type { UpdateOperationStatus } from '../main/services/update.service';
 
@@ -26,6 +28,10 @@ contextBridge.exposeInMainWorld('api', {
     deleteFile: (id: string, filePath: string) => ipcRenderer.invoke('skills:deleteFile', id, filePath),
     getPath: (id: string) => ipcRenderer.invoke('skills:getPath', id),
     openFolder: (id: string) => ipcRenderer.invoke('skills:openFolder', id),
+    checkDistribution: (id: string): Promise<SkillDistributionReport> =>
+      ipcRenderer.invoke('skills:checkDistribution', id),
+    repairDistribution: (skillId: string, linkIds: string[]): Promise<SkillDistributionRepairResult[]> =>
+      ipcRenderer.invoke('skills:repairDistribution', skillId, linkIds),
   },
 
   // Projects

@@ -50,6 +50,48 @@ interface LinkCreationProgress {
   percentComplete: number;
 }
 
+type SkillDistributionStatus = 'healthy' | 'broken' | 'legacy' | 'conflict' | 'unavailable';
+
+interface SkillDistributionDestination {
+  linkId: string;
+  skillId: string;
+  skillName: string;
+  ideId: string;
+  ideName: string;
+  scope: 'global' | 'project';
+  projectId: string | null;
+  projectName: string;
+  sourcePath: string;
+  destinationPath: string;
+  expectedPath: string | null;
+  status: SkillDistributionStatus;
+  repairable: boolean;
+  message?: string;
+}
+
+interface SkillDistributionSummary {
+  total: number;
+  healthy: number;
+  attention: number;
+  blocked: number;
+  repairable: number;
+}
+
+interface SkillDistributionReport {
+  checkedAt: string;
+  skillId: string;
+  skillName: string;
+  sourcePath: string;
+  destinations: SkillDistributionDestination[];
+  summary: SkillDistributionSummary;
+}
+
+interface SkillDistributionRepairResult extends Omit<SkillDistributionDestination, 'status' | 'repairable'> {
+  status: 'repaired' | 'blocked' | 'failed';
+  previousPath?: string;
+  message?: string;
+}
+
 interface LinkMigrationCandidate {
   linkId: string;
   skillId: string;
@@ -87,6 +129,8 @@ interface SkillsAPI {
   deleteFile: (id: string, filePath: string) => Promise<any>;
   getPath: (id: string) => Promise<string>;
   openFolder: (id: string) => Promise<any>;
+  checkDistribution: (id: string) => Promise<SkillDistributionReport>;
+  repairDistribution: (skillId: string, linkIds: string[]) => Promise<SkillDistributionRepairResult[]>;
 }
 
 interface ProjectsAPI {
