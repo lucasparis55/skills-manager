@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron';
+import { app, ipcMain, dialog, shell } from 'electron';
 import { SkillService } from '../services/skill.service';
 import { ProjectService } from '../services/project.service';
 import { SymlinkService, type SymlinkStrategy } from '../services/symlink.service';
@@ -8,7 +8,7 @@ import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
-import { UpdateService } from '../services/update.service';
+import { UpdateService, type UpdateOperationStatus } from '../services/update.service';
 import { DuplicateService } from '../services/duplicate.service';
 import { GlobalSkillService } from '../services/global-skill.service';
 import { LinkMigrationService } from '../services/link-migration.service';
@@ -60,7 +60,7 @@ type ZipImportServiceLike = Pick<
   ZipImportService,
   'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
 >;
-type UpdateServiceLike = Pick<UpdateService, 'checkForUpdates' | 'openReleasePage'>;
+type UpdateServiceLike = Pick<UpdateService, 'checkForUpdates' | 'openReleasePage' | 'downloadAndInstall'>;
 
 type LinkScope = 'global' | 'project';
 type IdeRootsShape = SkillLinkIDE;
@@ -100,7 +100,7 @@ const createDefaultSkillService = () =>
   new SkillService(resolveSkillsRoot(defaultSettingsService.get().centralSkillsRoot));
 const defaultGithubImportService = new GitHubImportService(defaultSettingsService);
 const defaultZipImportService = new ZipImportService(defaultSettingsService);
-const defaultUpdateService = new UpdateService();
+const defaultUpdateService = new UpdateService({ isPackaged: app?.isPackaged ?? false });
 const defaultDuplicateService = new DuplicateService({
   settingsService: defaultSettingsService,
   ideService: defaultIdeService,
@@ -671,6 +671,13 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
 
   deps.ipcMain.handle('update:check', async () => {
     return deps.updateService.checkForUpdates();
+  });
+
+  deps.ipcMain.handle('update:start', async (event) => {
+    await deps.updateService.downloadAndInstall((status: UpdateOperationStatus) => {
+      event.sender.send('update:status', status);
+    });
+    return { success: true };
   });
 
   deps.ipcMain.handle('update:openRelease', async (_event, version: string) => {

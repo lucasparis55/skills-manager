@@ -167,6 +167,21 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
       importSkills: vi.fn(async () => []),
       cancelImport: vi.fn(),
     },
+    updateService: {
+      checkForUpdates: vi.fn(async () => ({
+        hasUpdate: false,
+        currentVersion: '1.0.1',
+        latestVersion: null,
+        releaseUrl: null,
+        releaseNotes: null,
+        publishedAt: null,
+      })),
+      openReleasePage: vi.fn(async () => undefined),
+      downloadAndInstall: vi.fn(async (onStatus: (status: 'downloading' | 'installing') => void) => {
+        onStatus('downloading');
+        onStatus('installing');
+      }),
+    },
     createSkillService: vi.fn(() => skillService),
     expandPath: vi.fn((input: string) => input.replace('~', 'C:/Users/test')),
     platform: 'linux',
@@ -328,10 +343,22 @@ describe('registerIPCHandlers', () => {
     expect(handlers.has('dialog:selectFile')).toBe(true);
     expect(handlers.has('github:analyze')).toBe(true);
     expect(handlers.has('zip:analyze')).toBe(true);
+    expect(handlers.has('update:start')).toBe(true);
     expect(handlers.has('global-skills:scan')).toBe(true);
     expect(handlers.has('global-skills:preview')).toBe(true);
     expect(handlers.has('global-skills:remove')).toBe(true);
     expect(handlers.has('global-skills:undo')).toBe(true);
+  });
+
+  it('starts an update and sends status only to the initiating renderer', async () => {
+    const harness = createHarness();
+    const sender = { send: vi.fn() };
+
+    await expect(harness.invokeWithSender('update:start', sender)).resolves.toEqual({ success: true });
+
+    expect(harness.deps.updateService.downloadAndInstall).toHaveBeenCalledTimes(1);
+    expect(sender.send).toHaveBeenNthCalledWith(1, 'update:status', 'downloading');
+    expect(sender.send).toHaveBeenNthCalledWith(2, 'update:status', 'installing');
   });
 
   it('delegates global inventory and preview calls with validated ids', async () => {

@@ -146,6 +146,8 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
     },
     update: {
       check: vi.fn(async () => ({ hasUpdate: false, currentVersion: '1.0.0', latestVersion: null, releaseUrl: null, releaseNotes: null, publishedAt: null })),
+      start: vi.fn(async () => ({ success: true })),
+      onStatus: vi.fn(() => () => {}),
       openRelease: vi.fn(async () => {}),
       ...(partial.update || {}),
     },

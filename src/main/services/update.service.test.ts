@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UpdateService, isVersionGreaterThan, type UpdateCheckResult } from './update.service';
+import { UpdateService, isVersionGreaterThan } from './update.service';
 
 describe('isVersionGreaterThan', () => {
   it('returns true when latest is greater', () => {
@@ -37,11 +37,37 @@ describe('UpdateService', () => {
   const createMockFetch = (response: { ok: boolean; status: number; json: () => Promise<unknown> }) =>
     vi.fn().mockResolvedValue(response);
 
+  const createMockAutoUpdater = () => {
+    const listeners = new Map<string, (...args: any[]) => void>();
+    const autoUpdater = {
+      setFeedURL: vi.fn(),
+      checkForUpdates: vi.fn(),
+      quitAndInstall: vi.fn(),
+      on: vi.fn((event: string, listener: (...args: any[]) => void) => {
+        listeners.set(event, listener);
+        return autoUpdater;
+      }),
+      removeListener: vi.fn((event: string, listener: (...args: any[]) => void) => {
+        if (listeners.get(event) === listener) {
+          listeners.delete(event);
+        }
+        return autoUpdater;
+      }),
+      emit: (event: string, ...args: any[]) => {
+        listeners.get(event)?.(...args);
+      },
+    };
+
+    return autoUpdater;
+  };
+
   const createService = (overrides: Partial<ConstructorParameters<typeof UpdateService>[0]> = {}) =>
     new UpdateService({
       isPackaged: true,
+      platform: 'win32',
       currentVersion: '1.0.1',
       fetch: createMockFetch({ ok: true, status: 200, json: async () => ({}) }),
+      autoUpdater: createMockAutoUpdater(),
       shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
       log: { error: vi.fn() },
       ...overrides,
@@ -165,5 +191,149 @@ describe('UpdateService', () => {
     expect(openExternal).toHaveBeenCalledWith(
       'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
     );
+  });
+
+  it('downloads from the versioned GitHub feed and restarts after the update is downloaded', async () => {
+    const autoUpdater = createMockAutoUpdater();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: 'Release notes',
+        published_at: '2025-01-01T00:00:00Z',
+      }),
+    });
+    const service = createService({ fetch: fetchMock, autoUpdater });
+    const statuses: string[] = [];
+
+    await service.checkForUpdates();
+    const updatePromise = service.downloadAndInstall((status) => statuses.push(status));
+
+    expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
+      url: 'https://github.com/lucasparis55/skills-manager/releases/download/v1.0.2',
+    });
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+
+    autoUpdater.emit('update-downloaded');
+    await updatePromise;
+
+    expect(statuses).toEqual(['downloading', 'installing']);
+    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the current app running when the updater reports an error', async () => {
+    const autoUpdater = createMockAutoUpdater();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, autoUpdater });
+
+    await service.checkForUpdates();
+    const updatePromise = service.downloadAndInstall();
+    autoUpdater.emit('error', new Error('Feed unavailable'));
+
+    await expect(updatePromise).rejects.toThrow('Feed unavailable');
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it('reports a restart failure without leaving the update operation pending', async () => {
+    const autoUpdater = createMockAutoUpdater();
+    autoUpdater.quitAndInstall.mockImplementation(() => {
+      throw new Error('Restart failed');
+    });
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, autoUpdater });
+
+    await service.checkForUpdates();
+    const updatePromise = service.downloadAndInstall();
+    autoUpdater.emit('update-downloaded');
+
+    await expect(updatePromise).rejects.toThrow('Restart failed');
+    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start a second updater operation while one is active', async () => {
+    const autoUpdater = createMockAutoUpdater();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, autoUpdater });
+
+    await service.checkForUpdates();
+    const firstUpdate = service.downloadAndInstall();
+    const secondUpdate = service.downloadAndInstall();
+
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+
+    autoUpdater.emit('update-downloaded');
+    await Promise.all([firstUpdate, secondUpdate]);
+
+    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores updates on unsupported platforms', async () => {
+    const autoUpdater = createMockAutoUpdater();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, autoUpdater, platform: 'darwin' });
+
+    const result = await service.checkForUpdates();
+
+    expect(result.hasUpdate).toBe(false);
+    await expect(service.downloadAndInstall()).rejects.toThrow(/Windows/);
+    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('rejects a release tag that cannot be used to build a feed URL', async () => {
+    const logError = vi.fn();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'latest/../../setup.exe',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/latest',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, log: { error: logError } });
+
+    const result = await service.checkForUpdates();
+
+    expect(result.hasUpdate).toBe(false);
+    expect(logError).toHaveBeenCalled();
   });
 });

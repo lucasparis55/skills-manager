@@ -34,6 +34,7 @@ describe('preload bridge', () => {
         dialog: expect.any(Object),
         githubImport: expect.any(Object),
         zipImport: expect.any(Object),
+        update: expect.any(Object),
       }),
     );
   });
@@ -101,6 +102,8 @@ describe('preload bridge', () => {
     await api.zipImport.checkConflicts(['s1']);
     await api.zipImport.importSkills({ zipPath: 'C:/skills.zip', skills: [], resolutions: {} });
     await api.zipImport.cancelImport();
+    await api.update.check();
+    await api.update.start();
 
     expect(invoke).toHaveBeenCalledWith('skills:list');
     expect(invoke).toHaveBeenCalledWith('skills:get', 's1');
@@ -172,6 +175,8 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('zip:checkConflicts', ['s1']);
     expect(invoke).toHaveBeenCalledWith('zip:importSkills', { zipPath: 'C:/skills.zip', skills: [], resolutions: {} });
     expect(invoke).toHaveBeenCalledWith('zip:cancelImport');
+    expect(invoke).toHaveBeenCalledWith('update:check');
+    expect(invoke).toHaveBeenCalledWith('update:start');
   });
 
   it('subscribes and unsubscribes from progress channels', async () => {
@@ -202,5 +207,13 @@ describe('preload bridge', () => {
     expect(callback).toHaveBeenCalledWith({ phase: 'reading' });
     unsubscribeZip();
     expect(removeListener).toHaveBeenCalledWith('zip:importProgress', zipHandler);
+
+    const unsubscribeUpdate = api.update.onStatus(callback);
+    expect(on).toHaveBeenCalledWith('update:status', expect.any(Function));
+    const updateHandler = on.mock.calls[3][1];
+    updateHandler({}, 'downloading');
+    expect(callback).toHaveBeenCalledWith('downloading');
+    unsubscribeUpdate();
+    expect(removeListener).toHaveBeenCalledWith('update:status', updateHandler);
   });
 });

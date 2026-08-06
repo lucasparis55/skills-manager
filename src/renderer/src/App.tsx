@@ -21,8 +21,8 @@ const App: React.FC = () => {
     window.api.settings.get().then((s) => setSettings(s));
   }, []);
 
-  const { status, result, openRelease } = useUpdateChecker(settings?.checkForUpdates);
-  const hasUpdate = status === 'available' && result !== null;
+  const { status, result, error, startUpdate } = useUpdateChecker(settings?.checkForUpdates);
+  const hasUpdate = result?.hasUpdate === true && (status === 'available' || status === 'error');
 
   const handleUpdateClick = () => {
     if (hasUpdate) {
@@ -30,10 +30,14 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDownload = async () => {
-    await openRelease();
-    setDialogOpen(false);
+  const handleInstall = () => {
+    void startUpdate();
   };
+
+  const updateDialogStatus =
+    status === 'downloading' || status === 'installing' || status === 'error'
+      ? status
+      : 'available';
 
   return (
     <ToastProvider>
@@ -63,7 +67,9 @@ const App: React.FC = () => {
           latestVersion={result.latestVersion ?? ''}
           releaseNotes={result.releaseNotes}
           publishedAt={result.publishedAt}
-          onDownload={handleDownload}
+          updateStatus={updateDialogStatus}
+          errorMessage={error}
+          onInstall={handleInstall}
         />
       )}
     </ToastProvider>

@@ -96,17 +96,34 @@ jobs:
       - name: Package Windows installer
         run: npm run make
 
-      - name: Locate installer
-        id: installer
+      - name: Locate Squirrel artifacts
+        id: artifacts
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path "out/make/squirrel.windows/x64" -Filter "*Setup.exe" | Select-Object -First 1
-          if (-not $installer) {
-            throw "Setup.exe installer not found in out/make/squirrel.windows/x64"
+          $outputDirectory = "out/make/squirrel.windows/x64"
+          if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
+            throw "Squirrel output directory not found: $outputDirectory"
           }
 
-          "path=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "name=$($installer.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $assets = @(
+            Get-ChildItem -LiteralPath $outputDirectory -File |
+              Where-Object { $_.Name -match '^(RELEASES|.*Setup\.exe|.*\.nupkg)$' }
+          )
+          $setup = $assets | Where-Object { $_.Name -match 'Setup\.exe$' } | Select-Object -First 1
+          $releases = $assets | Where-Object { $_.Name -ceq 'RELEASES' } | Select-Object -First 1
+          $fullPackage = $assets | Where-Object { $_.Name -match '-full\.nupkg$' } | Select-Object -First 1
+
+          if (-not $setup) {
+            throw "Setup.exe installer not found in $outputDirectory"
+          }
+          if (-not $releases) {
+            throw "RELEASES feed not found in $outputDirectory"
+          }
+          if (-not $fullPackage) {
+            throw "Full Squirrel package (*.full.nupkg) not found in $outputDirectory"
+          }
+
+          "directory=$((Resolve-Path -LiteralPath $outputDirectory).Path)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Commit version bump
         if: steps.version.outputs.needs_bump == 'true'
@@ -149,11 +166,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ steps.version.outputs.tag }}"
-          $asset = "${{ steps.installer.outputs.path }}"
+          $assetDirectory = "${{ steps.artifacts.outputs.directory }}"
+          $assets = @(
+            Get-ChildItem -LiteralPath $assetDirectory -File |
+              Where-Object { $_.Name -match '^(RELEASES|.*Setup\.exe|.*\.nupkg)$' } |
+              Select-Object -ExpandProperty FullName
+          )
+
+          if ($assets.Count -lt 3) {
+            throw "Expected Setup.exe, RELEASES and at least one Squirrel package in $assetDirectory"
+          }
 
           gh release view $tag --json url *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $asset --clobber
+            gh release upload $tag @assets --clobber
           } else {
-            gh release create $tag $asset --title $tag --generate-notes
+            gh release create $tag @assets --title $tag --generate-notes
           }

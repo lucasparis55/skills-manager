@@ -5,6 +5,7 @@ import type {
   GlobalSkillRemovalResult,
   GlobalSkillUndoResult,
 } from '../main/types/domain';
+import type { UpdateOperationStatus } from '../main/services/update.service';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -132,6 +133,14 @@ contextBridge.exposeInMainWorld('api', {
   // Update
   update: {
     check: () => ipcRenderer.invoke('update:check'),
+    start: () => ipcRenderer.invoke('update:start'),
+    onStatus: (callback: (status: UpdateOperationStatus) => void) => {
+      const handler = (_event: any, status: UpdateOperationStatus) => callback(status);
+      ipcRenderer.on('update:status', handler);
+      return () => {
+        ipcRenderer.removeListener('update:status', handler);
+      };
+    },
     openRelease: (version: string) => ipcRenderer.invoke('update:openRelease', version),
   },
 });

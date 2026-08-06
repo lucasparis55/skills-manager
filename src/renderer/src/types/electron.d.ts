@@ -303,8 +303,12 @@ interface UpdateCheckResult {
   publishedAt: string | null;
 }
 
+type UpdateOperationStatus = 'downloading' | 'installing';
+
 interface UpdateAPI {
   check: () => Promise<UpdateCheckResult>;
+  start: () => Promise<{ success: boolean }>;
+  onStatus: (callback: (status: UpdateOperationStatus) => void) => () => void;
   openRelease: (version: string) => Promise<void>;
 }
 
