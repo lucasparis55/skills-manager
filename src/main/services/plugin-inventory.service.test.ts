@@ -63,6 +63,7 @@ describe('PluginInventoryService', () => {
         marketplace: 'openai-curated-remote',
         name: 'codex-security',
         displayName: 'Codex Security',
+        author: '',
         description: 'Security checks for Codex projects',
         category: '',
         capabilities: [],
@@ -70,6 +71,7 @@ describe('PluginInventoryService', () => {
         versions: [{
           id: 'openai-curated-remote/codex-security@1.2.3',
           version: '1.2.3',
+          author: '',
           description: 'Security checks for Codex projects',
           category: '',
           capabilities: [],
@@ -81,6 +83,7 @@ describe('PluginInventoryService', () => {
           issues: [],
         }],
         componentCounts: { skills: 0, apps: 0, mcpServers: 0 },
+        management: { uninstall: 'unavailable' },
         issues: [],
       },
     ]);
@@ -147,6 +150,42 @@ describe('PluginInventoryService', () => {
       version: '1.2.3',
       manifestPath,
       content: JSON.stringify(manifest),
+    });
+  });
+
+  it('exposes author, read-only management metadata, and component provenance', () => {
+    const cacheRoot = createTemporaryDirectory();
+    const { bundlePath } = writePluginBundle(
+      cacheRoot,
+      'openai-curated-remote',
+      'metadata-plugin',
+      '1.0.0',
+      {
+        name: 'metadata-plugin',
+        version: '1.0.0',
+        author: { name: 'OpenAI' },
+        skills: './skills',
+      },
+    );
+    fs.mkdirSync(path.join(bundlePath, 'skills', 'review'), { recursive: true });
+
+    const plugin = new PluginInventoryService(new CodexDesktopPluginProvider(cacheRoot)).scan().plugins[0];
+
+    expect(plugin).toMatchObject({
+      author: 'OpenAI',
+      management: { uninstall: 'unavailable' },
+      versions: [expect.objectContaining({
+        author: 'OpenAI',
+        components: [expect.objectContaining({
+          name: 'review',
+          provenance: {
+            pluginId: 'openai-curated-remote/metadata-plugin',
+            marketplace: 'openai-curated-remote',
+            pluginName: 'metadata-plugin',
+            version: '1.0.0',
+          },
+        })],
+      })],
     });
   });
 

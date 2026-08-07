@@ -324,6 +324,9 @@ const ComponentRow: React.FC<{ component: PluginComponent }> = ({ component }) =
         {componentStatusLabel(component.status)}
       </span>
     </div>
+    <p className="mt-1 break-all text-xs text-blue-100/60">
+      Plugin provenance: {component.provenance.pluginId}@{component.provenance.version}
+    </p>
     {component.reason && <p className="mt-1 text-xs text-amber-100/70">{component.reason}</p>}
   </li>
 );

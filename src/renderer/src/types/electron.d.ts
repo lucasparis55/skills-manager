@@ -288,12 +288,20 @@ type PluginComponentStatus =
   | 'external-symlink'
   | 'invalid-manifest';
 
+interface PluginComponentProvenance {
+  pluginId: string;
+  marketplace: string;
+  pluginName: string;
+  version: string;
+}
+
 interface PluginComponent {
   id: string;
   kind: PluginComponentKind;
   name: string;
   reference: string;
   status: PluginComponentStatus;
+  provenance: PluginComponentProvenance;
   resolvedPath?: string;
   reason?: string;
 }
@@ -307,6 +315,7 @@ interface PluginComponentCounts {
 interface PluginInventoryVersion {
   id: string;
   version: string;
+  author: string;
   description: string;
   category: string;
   capabilities: string[];
@@ -318,17 +327,23 @@ interface PluginInventoryVersion {
   issues: string[];
 }
 
+interface PluginInventoryManagement {
+  uninstall: 'unavailable';
+}
+
 interface PluginInventoryPlugin {
   id: string;
   marketplace: string;
   name: string;
   displayName: string;
+  author: string;
   description: string;
   category: string;
   capabilities: string[];
   status: PluginInventoryStatus;
   versions: PluginInventoryVersion[];
   componentCounts: PluginComponentCounts;
+  management: PluginInventoryManagement;
   issues: string[];
 }
 

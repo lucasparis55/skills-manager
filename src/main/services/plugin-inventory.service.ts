@@ -5,6 +5,7 @@ import type {
   PluginComponent,
   PluginComponentCounts,
   PluginComponentKind,
+  PluginComponentProvenance,
   PluginComponentStatus,
   PluginInventory,
   PluginInventoryInvalidEntry,
@@ -22,6 +23,7 @@ export interface PluginInventoryProvider {
 interface PluginManifest {
   name?: unknown;
   version?: unknown;
+  author?: unknown;
   description?: unknown;
   interface?: unknown;
   skills?: unknown;
@@ -50,6 +52,8 @@ interface ReferenceCheck {
 type ComponentIssue = Omit<ReferenceCheck, 'status'> & {
   status: Exclude<PluginComponentStatus, 'available'>;
 };
+
+type PluginComponentDraft = Omit<PluginComponent, 'provenance'>;
 
 export function getDefaultCodexDesktopPluginCacheRoot(): string {
   const homeDirectory = process.env.USERPROFILE || os.homedir();
@@ -158,12 +162,21 @@ export class CodexDesktopPluginProvider implements PluginInventoryProvider {
 
     const interfaceMetadata = isRecord(manifest.interface) ? manifest.interface : {};
     const displayName = nonEmptyString(interfaceMetadata.displayName) || name;
+    const author = normalizeAuthor(manifest.author);
     const description = nonEmptyString(manifest.description)
       || nonEmptyString(interfaceMetadata.shortDescription)
       || '';
     const category = nonEmptyString(interfaceMetadata.category) || '';
     const capabilities = stringArray(interfaceMetadata.capabilities);
-    const components = inspectManifestComponents(manifest, bundlePath);
+    const components = attachComponentProvenance(
+      inspectManifestComponents(manifest, bundlePath),
+      {
+        pluginId: `${marketplace}/${name}`,
+        marketplace,
+        pluginName: name,
+        version,
+      },
+    );
     const status: PluginInventoryStatus = hasComponentIssues(components)
       ? 'invalid'
       : classifyMarketplace(marketplace);
@@ -176,6 +189,7 @@ export class CodexDesktopPluginProvider implements PluginInventoryProvider {
         version: {
           id: `${marketplace}/${name}@${version}`,
           version,
+          author,
           description,
           category,
           capabilities,
@@ -227,6 +241,7 @@ function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryP
     if (existing) {
       existing.versions.push(scanned.version);
       existing.status = mergePluginStatus(existing.status, scanned.version.status);
+      existing.author = existing.author || scanned.version.author;
       existing.category = existing.category || scanned.version.category;
       existing.capabilities = uniqueStrings([...existing.capabilities, ...scanned.version.capabilities]);
       existing.componentCounts = addComponentCounts(existing.componentCounts, scanned.version.componentCounts);
@@ -239,12 +254,14 @@ function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryP
       marketplace: scanned.marketplace,
       name: scanned.name,
       displayName: scanned.displayName,
+      author: scanned.version.author,
       description: scanned.version.description,
       category: scanned.version.category,
       capabilities: [...scanned.version.capabilities],
       status: scanned.version.status,
       versions: [scanned.version],
       componentCounts: { ...scanned.version.componentCounts },
+      management: { uninstall: 'unavailable' },
       issues: [...scanned.version.issues],
     });
   }
@@ -255,7 +272,7 @@ function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryP
   }));
 }
 
-function inspectManifestComponents(manifest: PluginManifest, bundlePath: string): PluginComponent[] {
+function inspectManifestComponents(manifest: PluginManifest, bundlePath: string): PluginComponentDraft[] {
   return [
     ...inspectSkills(manifest.skills, bundlePath),
     ...inspectConfigComponents(manifest.apps, bundlePath, 'apps', 'app'),
@@ -263,7 +280,14 @@ function inspectManifestComponents(manifest: PluginManifest, bundlePath: string)
   ];
 }
 
-function inspectSkills(reference: unknown, bundlePath: string): PluginComponent[] {
+function attachComponentProvenance(
+  components: PluginComponentDraft[],
+  provenance: PluginComponentProvenance,
+): PluginComponent[] {
+  return components.map((component) => ({ ...component, provenance }));
+}
+
+function inspectSkills(reference: unknown, bundlePath: string): PluginComponentDraft[] {
   if (reference === undefined) return [];
 
   const referenceText = displayReference(reference);
@@ -330,7 +354,7 @@ function inspectConfigComponents(
   bundlePath: string,
   collectionName: 'apps' | 'mcpServers',
   kind: Extract<PluginComponentKind, 'app' | 'mcp-server'>,
-): PluginComponent[] {
+): PluginComponentDraft[] {
   if (reference === undefined) return [];
 
   const referenceText = displayReference(reference);
@@ -446,7 +470,7 @@ function componentIssue(
   name: string,
   reference: string,
   issue: ReferenceCheck,
-): PluginComponent {
+): PluginComponentDraft {
   return {
     id: `${kind}:${name}`,
     kind,
@@ -472,7 +496,7 @@ function classifyMarketplace(marketplace: string): Exclude<PluginInventoryStatus
   return 'cache-detected';
 }
 
-function countComponents(components: PluginComponent[]): PluginComponentCounts {
+function countComponents(components: PluginComponentDraft[]): PluginComponentCounts {
   return components.reduce((counts, component) => {
     if (component.kind === 'skill') counts.skills += 1;
     if (component.kind === 'app') counts.apps += 1;
@@ -489,7 +513,7 @@ function addComponentCounts(left: PluginComponentCounts, right: PluginComponentC
   };
 }
 
-function componentIssues(components: PluginComponent[]): string[] {
+function componentIssues(components: PluginComponentDraft[]): string[] {
   return uniqueStrings(
     components
       .filter((component) => component.status !== 'available')
@@ -497,7 +521,7 @@ function componentIssues(components: PluginComponent[]): string[] {
   );
 }
 
-function hasComponentIssues(components: PluginComponent[]): boolean {
+function hasComponentIssues(components: PluginComponentDraft[]): boolean {
   return components.some((component) => component.status !== 'available');
 }
 
@@ -545,6 +569,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeAuthor(value: unknown): string {
+  const text = nonEmptyString(value);
+  if (text) return text;
+  if (!isRecord(value)) return '';
+  return nonEmptyString(value.name) || nonEmptyString(value.displayName) || '';
 }
 
 function stringArray(value: unknown): string[] {

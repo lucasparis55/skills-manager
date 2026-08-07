@@ -1,8 +1,15 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import PluginsPage from './PluginsPage';
 import { createApiMock, renderWithProviders } from '../test-utils';
+
+const componentProvenance = {
+  pluginId: 'openai-curated-remote/codex-security',
+  marketplace: 'openai-curated-remote',
+  pluginName: 'codex-security',
+  version: '1.2.3',
+};
 
 const inventory = {
   scannedAt: '2026-08-07T18:00:00.000Z',
@@ -12,6 +19,7 @@ const inventory = {
     marketplace: 'openai-curated-remote',
     name: 'codex-security',
     displayName: 'Codex Security',
+    author: 'OpenAI',
     description: 'Security checks for Codex projects',
     category: 'Engineering',
     capabilities: ['Read', 'Write'],
@@ -19,6 +27,7 @@ const inventory = {
     versions: [{
       id: 'openai-curated-remote/codex-security@1.2.3',
       version: '1.2.3',
+      author: 'OpenAI',
       description: 'Security checks for Codex projects',
       category: 'Engineering',
       capabilities: ['Read', 'Write'],
@@ -32,6 +41,7 @@ const inventory = {
           name: 'review',
           reference: './skills/review',
           status: 'available' as const,
+          provenance: componentProvenance,
         },
         {
           id: 'app:github',
@@ -39,6 +49,7 @@ const inventory = {
           name: 'github',
           reference: './.app.json',
           status: 'available' as const,
+          provenance: componentProvenance,
         },
         {
           id: 'mcp-server:security',
@@ -46,12 +57,14 @@ const inventory = {
           name: 'security',
           reference: './.mcp.json',
           status: 'available' as const,
+          provenance: componentProvenance,
         },
       ],
       componentCounts: { skills: 1, apps: 1, mcpServers: 1 },
       issues: [],
     }],
     componentCounts: { skills: 1, apps: 1, mcpServers: 1 },
+    management: { uninstall: 'unavailable' as const },
     issues: [],
   }],
   invalidEntries: [],
@@ -75,6 +88,7 @@ describe('PluginsPage', () => {
     expect(screen.getByText('review')).toBeInTheDocument();
     expect(screen.getByText('github')).toBeInTheDocument();
     expect(screen.getByText('security')).toBeInTheDocument();
+    expect(screen.getAllByText('Plugin provenance: openai-curated-remote/codex-security@1.2.3')).toHaveLength(3);
     expect(screen.getAllByText('1 skill · 1 app · 1 MCP server')).not.toHaveLength(0);
     expect(screen.getByText(/Last scan:/)).toBeInTheDocument();
     expect(screen.getByText(inventory.rootPath)).toBeInTheDocument();
@@ -235,6 +249,7 @@ describe('PluginsPage', () => {
         name: 'skills',
         reference: './missing-skills',
         status: 'missing' as const,
+        provenance: componentProvenance,
         reason: 'Referenced component does not exist.',
       }],
       componentCounts: { skills: 1, apps: 0, mcpServers: 0 },
@@ -311,6 +326,10 @@ describe('PluginsPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Plugin details: Codex Security' })).toBeInTheDocument();
     expect(screen.getAllByText('Engineering')).not.toHaveLength(0);
+    expect(screen.getByText('OpenAI')).toBeInTheDocument();
+    expect(screen.getByText('Uninstall unavailable in v1.')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getAllByText('Plugin provenance: openai-curated-remote/codex-security@1.2.3')).toHaveLength(3);
+    expect(screen.getByText('Plugin-provided skills are not duplicated in the regular skills inventory.')).toBeInTheDocument();
     expect(screen.getByText('Read')).toBeInTheDocument();
     expect(screen.getByText('Write')).toBeInTheDocument();
 

@@ -137,6 +137,7 @@ const PluginDetails: React.FC<PluginDetailsProps> = ({ plugin, onCopyBundlePath,
       <dl className="grid gap-4 text-sm sm:grid-cols-2">
         <Metadata label="Technical name" value={plugin.name} mono />
         <Metadata label="Marketplace" value={plugin.marketplace} mono />
+        <Metadata label="Author" value={plugin.author || 'Not specified'} />
         <Metadata label="Category" value={plugin.category || 'Not specified'} />
         <Metadata label="Status" value={statusLabel(plugin.status)} />
         <div className="sm:col-span-2">
@@ -160,6 +161,12 @@ const PluginDetails: React.FC<PluginDetailsProps> = ({ plugin, onCopyBundlePath,
           </dd>
         </div>
       </dl>
+
+      <div className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-sm" role="note" aria-label="Plugin management">
+        <p className="font-medium text-white/80">Read-only management</p>
+        <p className="text-white/55">Uninstall {plugin.management.uninstall} in v1.</p>
+        <p className="text-white/55">Plugin-provided skills are not duplicated in the regular skills inventory.</p>
+      </div>
 
       <section className="space-y-3" aria-labelledby="plugin-versions-heading">
         <h3 id="plugin-versions-heading" className="text-base font-semibold text-white">Versions and components</h3>
@@ -235,6 +242,9 @@ const PluginVersionDetails: React.FC<{
               </span>
             </div>
             <p className="mt-1 break-all font-mono text-xs text-white/40">{component.reference}</p>
+            <p className="mt-1 break-all text-xs text-blue-100/60">
+              Plugin provenance: {component.provenance.pluginId}@{component.provenance.version}
+            </p>
             {component.reason && <p className="mt-1 text-xs text-amber-100/70">{component.reason}</p>}
           </li>
         ))}
