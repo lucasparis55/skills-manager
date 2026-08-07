@@ -90,6 +90,7 @@ describe('preload bridge', () => {
     await api.globalSkills.undo(['undo-token']);
 
     await api.plugins.scan();
+    await api.plugins.readManifest('openai-curated-remote/codex-security@1.2.3');
 
     await api.settings.get();
     await api.settings.update({ theme: 'dark' });
@@ -160,6 +161,7 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('global-skills:remove', ['global-skill-id']);
     expect(invoke).toHaveBeenCalledWith('global-skills:undo', ['undo-token']);
     expect(invoke).toHaveBeenCalledWith('plugins:scan');
+    expect(invoke).toHaveBeenCalledWith('plugins:readManifest', 'openai-curated-remote/codex-security@1.2.3');
 
     expect(invoke).toHaveBeenCalledWith('settings:get');
     expect(invoke).toHaveBeenCalledWith('settings:update', { theme: 'dark' });

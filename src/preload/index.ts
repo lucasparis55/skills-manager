@@ -5,6 +5,7 @@ import type {
   GlobalSkillRemovalResult,
   GlobalSkillUndoResult,
   PluginInventory,
+  PluginManifestPreview,
   SkillDistributionRepairResult,
   SkillDistributionReport,
 } from '../main/types/domain';
@@ -93,6 +94,8 @@ contextBridge.exposeInMainWorld('api', {
   // Plugins
   plugins: {
     scan: (): Promise<PluginInventory> => ipcRenderer.invoke('plugins:scan'),
+    readManifest: (versionId: string): Promise<PluginManifestPreview> =>
+      ipcRenderer.invoke('plugins:readManifest', versionId),
   },
 
   // Settings

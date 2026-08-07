@@ -51,7 +51,7 @@ type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots' | 'detectSk
 type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
 type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
 type GlobalSkillServiceLike = Pick<GlobalSkillService, 'scan' | 'preview' | 'remove' | 'undo'>;
-type PluginInventoryServiceLike = Pick<PluginInventoryService, 'scan'>;
+type PluginInventoryServiceLike = Pick<PluginInventoryService, 'scan' | 'readManifest'>;
 type LinkMigrationServiceLike = Pick<LinkMigrationService, 'preview' | 'migrate'>;
 type SkillHealthServiceLike = Pick<SkillHealthService, 'checkDistribution' | 'repairDistribution'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
@@ -575,6 +575,12 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   });
 
   deps.ipcMain.handle('plugins:scan', () => deps.pluginInventoryService.scan());
+  deps.ipcMain.handle('plugins:readManifest', (_event, versionId: unknown) => {
+    if (typeof versionId !== 'string' || versionId.trim().length === 0) {
+      throw new Error('Plugin version id must be a string');
+    }
+    return deps.pluginInventoryService.readManifest(versionId);
+  });
 
   deps.ipcMain.handle('settings:get', async () => {
     if (typeof deps.settingsService.getPublicSettings === 'function') {

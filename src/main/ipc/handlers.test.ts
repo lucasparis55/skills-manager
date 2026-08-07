@@ -157,6 +157,12 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
         plugins: [],
         invalidEntries: [],
       })),
+      readManifest: vi.fn((versionId: string) => ({
+        versionId,
+        version: '1.0.0',
+        manifestPath: 'C:/Users/test/.codex/plugins/cache/plugin.json',
+        content: '{"name":"plugin"}',
+      })),
     },
     linkMigrationService: {
       preview: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
@@ -397,6 +403,19 @@ describe('registerIPCHandlers', () => {
       plugins: [],
     });
     expect(harness.deps.pluginInventoryService.scan).toHaveBeenCalledWith();
+  });
+
+  it('delegates read-only plugin manifest reads and validates the version id', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('plugins:readManifest', 'marketplace/plugin@1.0.0')).resolves.toMatchObject({
+      versionId: 'marketplace/plugin@1.0.0',
+      content: '{"name":"plugin"}',
+    });
+    expect(harness.deps.pluginInventoryService.readManifest).toHaveBeenCalledWith('marketplace/plugin@1.0.0');
+
+    await expect(harness.invoke('plugins:readManifest', 42 as any))
+      .rejects.toThrow('Plugin version id must be a string');
   });
 
   it('deduplicates and validates ids before global removal', async () => {

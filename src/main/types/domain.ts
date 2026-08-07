@@ -362,6 +362,8 @@ export interface PluginInventoryVersion {
   id: string;
   version: string;
   description: string;
+  category: string;
+  capabilities: string[];
   bundlePath: string;
   manifestPath: string;
   status: PluginInventoryStatus;
@@ -376,6 +378,8 @@ export interface PluginInventoryPlugin {
   name: string;
   displayName: string;
   description: string;
+  category: string;
+  capabilities: string[];
   status: PluginInventoryStatus;
   versions: PluginInventoryVersion[];
   componentCounts: PluginComponentCounts;
@@ -398,4 +402,11 @@ export interface PluginInventory {
   rootPath: string;
   plugins: PluginInventoryPlugin[];
   invalidEntries: PluginInventoryInvalidEntry[];
+}
+
+export interface PluginManifestPreview {
+  versionId: string;
+  version: string;
+  manifestPath: string;
+  content: string;
 }

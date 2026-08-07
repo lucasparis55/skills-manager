@@ -124,6 +124,12 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
         plugins: [],
         invalidEntries: [],
       })),
+      readManifest: vi.fn(async (versionId: string) => ({
+        versionId,
+        version: '1.0.0',
+        manifestPath: 'C:/Users/test/.codex/plugins/cache/plugin.json',
+        content: '{"name":"plugin"}',
+      })),
       ...(partial.plugins || {}),
     },
     settings: {

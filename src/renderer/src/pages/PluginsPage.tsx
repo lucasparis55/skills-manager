@@ -1,10 +1,19 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Loader2, PackageSearch, Puzzle, RefreshCw } from 'lucide-react';
+import PluginDetailsDialog from '../components/ui/PluginDetailsDialog';
+
+const UNCATEGORIZED_CATEGORY = '__uncategorized__';
 
 const PluginsPage: React.FC = () => {
   const [inventory, setInventory] = useState<PluginInventory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [marketplace, setMarketplace] = useState('all');
+  const [category, setCategory] = useState('all');
+  const [status, setStatus] = useState<PluginInventoryStatus | 'all'>('all');
+  const [selectedPlugin, setSelectedPlugin] = useState<PluginInventoryPlugin | null>(null);
+  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const loadInventory = useCallback(async () => {
     setLoading(true);
@@ -22,6 +31,44 @@ const PluginsPage: React.FC = () => {
   useEffect(() => {
     void loadInventory();
   }, [loadInventory]);
+
+  const marketplaceOptions = useMemo(() => {
+    if (!inventory) return [];
+
+    return uniqueStrings([
+      ...inventory.plugins.map((plugin) => plugin.marketplace),
+      ...inventory.invalidEntries.map((entry) => entry.marketplace),
+    ]);
+  }, [inventory]);
+
+  const categoryOptions = useMemo(() => {
+    if (!inventory) return [];
+
+    const categories = uniqueStrings(inventory.plugins.map((plugin) => plugin.category));
+    return inventory.plugins.some((plugin) => plugin.category.trim().length === 0)
+      ? [UNCATEGORIZED_CATEGORY, ...categories]
+      : categories;
+  }, [inventory]);
+
+  const filteredPlugins = useMemo(() => {
+    if (!inventory) return [];
+
+    return inventory.plugins.filter((plugin) => (
+      (marketplace === 'all' || plugin.marketplace === marketplace)
+      && matchesCategory(plugin, category)
+      && (status === 'all' || plugin.status === status)
+      && matchesPluginSearch(plugin, search)
+    ));
+  }, [category, inventory, marketplace, search, status]);
+
+  const filteredInvalidEntries = useMemo(() => {
+    if (!inventory || (status !== 'all' && status !== 'invalid') || category !== 'all') return [];
+
+    return inventory.invalidEntries.filter((entry) => (
+      (marketplace === 'all' || entry.marketplace === marketplace)
+      && matchesInvalidEntrySearch(entry, search)
+    ));
+  }, [category, inventory, marketplace, search, status]);
 
   if (loading && !inventory) {
     return <PluginsLoading />;
@@ -65,6 +112,19 @@ const PluginsPage: React.FC = () => {
         </p>
       </div>
 
+      <PluginFilters
+        search={search}
+        marketplace={marketplace}
+        category={category}
+        status={status}
+        marketplaces={marketplaceOptions}
+        categories={categoryOptions}
+        onSearchChange={setSearch}
+        onMarketplaceChange={setMarketplace}
+        onCategoryChange={setCategory}
+        onStatusChange={setStatus}
+      />
+
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-100/80" role="alert">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -74,21 +134,122 @@ const PluginsPage: React.FC = () => {
 
       {inventory.plugins.length === 0 && inventory.invalidEntries.length === 0 ? (
         <EmptyPlugins />
+      ) : filteredPlugins.length === 0 && filteredInvalidEntries.length === 0 ? (
+        <NoPluginMatches />
       ) : (
         <>
-          {inventory.plugins.length > 0 && (
+          {filteredPlugins.length > 0 && (
             <div className="grid gap-4 xl:grid-cols-2">
-              {inventory.plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} />)}
+              {filteredPlugins.map((plugin) => (
+                <PluginCard
+                  key={plugin.id}
+                  plugin={plugin}
+                  onView={(trigger) => {
+                    detailsTriggerRef.current = trigger;
+                    setSelectedPlugin(plugin);
+                  }}
+                />
+              ))}
             </div>
           )}
-          {inventory.invalidEntries.length > 0 && <InvalidPluginEntries entries={inventory.invalidEntries} />}
+          {filteredInvalidEntries.length > 0 && <InvalidPluginEntries entries={filteredInvalidEntries} />}
         </>
       )}
+
+      <PluginDetailsDialog
+        open={selectedPlugin !== null}
+        plugin={selectedPlugin}
+        returnFocusRef={detailsTriggerRef}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPlugin(null);
+        }}
+      />
     </div>
   );
 };
 
-const PluginCard: React.FC<{ plugin: PluginInventoryPlugin }> = ({ plugin }) => (
+interface PluginFiltersProps {
+  search: string;
+  marketplace: string;
+  category: string;
+  status: PluginInventoryStatus | 'all';
+  marketplaces: string[];
+  categories: string[];
+  onSearchChange: (value: string) => void;
+  onMarketplaceChange: (value: string) => void;
+  onCategoryChange: (value: string) => void;
+  onStatusChange: (value: PluginInventoryStatus | 'all') => void;
+}
+
+const PluginFilters: React.FC<PluginFiltersProps> = ({
+  search,
+  marketplace,
+  category,
+  status,
+  marketplaces,
+  categories,
+  onSearchChange,
+  onMarketplaceChange,
+  onCategoryChange,
+  onStatusChange,
+}) => (
+  <section className="glass-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Plugin filters">
+    <label className="space-y-1 text-sm text-white/60">
+      <span>Search plugins</span>
+      <input
+        type="search"
+        aria-label="Search plugins"
+        value={search}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder="Name, capability, component..."
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/60"
+      />
+    </label>
+    <label className="space-y-1 text-sm text-white/60">
+      <span>Marketplace</span>
+      <select
+        aria-label="Filter by marketplace"
+        value={marketplace}
+        onChange={(event) => onMarketplaceChange(event.target.value)}
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/60"
+      >
+        <option value="all">All marketplaces</option>
+        {marketplaces.map((value) => <option key={value} value={value}>{value}</option>)}
+      </select>
+    </label>
+    <label className="space-y-1 text-sm text-white/60">
+      <span>Category</span>
+      <select
+        aria-label="Filter by category"
+        value={category}
+        onChange={(event) => onCategoryChange(event.target.value)}
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/60"
+      >
+        <option value="all">All categories</option>
+        {categories.map((value) => (
+          <option key={value} value={value}>{value === UNCATEGORIZED_CATEGORY ? 'Uncategorized' : value}</option>
+        ))}
+      </select>
+    </label>
+    <label className="space-y-1 text-sm text-white/60">
+      <span>Status</span>
+      <select
+        aria-label="Filter by status"
+        value={status}
+        onChange={(event) => onStatusChange(event.target.value as PluginInventoryStatus | 'all')}
+        className="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-blue-300/60"
+      >
+        <option value="all">All statuses</option>
+        <option value="bundled">Bundled</option>
+        <option value="cache-detected">Cache detected</option>
+        <option value="protected">Protected</option>
+        <option value="invalid">Invalid</option>
+      </select>
+    </label>
+  </section>
+);
+
+const PluginCard: React.FC<{ plugin: PluginInventoryPlugin; onView: (trigger: HTMLButtonElement) => void }> = ({ plugin, onView }) => (
   <article className="glass-card space-y-4 p-5">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
@@ -99,6 +260,15 @@ const PluginCard: React.FC<{ plugin: PluginInventoryPlugin }> = ({ plugin }) => 
     </div>
 
     <p className="min-h-10 text-sm leading-5 text-white/55">{plugin.description || 'No description provided.'}</p>
+
+    <button
+      type="button"
+      onClick={(event) => onView(event.currentTarget)}
+      aria-label={`View details for ${plugin.displayName}`}
+      className="inline-flex items-center justify-center rounded-lg border border-blue-300/20 bg-blue-300/10 px-3 py-2 text-sm text-blue-100 transition-colors hover:bg-blue-300/20"
+    >
+      View details
+    </button>
 
     <dl className="grid grid-cols-2 gap-3 text-sm">
       <div>
@@ -204,6 +374,14 @@ const EmptyPlugins: React.FC = () => (
   </div>
 );
 
+const NoPluginMatches: React.FC = () => (
+  <div className="glass-panel flex flex-col items-center justify-center p-12 text-center" role="status">
+    <PackageSearch className="h-10 w-10 text-white/30" aria-hidden="true" />
+    <h2 className="mt-4 font-semibold text-white">No plugins match the selected filters.</h2>
+    <p className="mt-2 max-w-md text-sm text-white/45">Try a different search or reset one of the filters.</p>
+  </div>
+);
+
 const PluginsLoading: React.FC = () => (
   <div className="space-y-4" aria-busy="true" aria-label="Loading plugins">
     <div className="h-10 w-80 animate-pulse rounded-lg bg-white/[0.06]" />
@@ -227,6 +405,51 @@ const PluginsError: React.FC<{ message: string; onRetry: () => void }> = ({ mess
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) => left.localeCompare(right));
+}
+
+function matchesPluginSearch(plugin: PluginInventoryPlugin, query: string): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return true;
+
+  const searchableText = [
+    plugin.id,
+    plugin.marketplace,
+    plugin.name,
+    plugin.displayName,
+    plugin.description,
+    plugin.category,
+    ...plugin.capabilities,
+    ...plugin.versions.flatMap((version) => [
+      version.id,
+      version.version,
+      version.description,
+      version.category,
+      ...version.capabilities,
+      ...version.components.flatMap((component) => [component.name, component.reference]),
+    ]),
+  ].join(' ').toLocaleLowerCase();
+
+  return searchableText.includes(normalizedQuery);
+}
+
+function matchesCategory(plugin: PluginInventoryPlugin, selectedCategory: string): boolean {
+  if (selectedCategory === 'all') return true;
+  if (selectedCategory === UNCATEGORIZED_CATEGORY) return plugin.category.trim().length === 0;
+  return plugin.category === selectedCategory;
+}
+
+function matchesInvalidEntrySearch(entry: PluginInventoryInvalidEntry, query: string): boolean {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return true;
+
+  return [entry.id, entry.marketplace, entry.name, entry.version, entry.bundlePath, entry.manifestPath, entry.reason]
+    .join(' ')
+    .toLocaleLowerCase()
+    .includes(normalizedQuery);
 }
 
 function formatScanTime(value: string): string {

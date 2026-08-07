@@ -308,6 +308,8 @@ interface PluginInventoryVersion {
   id: string;
   version: string;
   description: string;
+  category: string;
+  capabilities: string[];
   bundlePath: string;
   manifestPath: string;
   status: PluginInventoryStatus;
@@ -322,6 +324,8 @@ interface PluginInventoryPlugin {
   name: string;
   displayName: string;
   description: string;
+  category: string;
+  capabilities: string[];
   status: PluginInventoryStatus;
   versions: PluginInventoryVersion[];
   componentCounts: PluginComponentCounts;
@@ -346,6 +350,13 @@ interface PluginInventory {
   invalidEntries: PluginInventoryInvalidEntry[];
 }
 
+interface PluginManifestPreview {
+  versionId: string;
+  version: string;
+  manifestPath: string;
+  content: string;
+}
+
 interface DuplicatesAPI {
   scan: () => Promise<DuplicateScanResult>;
   remove: (paths: string[]) => Promise<DuplicateOperationResult[]>;
@@ -361,6 +372,7 @@ interface GlobalSkillsAPI {
 
 interface PluginsAPI {
   scan: () => Promise<PluginInventory>;
+  readManifest: (versionId: string) => Promise<PluginManifestPreview>;
 }
 
 interface SettingsAPI {

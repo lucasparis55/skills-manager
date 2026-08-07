@@ -64,11 +64,15 @@ describe('PluginInventoryService', () => {
         name: 'codex-security',
         displayName: 'Codex Security',
         description: 'Security checks for Codex projects',
+        category: '',
+        capabilities: [],
         status: 'cache-detected',
         versions: [{
           id: 'openai-curated-remote/codex-security@1.2.3',
           version: '1.2.3',
           description: 'Security checks for Codex projects',
+          category: '',
+          capabilities: [],
           bundlePath,
           manifestPath,
           status: 'cache-detected',
@@ -104,6 +108,46 @@ describe('PluginInventoryService', () => {
 
     expect(new PluginInventoryService(new CodexDesktopPluginProvider(cacheRoot)).scan().plugins[0])
       .toMatchObject({ description: 'Description from the plugin interface' });
+  });
+
+  it('exposes plugin category and capabilities and reads a manifest by version id', () => {
+    const cacheRoot = createTemporaryDirectory();
+    const manifest = {
+      name: 'codex-security',
+      version: '1.2.3',
+      description: 'Security checks for Codex projects',
+      interface: {
+        displayName: 'Codex Security',
+        category: 'Engineering',
+        capabilities: ['Read', 'Write'],
+      },
+    };
+    const { manifestPath } = writePluginBundle(
+      cacheRoot,
+      'openai-curated-remote',
+      'codex-security',
+      '1.2.3',
+      manifest,
+    );
+    const service = new PluginInventoryService(new CodexDesktopPluginProvider(cacheRoot));
+
+    const inventory = service.scan();
+    const preview = service.readManifest('openai-curated-remote/codex-security@1.2.3');
+
+    expect(inventory.plugins[0]).toMatchObject({
+      category: 'Engineering',
+      capabilities: ['Read', 'Write'],
+      versions: [expect.objectContaining({
+        category: 'Engineering',
+        capabilities: ['Read', 'Write'],
+      })],
+    });
+    expect(preview).toEqual({
+      versionId: 'openai-curated-remote/codex-security@1.2.3',
+      version: '1.2.3',
+      manifestPath,
+      content: JSON.stringify(manifest),
+    });
   });
 
   it('groups versions by marketplace and technical name and classifies their source', () => {

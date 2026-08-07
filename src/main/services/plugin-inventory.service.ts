@@ -11,10 +11,12 @@ import type {
   PluginInventoryPlugin,
   PluginInventoryStatus,
   PluginInventoryVersion,
+  PluginManifestPreview,
 } from '../types/domain';
 
 export interface PluginInventoryProvider {
   scan(): PluginInventory;
+  readManifest(versionId: string): PluginManifestPreview;
 }
 
 interface PluginManifest {
@@ -67,6 +69,28 @@ export class CodexDesktopPluginProvider implements PluginInventoryProvider {
       rootPath: this.cacheRoot,
       plugins: groupPluginVersions(versions),
       invalidEntries,
+    };
+  }
+
+  readManifest(versionId: string): PluginManifestPreview {
+    const version = this.scan().plugins
+      .flatMap((plugin) => plugin.versions)
+      .find((candidate) => candidate.id === versionId);
+
+    if (!version) throw new Error(`Plugin version not found: ${versionId}`);
+
+    let content: string;
+    try {
+      content = fs.readFileSync(version.manifestPath, 'utf8');
+    } catch {
+      throw new Error(`Could not read Codex Desktop plugin manifest at ${version.manifestPath}`);
+    }
+
+    return {
+      versionId,
+      version: version.version,
+      manifestPath: version.manifestPath,
+      content,
     };
   }
 
@@ -137,6 +161,8 @@ export class CodexDesktopPluginProvider implements PluginInventoryProvider {
     const description = nonEmptyString(manifest.description)
       || nonEmptyString(interfaceMetadata.shortDescription)
       || '';
+    const category = nonEmptyString(interfaceMetadata.category) || '';
+    const capabilities = stringArray(interfaceMetadata.capabilities);
     const components = inspectManifestComponents(manifest, bundlePath);
     const status: PluginInventoryStatus = hasComponentIssues(components)
       ? 'invalid'
@@ -151,6 +177,8 @@ export class CodexDesktopPluginProvider implements PluginInventoryProvider {
           id: `${marketplace}/${name}@${version}`,
           version,
           description,
+          category,
+          capabilities,
           bundlePath,
           manifestPath,
           status,
@@ -184,6 +212,10 @@ export class PluginInventoryService {
   scan(): PluginInventory {
     return this.provider.scan();
   }
+
+  readManifest(versionId: string): PluginManifestPreview {
+    return this.provider.readManifest(versionId);
+  }
 }
 
 function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryPlugin[] {
@@ -195,6 +227,8 @@ function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryP
     if (existing) {
       existing.versions.push(scanned.version);
       existing.status = mergePluginStatus(existing.status, scanned.version.status);
+      existing.category = existing.category || scanned.version.category;
+      existing.capabilities = uniqueStrings([...existing.capabilities, ...scanned.version.capabilities]);
       existing.componentCounts = addComponentCounts(existing.componentCounts, scanned.version.componentCounts);
       existing.issues = uniqueStrings([...existing.issues, ...scanned.version.issues]);
       continue;
@@ -206,6 +240,8 @@ function groupPluginVersions(versions: ScannedPluginVersion[]): PluginInventoryP
       name: scanned.name,
       displayName: scanned.displayName,
       description: scanned.version.description,
+      category: scanned.version.category,
+      capabilities: [...scanned.version.capabilities],
       status: scanned.version.status,
       versions: [scanned.version],
       componentCounts: { ...scanned.version.componentCounts },
@@ -509,6 +545,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(value.flatMap((entry) => {
+    const text = nonEmptyString(entry);
+    return text ? [text] : [];
+  }));
 }
 
 function isMissingPathError(error: unknown): boolean {
