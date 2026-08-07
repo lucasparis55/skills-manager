@@ -11,6 +11,7 @@ import { ZipImportService } from '../services/zip-import.service';
 import { UpdateService, type UpdateOperationStatus } from '../services/update.service';
 import { DuplicateService } from '../services/duplicate.service';
 import { GlobalSkillService } from '../services/global-skill.service';
+import { PluginInventoryService } from '../services/plugin-inventory.service';
 import { LinkMigrationService } from '../services/link-migration.service';
 import { SkillHealthService } from '../services/skill-health.service';
 import { expandPath, resolveSkillLinkDestination, resolveSkillsRoot } from '../utils/paths';
@@ -50,6 +51,7 @@ type IdeServiceLike = Pick<IDEAdapterService, 'list' | 'detectRoots' | 'detectSk
 type DetectionServiceLike = Pick<DetectionService, 'checkDuplicates'>;
 type DuplicateServiceLike = Pick<DuplicateService, 'scan' | 'removeOccurrences' | 'migrateOccurrences'>;
 type GlobalSkillServiceLike = Pick<GlobalSkillService, 'scan' | 'preview' | 'remove' | 'undo'>;
+type PluginInventoryServiceLike = Pick<PluginInventoryService, 'scan'>;
 type LinkMigrationServiceLike = Pick<LinkMigrationService, 'preview' | 'migrate'>;
 type SkillHealthServiceLike = Pick<SkillHealthService, 'checkDistribution' | 'repairDistribution'>;
 type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
@@ -82,6 +84,7 @@ export interface IPCHandlerDependencies {
   detectionService: DetectionServiceLike;
   duplicateService: DuplicateServiceLike;
   globalSkillService: GlobalSkillServiceLike;
+  pluginInventoryService: PluginInventoryServiceLike;
   linkMigrationService: LinkMigrationServiceLike;
   skillHealthService: SkillHealthServiceLike;
   githubImportService: GitHubImportServiceLike;
@@ -116,6 +119,7 @@ const defaultGlobalSkillService = new GlobalSkillService({
   symlinkService: defaultSymlinkService,
   trashItem: (targetPath) => shell.trashItem(targetPath),
 });
+const defaultPluginInventoryService = new PluginInventoryService();
 const defaultLinkMigrationService = new LinkMigrationService({
   settingsService: defaultSettingsService,
   skillService: { get: (id: string) => createDefaultSkillService().get(id) },
@@ -145,6 +149,7 @@ const defaultDeps: IPCHandlerDependencies = {
   detectionService: defaultDetectionService,
   duplicateService: defaultDuplicateService,
   globalSkillService: defaultGlobalSkillService,
+  pluginInventoryService: defaultPluginInventoryService,
   linkMigrationService: defaultLinkMigrationService,
   skillHealthService: defaultSkillHealthService,
   githubImportService: defaultGithubImportService,
@@ -568,6 +573,8 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
     }
     return deps.globalSkillService.undo([...new Set(tokens)]);
   });
+
+  deps.ipcMain.handle('plugins:scan', () => deps.pluginInventoryService.scan());
 
   deps.ipcMain.handle('settings:get', async () => {
     if (typeof deps.settingsService.getPublicSettings === 'function') {

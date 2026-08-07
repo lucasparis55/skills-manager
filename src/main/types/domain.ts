@@ -331,3 +331,23 @@ export interface GlobalSkillUndoResult {
   status: GlobalSkillUndoStatus;
   message?: string;
 }
+
+export type PluginInventoryStatus = 'cache-detected';
+
+export interface PluginInventoryEntry {
+  id: string;
+  marketplace: string;
+  name: string;
+  displayName: string;
+  version: string;
+  description: string;
+  bundlePath: string;
+  manifestPath: string;
+  status: PluginInventoryStatus;
+}
+
+export interface PluginInventory {
+  scannedAt: string;
+  rootPath: string;
+  plugins: PluginInventoryEntry[];
+}

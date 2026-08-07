@@ -10,6 +10,7 @@ vi.mock('./pages/DuplicatesPage', () => ({ default: () => <div>Duplicates Page</
 vi.mock('./pages/ProjectsPage', () => ({ default: () => <div>Projects Page</div> }));
 vi.mock('./pages/LinksPage', () => ({ default: () => <div>Links Page</div> }));
 vi.mock('./pages/SettingsPage', () => ({ default: () => <div>Settings Page</div> }));
+vi.mock('./pages/PluginsPage', () => ({ default: () => <div>Plugins Page</div> }));
 
 describe('App', () => {
   it('renders layout and selected route content', async () => {
@@ -36,5 +37,17 @@ describe('App', () => {
     );
 
     expect(screen.getByText('Duplicates Page')).toBeInTheDocument();
+  });
+
+  it('renders the plugins route', () => {
+    createApiMock();
+
+    render(
+      <MemoryRouter initialEntries={['/plugins']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Plugins Page')).toBeInTheDocument();
   });
 });

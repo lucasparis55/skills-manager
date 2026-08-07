@@ -12,6 +12,7 @@ type ApiMock = {
   detection: Record<string, ReturnType<typeof vi.fn>>;
   duplicates: Record<string, ReturnType<typeof vi.fn>>;
   globalSkills: Record<string, ReturnType<typeof vi.fn>>;
+  plugins: Record<string, ReturnType<typeof vi.fn>>;
   settings: Record<string, ReturnType<typeof vi.fn>>;
   dialog: Record<string, ReturnType<typeof vi.fn>>;
   githubImport: Record<string, ReturnType<typeof vi.fn>>;
@@ -115,6 +116,14 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
         status: 'restored',
       }))),
       ...(partial.globalSkills || {}),
+    },
+    plugins: {
+      scan: vi.fn(async () => ({
+        scannedAt: 'now',
+        rootPath: 'C:/Users/test/.codex/plugins/cache',
+        plugins: [],
+      })),
+      ...(partial.plugins || {}),
     },
     settings: {
       get: vi.fn(async () => ({

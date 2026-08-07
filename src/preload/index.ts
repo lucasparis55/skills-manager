@@ -4,6 +4,7 @@ import type {
   GlobalSkillPreview,
   GlobalSkillRemovalResult,
   GlobalSkillUndoResult,
+  PluginInventory,
   SkillDistributionRepairResult,
   SkillDistributionReport,
 } from '../main/types/domain';
@@ -87,6 +88,11 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('global-skills:remove', ids),
     undo: (tokens: string[]): Promise<GlobalSkillUndoResult[]> =>
       ipcRenderer.invoke('global-skills:undo', tokens),
+  },
+
+  // Plugins
+  plugins: {
+    scan: (): Promise<PluginInventory> => ipcRenderer.invoke('plugins:scan'),
   },
 
   // Settings

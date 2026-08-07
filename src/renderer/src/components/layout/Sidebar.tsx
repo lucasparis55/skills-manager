@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Target, Copy, FolderGit2, Link, Settings, CheckCircle2, ArrowUpCircle } from 'lucide-react';
+import { LayoutDashboard, Target, Copy, FolderGit2, Link, Settings, CheckCircle2, ArrowUpCircle, Puzzle } from 'lucide-react';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/skills', icon: Target, label: 'Skills' },
   { path: '/duplicates', icon: Copy, label: 'Duplicates' },
+  { path: '/plugins', icon: Puzzle, label: 'Plugins' },
   { path: '/projects', icon: FolderGit2, label: 'Projects' },
   { path: '/links', icon: Link, label: 'Links' },
   { path: '/settings', icon: Settings, label: 'Settings' },

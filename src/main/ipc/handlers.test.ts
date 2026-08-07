@@ -150,6 +150,13 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
         status: 'restored' as const,
       }))),
     },
+    pluginInventoryService: {
+      scan: vi.fn(() => ({
+        scannedAt: 'now',
+        rootPath: 'C:/Users/test/.codex/plugins/cache',
+        plugins: [],
+      })),
+    },
     linkMigrationService: {
       preview: vi.fn(async () => ({ scannedAt: 'now', candidates: [] })),
       migrate: vi.fn(async () => []),
@@ -354,6 +361,7 @@ describe('registerIPCHandlers', () => {
     expect(handlers.has('global-skills:preview')).toBe(true);
     expect(handlers.has('global-skills:remove')).toBe(true);
     expect(handlers.has('global-skills:undo')).toBe(true);
+    expect(handlers.has('plugins:scan')).toBe(true);
   });
 
   it('starts an update and sends status only to the initiating renderer', async () => {
@@ -378,6 +386,16 @@ describe('registerIPCHandlers', () => {
     await expect(harness.invoke('global-skills:preview', 42 as any))
       .rejects.toThrow('Global skill id must be a string');
     expect(harness.deps.globalSkillService.preview).toHaveBeenCalledWith('skill-id');
+  });
+
+  it('delegates plugin inventory scans without accepting renderer input', async () => {
+    const harness = createHarness();
+
+    await expect(harness.invoke('plugins:scan', 'C:/arbitrary-renderer-path')).resolves.toMatchObject({
+      rootPath: 'C:/Users/test/.codex/plugins/cache',
+      plugins: [],
+    });
+    expect(harness.deps.pluginInventoryService.scan).toHaveBeenCalledWith();
   });
 
   it('deduplicates and validates ids before global removal', async () => {

@@ -25,6 +25,7 @@ describe('layout components', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Skills' })).toHaveClass('bg-blue-600');
     expect(screen.getByRole('link', { name: 'Duplicates' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Plugins' })).toBeInTheDocument();
     expect(screen.getByText(`v${__APP_VERSION__}`)).toBeInTheDocument();
     expect(screen.queryByText('Electron + React')).not.toBeInTheDocument();
   });
@@ -50,6 +51,13 @@ describe('layout components', () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole('heading', { name: 'Duplicates' })).toBeInTheDocument();
+
+    render(
+      <MemoryRouter initialEntries={['/plugins']}>
+        <Header />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { name: 'Plugins' })).toBeInTheDocument();
   });
 
   it('marks duplicates navigation active', () => {

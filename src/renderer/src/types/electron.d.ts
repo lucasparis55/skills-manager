@@ -279,6 +279,26 @@ interface GlobalSkillUndoResult {
   message?: string;
 }
 
+type PluginInventoryStatus = 'cache-detected';
+
+interface PluginInventoryEntry {
+  id: string;
+  marketplace: string;
+  name: string;
+  displayName: string;
+  version: string;
+  description: string;
+  bundlePath: string;
+  manifestPath: string;
+  status: PluginInventoryStatus;
+}
+
+interface PluginInventory {
+  scannedAt: string;
+  rootPath: string;
+  plugins: PluginInventoryEntry[];
+}
+
 interface DuplicatesAPI {
   scan: () => Promise<DuplicateScanResult>;
   remove: (paths: string[]) => Promise<DuplicateOperationResult[]>;
@@ -290,6 +310,10 @@ interface GlobalSkillsAPI {
   preview: (id: string) => Promise<GlobalSkillPreview>;
   remove: (ids: string[]) => Promise<GlobalSkillRemovalResult[]>;
   undo: (tokens: string[]) => Promise<GlobalSkillUndoResult[]>;
+}
+
+interface PluginsAPI {
+  scan: () => Promise<PluginInventory>;
 }
 
 interface SettingsAPI {
@@ -364,6 +388,7 @@ interface ElectronAPI {
   detection: DetectionAPI;
   duplicates: DuplicatesAPI;
   globalSkills: GlobalSkillsAPI;
+  plugins: PluginsAPI;
   settings: SettingsAPI;
   dialog: DialogAPI;
   githubImport: GitHubImportAPI;

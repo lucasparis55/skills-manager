@@ -30,6 +30,7 @@ describe('preload bridge', () => {
         detection: expect.any(Object),
         duplicates: expect.any(Object),
         globalSkills: expect.any(Object),
+        plugins: expect.any(Object),
         settings: expect.any(Object),
         dialog: expect.any(Object),
         githubImport: expect.any(Object),
@@ -87,6 +88,8 @@ describe('preload bridge', () => {
     await api.globalSkills.preview('global-skill-id');
     await api.globalSkills.remove(['global-skill-id']);
     await api.globalSkills.undo(['undo-token']);
+
+    await api.plugins.scan();
 
     await api.settings.get();
     await api.settings.update({ theme: 'dark' });
@@ -156,6 +159,7 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('global-skills:preview', 'global-skill-id');
     expect(invoke).toHaveBeenCalledWith('global-skills:remove', ['global-skill-id']);
     expect(invoke).toHaveBeenCalledWith('global-skills:undo', ['undo-token']);
+    expect(invoke).toHaveBeenCalledWith('plugins:scan');
 
     expect(invoke).toHaveBeenCalledWith('settings:get');
     expect(invoke).toHaveBeenCalledWith('settings:update', { theme: 'dark' });
