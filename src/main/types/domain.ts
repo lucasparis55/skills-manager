@@ -332,22 +332,70 @@ export interface GlobalSkillUndoResult {
   message?: string;
 }
 
-export type PluginInventoryStatus = 'cache-detected';
+export type PluginInventoryStatus = 'bundled' | 'cache-detected' | 'protected' | 'invalid';
 
-export interface PluginInventoryEntry {
+export type PluginComponentKind = 'skill' | 'app' | 'mcp-server';
+export type PluginComponentStatus =
+  | 'available'
+  | 'missing'
+  | 'invalid-reference'
+  | 'external-symlink'
+  | 'invalid-manifest';
+
+export interface PluginComponent {
   id: string;
-  marketplace: string;
+  kind: PluginComponentKind;
   name: string;
-  displayName: string;
+  reference: string;
+  status: PluginComponentStatus;
+  resolvedPath?: string;
+  reason?: string;
+}
+
+export interface PluginComponentCounts {
+  skills: number;
+  apps: number;
+  mcpServers: number;
+}
+
+export interface PluginInventoryVersion {
+  id: string;
   version: string;
   description: string;
   bundlePath: string;
   manifestPath: string;
   status: PluginInventoryStatus;
+  components: PluginComponent[];
+  componentCounts: PluginComponentCounts;
+  issues: string[];
+}
+
+export interface PluginInventoryPlugin {
+  id: string;
+  marketplace: string;
+  name: string;
+  displayName: string;
+  description: string;
+  status: PluginInventoryStatus;
+  versions: PluginInventoryVersion[];
+  componentCounts: PluginComponentCounts;
+  issues: string[];
+}
+
+export interface PluginInventoryInvalidEntry {
+  id: string;
+  marketplace: string;
+  name: string;
+  version: string;
+  bundlePath: string;
+  manifestPath: string;
+  status: 'invalid';
+  reason: string;
 }
 
 export interface PluginInventory {
   scannedAt: string;
   rootPath: string;
-  plugins: PluginInventoryEntry[];
+  plugins: PluginInventoryPlugin[];
+  invalidEntries: PluginInventoryInvalidEntry[];
 }

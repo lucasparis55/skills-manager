@@ -155,6 +155,7 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
         scannedAt: 'now',
         rootPath: 'C:/Users/test/.codex/plugins/cache',
         plugins: [],
+        invalidEntries: [],
       })),
     },
     linkMigrationService: {

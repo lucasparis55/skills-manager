@@ -122,6 +122,7 @@ export function createApiMock(partial: Partial<ApiMock> = {}): ApiMock {
         scannedAt: 'now',
         rootPath: 'C:/Users/test/.codex/plugins/cache',
         plugins: [],
+        invalidEntries: [],
       })),
       ...(partial.plugins || {}),
     },

@@ -279,24 +279,71 @@ interface GlobalSkillUndoResult {
   message?: string;
 }
 
-type PluginInventoryStatus = 'cache-detected';
+type PluginInventoryStatus = 'bundled' | 'cache-detected' | 'protected' | 'invalid';
+type PluginComponentKind = 'skill' | 'app' | 'mcp-server';
+type PluginComponentStatus =
+  | 'available'
+  | 'missing'
+  | 'invalid-reference'
+  | 'external-symlink'
+  | 'invalid-manifest';
 
-interface PluginInventoryEntry {
+interface PluginComponent {
   id: string;
-  marketplace: string;
+  kind: PluginComponentKind;
   name: string;
-  displayName: string;
+  reference: string;
+  status: PluginComponentStatus;
+  resolvedPath?: string;
+  reason?: string;
+}
+
+interface PluginComponentCounts {
+  skills: number;
+  apps: number;
+  mcpServers: number;
+}
+
+interface PluginInventoryVersion {
+  id: string;
   version: string;
   description: string;
   bundlePath: string;
   manifestPath: string;
   status: PluginInventoryStatus;
+  components: PluginComponent[];
+  componentCounts: PluginComponentCounts;
+  issues: string[];
+}
+
+interface PluginInventoryPlugin {
+  id: string;
+  marketplace: string;
+  name: string;
+  displayName: string;
+  description: string;
+  status: PluginInventoryStatus;
+  versions: PluginInventoryVersion[];
+  componentCounts: PluginComponentCounts;
+  issues: string[];
+}
+
+interface PluginInventoryInvalidEntry {
+  id: string;
+  marketplace: string;
+  name: string;
+  version: string;
+  bundlePath: string;
+  manifestPath: string;
+  status: 'invalid';
+  reason: string;
 }
 
 interface PluginInventory {
   scannedAt: string;
   rootPath: string;
-  plugins: PluginInventoryEntry[];
+  plugins: PluginInventoryPlugin[];
+  invalidEntries: PluginInventoryInvalidEntry[];
 }
 
 interface DuplicatesAPI {
