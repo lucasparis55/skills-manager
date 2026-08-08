@@ -1,6 +1,24 @@
-import type { ConflictResolution, ImportFileEntry, ImportProgress, ImportResult, SkillStructure } from './import';
+import type {
+  ConflictResolution,
+  ImportComponent,
+  ImportFileEntry,
+  ImportProgress,
+  ImportResult,
+  ImportSourceFile,
+  ImportTarget,
+  SkillStructure,
+} from './import';
 
-export type { ConflictResolution, ImportFileEntry, ImportProgress, ImportResult, SkillStructure };
+export type {
+  ConflictResolution,
+  ImportComponent,
+  ImportFileEntry,
+  ImportProgress,
+  ImportResult,
+  ImportSourceFile,
+  ImportTarget,
+  SkillStructure,
+};
 
 /**
  * Type definitions for GitHub skill import feature
@@ -12,6 +30,13 @@ export interface ParsedGitHubRepo {
   repo: string;
   branch: string;
   subpath?: string;
+}
+
+export interface GitHubRevision {
+  ref: string;
+  commitSha?: string;
+  treeSha?: string;
+  resolvedAt: string;
 }
 
 /** Repository metadata from GitHub API */
@@ -31,6 +56,7 @@ export interface GitHubTreeEntry {
   type: 'blob' | 'tree';
   sha: string;
   size?: number;
+  mode?: string;
 }
 
 /** A skill detected within a GitHub repository */
@@ -59,4 +85,8 @@ export interface GitHubApiError {
 export interface AnalyzeResult {
   repoInfo: GitHubRepoInfo;
   skills: DetectedSkill[];
+  components: ImportComponent[];
+  targets: ImportTarget[];
+  revision: GitHubRevision;
+  warnings: string[];
 }

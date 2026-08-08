@@ -24,6 +24,8 @@ import type {
   LinkCreationResult,
 } from '../types/domain';
 import { GLOBAL_LINK_PROJECT_ID } from '../types/domain';
+import type { ParsedGitHubRepo } from '../types/github';
+import type { ImportComponentSelection, ImportConflictStrategy } from '../types/import';
 
 type Handler = (event: any, ...args: any[]) => any;
 
@@ -59,7 +61,11 @@ type SettingsServiceLike = Pick<SettingsService, 'get' | 'update'> &
 type GitHubImportServiceLike = Pick<
   GitHubImportService,
   'parseGitHubUrl' | 'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
->;
+> & Partial<Pick<
+  GitHubImportService,
+  'getImportTargets' | 'createImportPlan' | 'getImportPlan' | 'previewComponent'
+    | 'importComponents' | 'activateHook' | 'deactivateHook' | 'runFallback'
+>>;
 type ZipImportServiceLike = Pick<
   ZipImportService,
   'analyze' | 'checkConflicts' | 'importSkills' | 'cancelImport'
@@ -207,6 +213,65 @@ function resolveProjectForLink(
   }
 
   return { projectId, path: project.path };
+}
+
+function assertParsedGitHubRepo(value: unknown): ParsedGitHubRepo {
+  if (!value || typeof value !== 'object') throw new Error('Invalid parsed GitHub repository.');
+  const parsed = value as Record<string, unknown>;
+  if (typeof parsed.owner !== 'string' || !/^[A-Za-z0-9_.-]{1,100}$/.test(parsed.owner)) {
+    throw new Error('Invalid GitHub owner.');
+  }
+  if (typeof parsed.repo !== 'string' || !/^[A-Za-z0-9_.-]{1,100}$/.test(parsed.repo)) {
+    throw new Error('Invalid GitHub repository name.');
+  }
+  if (typeof parsed.branch !== 'string' || !/^[^\0/\\]+$/.test(parsed.branch) || parsed.branch === '.' || parsed.branch === '..' || parsed.branch.includes('..')) {
+    throw new Error('Invalid GitHub ref.');
+  }
+  if (parsed.subpath !== undefined && (typeof parsed.subpath !== 'string' || !parsed.subpath || parsed.subpath.includes('\0')
+    || parsed.subpath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(parsed.subpath)
+    || parsed.subpath.split(/[\\/]/).some((part) => part === '..'))) {
+    throw new Error('Invalid GitHub subpath.');
+  }
+  return {
+    owner: parsed.owner,
+    repo: parsed.repo,
+    branch: parsed.branch,
+    subpath: typeof parsed.subpath === 'string' ? parsed.subpath : undefined,
+  };
+}
+
+function assertImportSelections(value: unknown): ImportComponentSelection[] {
+  if (!Array.isArray(value)) throw new Error('Import selections must be an array.');
+  return value.map((selection) => {
+    if (!selection || typeof selection !== 'object') throw new Error('Invalid import selection.');
+    const candidate = selection as Record<string, unknown>;
+    if (typeof candidate.componentId !== 'string' || typeof candidate.targetId !== 'string') {
+      throw new Error('Import selection requires componentId and targetId.');
+    }
+    if (typeof candidate.selected !== 'boolean') throw new Error('Import selection requires selected.');
+    if (candidate.renameTo !== undefined && typeof candidate.renameTo !== 'string') {
+      throw new Error('Import rename must be a string.');
+    }
+    const validStrategies: ImportConflictStrategy[] = ['block', 'skip', 'rename', 'overwrite', 'merge'];
+    if (candidate.conflictStrategy !== undefined
+      && (typeof candidate.conflictStrategy !== 'string' || !validStrategies.includes(candidate.conflictStrategy as ImportConflictStrategy))) {
+      throw new Error('Import conflict strategy is invalid.');
+    }
+    for (const key of ['activate', 'fallbackAuthorized'] as const) {
+      if (candidate[key] !== undefined && typeof candidate[key] !== 'boolean') {
+        throw new Error(`Import selection ${key} must be boolean.`);
+      }
+    }
+    return {
+      componentId: candidate.componentId,
+      targetId: candidate.targetId,
+      selected: candidate.selected,
+      conflictStrategy: candidate.conflictStrategy as ImportConflictStrategy | undefined,
+      renameTo: candidate.renameTo as string | undefined,
+      activate: candidate.activate as boolean | undefined,
+      fallbackAuthorized: candidate.fallbackAuthorized as boolean | undefined,
+    };
+  });
 }
 
 function removeLinksMatching(
@@ -633,15 +698,16 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
 
   deps.ipcMain.handle('github:parseUrl', (_event, url: string) => {
     try {
+      if (typeof url !== 'string') throw new Error('GitHub URL must be a string.');
       return deps.githubImportService.parseGitHubUrl(url);
     } catch (err: any) {
       return { error: true, message: err.message };
     }
   });
 
-  deps.ipcMain.handle('github:analyze', async (_event, parsed: any) => {
+  deps.ipcMain.handle('github:analyze', async (_event, parsed: unknown) => {
     try {
-      return await deps.githubImportService.analyze(parsed);
+      return await deps.githubImportService.analyze(assertParsedGitHubRepo(parsed));
     } catch (err: any) {
       return { error: true, message: err.message, isRateLimit: err.isRateLimit || false };
     }
@@ -665,6 +731,81 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   deps.ipcMain.handle('github:cancelImport', () => {
     deps.githubImportService.cancelImport();
     return { success: true };
+  });
+
+  deps.ipcMain.handle('github:getTargets', () => {
+    if (!deps.githubImportService.getImportTargets) throw new Error('Extended GitHub import is unavailable.');
+    return deps.githubImportService.getImportTargets(deps.projectService.list());
+  });
+
+  deps.ipcMain.handle('github:plan', async (_event, params: unknown) => {
+    if (!deps.githubImportService.createImportPlan) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Import plan parameters are required.');
+    const input = params as Record<string, unknown>;
+    const parsed = assertParsedGitHubRepo(input.parsed);
+    const selections = assertImportSelections(input.selections);
+    return deps.githubImportService.createImportPlan(parsed, selections, deps.projectService.list());
+  });
+
+  deps.ipcMain.handle('github:previewComponent', async (_event, params: unknown) => {
+    if (!deps.githubImportService.previewComponent) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Component preview parameters are required.');
+    const input = params as Record<string, unknown>;
+    const parsed = assertParsedGitHubRepo(input.parsed);
+    if (typeof input.componentId !== 'string' || !input.componentId) throw new Error('componentId is required.');
+    if (input.filePath !== undefined && typeof input.filePath !== 'string') throw new Error('filePath must be a string.');
+    return deps.githubImportService.previewComponent(parsed, input.componentId, input.filePath as string | undefined);
+  });
+
+  deps.ipcMain.handle('github:importComponents', async (event, params: unknown) => {
+    if (!deps.githubImportService.importComponents) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Component import parameters are required.');
+    const input = params as Record<string, unknown>;
+    if (typeof input.planId !== 'string' || !input.planId) throw new Error('planId is required.');
+    return deps.githubImportService.importComponents(input.planId, (progress: any) => {
+      event.sender.send('github:componentImportProgress', progress);
+    });
+  });
+
+  deps.ipcMain.handle('github:activateHook', (_event, params: unknown) => {
+    if (!deps.githubImportService.activateHook) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Hook activation parameters are required.');
+    const input = params as Record<string, unknown>;
+    if (typeof input.planId !== 'string' || typeof input.componentId !== 'string' || typeof input.targetId !== 'string') {
+      throw new Error('planId, componentId and targetId are required.');
+    }
+    if (!input.approval || typeof input.approval !== 'object') throw new Error('Hook activation approval is required.');
+    const approval = input.approval as Record<string, unknown>;
+    if (typeof approval.contentSha256 !== 'string' || !Array.isArray(approval.events)
+      || approval.events.some((eventName) => typeof eventName !== 'string')) {
+      throw new Error('Hook activation approval is invalid.');
+    }
+    return deps.githubImportService.activateHook({
+      planId: input.planId,
+      componentId: input.componentId,
+      targetId: input.targetId,
+      approval: { contentSha256: approval.contentSha256, events: approval.events as string[] },
+    });
+  });
+
+  deps.ipcMain.handle('github:deactivateHook', (_event, params: unknown) => {
+    if (!deps.githubImportService.deactivateHook) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Hook deactivation parameters are required.');
+    const input = params as Record<string, unknown>;
+    if (typeof input.planId !== 'string' || typeof input.componentId !== 'string' || typeof input.targetId !== 'string') {
+      throw new Error('planId, componentId and targetId are required.');
+    }
+    return deps.githubImportService.deactivateHook({ planId: input.planId, componentId: input.componentId, targetId: input.targetId });
+  });
+
+  deps.ipcMain.handle('github:runFallback', async (_event, params: unknown) => {
+    if (!deps.githubImportService.runFallback) throw new Error('Extended GitHub import is unavailable.');
+    if (!params || typeof params !== 'object') throw new Error('Fallback parameters are required.');
+    const input = params as Record<string, unknown>;
+    if (typeof input.planId !== 'string' || typeof input.componentId !== 'string' || typeof input.targetId !== 'string') {
+      throw new Error('planId, componentId and targetId are required.');
+    }
+    return deps.githubImportService.runFallback({ planId: input.planId, componentId: input.componentId, targetId: input.targetId });
   });
 
   deps.ipcMain.handle('zip:analyze', async (_event, zipPath: string) => {

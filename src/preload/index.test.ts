@@ -102,6 +102,18 @@ describe('preload bridge', () => {
     await api.githubImport.checkConflicts(['s1']);
     await api.githubImport.importSkills({ parsed: {}, skills: [], resolutions: {} });
     await api.githubImport.cancelImport();
+    await api.githubImport.getTargets();
+    await api.githubImport.plan({ parsed: { owner: 'owner', repo: 'repo', branch: 'main' }, selections: [] });
+    await api.githubImport.previewComponent({ parsed: { owner: 'owner', repo: 'repo', branch: 'main' }, componentId: 'skill:review' });
+    await api.githubImport.importComponents('plan-1');
+    await api.githubImport.activateHook({
+      planId: 'plan-1',
+      componentId: 'hook:hooks/hooks.json',
+      targetId: 'claude-code:global',
+      approval: { contentSha256: 'hash', events: ['SessionStart'] },
+    });
+    await api.githubImport.deactivateHook({ planId: 'plan-1', componentId: 'hook:hooks/hooks.json', targetId: 'claude-code:global' });
+    await api.githubImport.runFallback({ planId: 'plan-1', componentId: 'manual:install.ps1', targetId: 'claude-code:global' });
     await api.dialog.selectFolder({ defaultPath: 'C:/', title: 'Pick' });
     await api.dialog.selectFile({ defaultPath: 'C:/', title: 'Pick file', filters: [{ name: 'ZIP', extensions: ['zip'] }] });
     await api.zipImport.analyze('C:/skills.zip');
@@ -173,6 +185,18 @@ describe('preload bridge', () => {
     expect(invoke).toHaveBeenCalledWith('github:checkConflicts', ['s1']);
     expect(invoke).toHaveBeenCalledWith('github:importSkills', { parsed: {}, skills: [], resolutions: {} });
     expect(invoke).toHaveBeenCalledWith('github:cancelImport');
+    expect(invoke).toHaveBeenCalledWith('github:getTargets');
+    expect(invoke).toHaveBeenCalledWith('github:plan', { parsed: { owner: 'owner', repo: 'repo', branch: 'main' }, selections: [] });
+    expect(invoke).toHaveBeenCalledWith('github:previewComponent', { parsed: { owner: 'owner', repo: 'repo', branch: 'main' }, componentId: 'skill:review' });
+    expect(invoke).toHaveBeenCalledWith('github:importComponents', { planId: 'plan-1' });
+    expect(invoke).toHaveBeenCalledWith('github:activateHook', {
+      planId: 'plan-1',
+      componentId: 'hook:hooks/hooks.json',
+      targetId: 'claude-code:global',
+      approval: { contentSha256: 'hash', events: ['SessionStart'] },
+    });
+    expect(invoke).toHaveBeenCalledWith('github:deactivateHook', { planId: 'plan-1', componentId: 'hook:hooks/hooks.json', targetId: 'claude-code:global' });
+    expect(invoke).toHaveBeenCalledWith('github:runFallback', { planId: 'plan-1', componentId: 'manual:install.ps1', targetId: 'claude-code:global' });
     expect(invoke).toHaveBeenCalledWith(
       'dialog:selectFolder',
       { defaultPath: 'C:/', title: 'Pick' },

@@ -1,5 +1,15 @@
 // Type declarations for the Electron IPC API exposed via preload script
 
+import type { AnalyzeResult, ParsedGitHubRepo } from '../../../main/types/github';
+import type {
+  ImportActivationPreview,
+  ImportComponentResult,
+  ImportComponentSelection,
+  ImportPlan,
+  ImportProgress,
+  ImportTarget,
+} from '../../../main/types/import';
+
 declare const __APP_VERSION__: string;
 
 interface SkillFileEntry {
@@ -420,12 +430,34 @@ interface DialogAPI {
 }
 
 interface GitHubImportAPI {
-  parseUrl: (url: string) => Promise<any>;
-  analyze: (parsed: any) => Promise<any>;
+  parseUrl: (url: string) => Promise<ParsedGitHubRepo | { error: boolean; message: string }>;
+  analyze: (parsed: ParsedGitHubRepo) => Promise<AnalyzeResult | { error: boolean; message: string }>;
   checkConflicts: (names: string[]) => Promise<Record<string, boolean>>;
   importSkills: (params: any) => Promise<any[]>;
   cancelImport: () => Promise<any>;
+  getTargets: () => Promise<ImportTarget[]>;
+  plan: (params: { parsed: ParsedGitHubRepo; selections: ImportComponentSelection[] }) => Promise<ImportPlan>;
+  previewComponent: (params: { parsed: ParsedGitHubRepo; componentId: string; filePath?: string }) => Promise<{
+    componentId: string;
+    files: Array<{ path: string; content: string; truncated: boolean }>;
+    revision: AnalyzeResult['revision'];
+  }>;
+  importComponents: (planId: string) => Promise<ImportComponentResult[]>;
+  activateHook: (params: {
+    planId: string;
+    componentId: string;
+    targetId: string;
+    approval: { contentSha256: string; events: string[] };
+  }) => Promise<{ success: boolean; activation: ImportActivationPreview }>;
+  deactivateHook: (params: { planId: string; componentId: string; targetId: string }) => Promise<{ success: boolean }>;
+  runFallback: (params: { planId: string; componentId: string; targetId: string }) => Promise<{
+    success: boolean;
+    stdout: string;
+    stderr: string;
+    exitCode: number | null;
+  }>;
   onProgress: (callback: (progress: any) => void) => () => void;
+  onComponentProgress: (callback: (progress: ImportProgress) => void) => () => void;
 }
 
 interface ZipImportAPI {

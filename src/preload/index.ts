@@ -9,6 +9,15 @@ import type {
   SkillDistributionRepairResult,
   SkillDistributionReport,
 } from '../main/types/domain';
+import type { ParsedGitHubRepo } from '../main/types/github';
+import type {
+  ImportActivationPreview,
+  ImportComponentResult,
+  ImportComponentSelection,
+  ImportPlan,
+  ImportProgress,
+  ImportTarget,
+} from '../main/types/import';
 import type { UpdateOperationStatus } from '../main/services/update.service';
 
 // Expose protected methods that allow the renderer process to use
@@ -117,15 +126,44 @@ contextBridge.exposeInMainWorld('api', {
   // GitHub Import
   githubImport: {
     parseUrl: (url: string) => ipcRenderer.invoke('github:parseUrl', url),
-    analyze: (parsed: any) => ipcRenderer.invoke('github:analyze', parsed),
+    analyze: (parsed: ParsedGitHubRepo) => ipcRenderer.invoke('github:analyze', parsed),
     checkConflicts: (names: string[]) => ipcRenderer.invoke('github:checkConflicts', names),
     importSkills: (params: any) => ipcRenderer.invoke('github:importSkills', params),
     cancelImport: () => ipcRenderer.invoke('github:cancelImport'),
+    getTargets: (): Promise<ImportTarget[]> => ipcRenderer.invoke('github:getTargets'),
+    plan: (params: { parsed: ParsedGitHubRepo; selections: ImportComponentSelection[] }): Promise<ImportPlan> =>
+      ipcRenderer.invoke('github:plan', params),
+    previewComponent: (params: { parsed: ParsedGitHubRepo; componentId: string; filePath?: string }) =>
+      ipcRenderer.invoke('github:previewComponent', params),
+    importComponents: (planId: string): Promise<ImportComponentResult[]> =>
+      ipcRenderer.invoke('github:importComponents', { planId }),
+    activateHook: (params: {
+      planId: string;
+      componentId: string;
+      targetId: string;
+      approval: { contentSha256: string; events: string[] };
+    }): Promise<{ success: boolean; activation: ImportActivationPreview }> =>
+      ipcRenderer.invoke('github:activateHook', params),
+    deactivateHook: (params: { planId: string; componentId: string; targetId: string }): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke('github:deactivateHook', params),
+    runFallback: (params: { planId: string; componentId: string; targetId: string }): Promise<{
+      success: boolean;
+      stdout: string;
+      stderr: string;
+      exitCode: number | null;
+    }> => ipcRenderer.invoke('github:runFallback', params),
     onProgress: (callback: (progress: any) => void) => {
       const handler = (_event: any, progress: any) => callback(progress);
       ipcRenderer.on('github:importProgress', handler);
       return () => {
         ipcRenderer.removeListener('github:importProgress', handler);
+      };
+    },
+    onComponentProgress: (callback: (progress: ImportProgress) => void) => {
+      const handler = (_event: any, progress: ImportProgress) => callback(progress);
+      ipcRenderer.on('github:componentImportProgress', handler);
+      return () => {
+        ipcRenderer.removeListener('github:componentImportProgress', handler);
       };
     },
   },

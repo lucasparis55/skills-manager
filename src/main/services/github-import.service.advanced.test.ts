@@ -202,6 +202,26 @@ describe('GitHubImportService advanced', () => {
     expect(result.skills).toHaveLength(1);
   });
 
+  it('resolves the immutable commit tree and rejects truncated trees', async () => {
+    queueHttpResponses([
+      { statusCode: 200, body: JSON.stringify({ sha: 'commit-sha', commit: { tree: { sha: 'tree-sha' } } }) },
+      { statusCode: 200, body: JSON.stringify({ sha: 'tree-sha', truncated: false, tree: [{ path: 'SKILL.md', type: 'blob', sha: 'blob-sha', size: 12 }] }) },
+    ]);
+
+    const entries = await service.fetchRepoTree(parsed);
+    expect(entries).toHaveLength(1);
+    expect((entries as GitHubTreeEntry[] & { revision?: { commitSha?: string; treeSha?: string } }).revision).toMatchObject({
+      commitSha: 'commit-sha',
+      treeSha: 'tree-sha',
+    });
+
+    queueHttpResponses([
+      { statusCode: 200, body: JSON.stringify({ sha: 'commit-sha', commit: { tree: { sha: 'tree-sha' } } }) },
+      { statusCode: 200, body: JSON.stringify({ sha: 'tree-sha', truncated: true, tree: [] }) },
+    ]);
+    await expect(service.fetchRepoTree(parsed)).rejects.toThrow('truncated');
+  });
+
   it('imports skills with conflict resolution, rename, overwrite and cancellation', async () => {
     const repoInfo = {
       name: 'repo',
@@ -305,6 +325,12 @@ describe('GitHubImportService advanced', () => {
   });
 
   it('handles GitHub API redirect, rate-limit, not-found, invalid JSON, timeout and connection errors', async () => {
+    queueHttpResponses([{
+      statusCode: 302,
+      headers: { location: 'https://[::1]/repos/acme/skills' },
+    }]);
+    await expect(service.fetchRepoInfo(parsed)).rejects.toThrow('unsafe redirect');
+
     queueHttpResponses([
       {
         statusCode: 302,

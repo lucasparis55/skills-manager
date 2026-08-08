@@ -1116,11 +1116,14 @@ describe('registerIPCHandlers', () => {
       message: 'Invalid URL',
     });
 
-    await expect(harness.invoke('github:analyze', { owner: 'x', repo: 'y' })).resolves.toEqual({
+    await expect(harness.invoke('github:analyze', { owner: 'x', repo: 'y', branch: 'main' })).resolves.toEqual({
       error: true,
       message: 'Rate limited',
       isRateLimit: true,
     });
+
+    await expect(harness.invoke('github:analyze', { owner: '../x', repo: 'y', branch: 'main' }))
+      .resolves.toEqual({ error: true, message: 'Invalid GitHub owner.', isRateLimit: false });
 
     await expect(harness.invoke('zip:analyze', 'C:/skills.zip')).resolves.toEqual({
       error: true,
@@ -1465,6 +1468,44 @@ describe('registerIPCHandlers', () => {
       'zip:importProgress',
       expect.objectContaining({ current: 1, total: 1 }),
     );
+  });
+
+  it('validates and routes the extended component import lifecycle', async () => {
+    const sender = { send: vi.fn() };
+    const service = {
+      parseGitHubUrl: vi.fn(),
+      analyze: vi.fn(),
+      checkConflicts: vi.fn(),
+      importSkills: vi.fn(),
+      cancelImport: vi.fn(),
+      getImportTargets: vi.fn(() => [{ id: 'central' }]),
+      createImportPlan: vi.fn(async () => ({ id: 'plan-1', items: [] })),
+      previewComponent: vi.fn(async () => ({ componentId: 'skill:review', files: [], revision: { ref: 'main' } })),
+      importComponents: vi.fn(async (_planId: string, onProgress: (progress: any) => void) => {
+        onProgress({ current: 1, total: 1, phase: 'installing' });
+        return [{ componentId: 'skill:review', status: 'installed' }];
+      }),
+      activateHook: vi.fn(() => ({ success: true, activation: {} })),
+      deactivateHook: vi.fn(() => ({ success: true })),
+      runFallback: vi.fn(async () => ({ success: true, stdout: '', stderr: '' })),
+    };
+    const harness = createHarness({ githubImportService: service as any });
+    const parsed = { owner: 'acme', repo: 'repo', branch: 'main' };
+
+    await expect(harness.invoke('github:getTargets')).resolves.toEqual([{ id: 'central' }]);
+    await harness.invoke('github:plan', { parsed, selections: [] });
+    await harness.invoke('github:previewComponent', { parsed, componentId: 'skill:review' });
+    await harness.invokeWithSender('github:importComponents', sender, { planId: 'plan-1' });
+    await harness.invoke('github:activateHook', {
+      planId: 'plan-1', componentId: 'hook:hooks/hooks.json', targetId: 'central',
+      approval: { contentSha256: 'hash', events: ['SessionStart'] },
+    });
+    await harness.invoke('github:deactivateHook', { planId: 'plan-1', componentId: 'hook:hooks/hooks.json', targetId: 'central' });
+    await harness.invoke('github:runFallback', { planId: 'plan-1', componentId: 'manual:install.ps1', targetId: 'central' });
+
+    expect(service.createImportPlan).toHaveBeenCalledWith(parsed, [], expect.any(Array));
+    expect(sender.send).toHaveBeenCalledWith('github:componentImportProgress', expect.objectContaining({ phase: 'installing' }));
+    await expect(harness.invoke('github:previewComponent', { parsed: { owner: '../bad', repo: 'repo', branch: 'main' }, componentId: 'x' })).rejects.toThrow('owner');
   });
 });
 

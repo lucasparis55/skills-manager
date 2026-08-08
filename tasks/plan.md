@@ -1,136 +1,199 @@
-# Plano de Implementação: Saúde e Reparo da Distribuição de Skills
+# Implementation Plan: Importação completa de pacotes de agentes do GitHub
 
 ## Status
 
-Implementação concluída em fatias verticais; permanece somente a inspeção visual manual do modal em larguras reais, caso o app seja aberto em uma sessão interativa.
+Implementação concluída no workspace. O fluxo compatível de skills/ZIP foi
+preservado e o novo fluxo de componentes está coberto por testes, typecheck e
+build. Permanecem como verificações externas o smoke manual contra uma revisão
+remota fixa de `agent-skills` e a correção da configuração legada do ESLint 9.
 
 ## Overview
 
-Adicionar uma verificação de distribuição por skill para que o autor consiga confirmar, em um único fluxo, se os links globais e de projeto registrados pelo Skills Manager continuam apontando para a fonte central correta. O fluxo exibirá um diagnóstico por IDE/projeto e permitirá reparar somente os destinos gerenciados, mediante prévia e confirmação explícita.
+Substituir o pipeline atual, centrado em `DetectedSkill[]`, por análise,
+planejamento e instalação de componentes. O importador reconhecerá manifestos,
+skills, hooks, agentes, comandos, referências, scripts e assets, preservará
+dependências e oferecerá instalação por destino.
 
-A feature complementa as páginas atuais de Skills, Links, Projects e Global Skills. Ela não copiará conteúdo entre IDEs, não criará links para destinos que o usuário nunca registrou e não modificará links externos ou conflitantes.
-
-## Contexto atual
-
-- `SkillsPage` permite criar, editar, importar, excluir e filtrar skills gerenciadas.
-- `LinksPage` permite criar links globais/projeto, verificar links individuais ou todos, filtrar e remover links.
-- `ProjectsPage` cadastra, escaneia, filtra e remove projetos.
-- `GlobalSkillsView` inventaria skills globais por ferramenta, oferece prévia e remoção recuperável.
-- `DuplicatesPage` detecta cópias exatas em raízes globais e oferece remoção ou migração para a fonte central.
-- Settings já contém configuração de raízes, estratégia de symlink/junction e migração de links globais legados.
-
-### Lacuna que a feature resolve
-
-Depois de editar uma skill, o usuário não tem um ponto de entrada contextual para saber quais destinos dessa skill estão quebrados, em conflito, indisponíveis ou em caminho legado. Ele precisa sair da skill e verificar os links manualmente.
-
-## Objetivo e não objetivos
-
-### Objetivos
-
-- Verificar todos os links persistidos de uma skill em uma única ação.
-- Mostrar estado, IDE, projeto/escopo, destino e motivo do diagnóstico.
-- Oferecer reparo explícito apenas para itens revalidáveis e gerenciados.
-- Revalidar IDs e caminhos no processo principal antes de qualquer alteração.
-- Reportar sucesso, falha parcial e rollback de cada item reparado.
-- Preservar o fluxo atual de criação, edição, links, migração e inventário global.
-
-### Fora do escopo
-
-- Copiar ou sincronizar conteúdo entre diretórios.
-- Criar automaticamente links em todos os projetos ou IDEs detectados.
-- Alterar links externos/desconhecidos.
-- Sobrescrever arquivos, diretórios ou links em conflito.
-- Adicionar novas IDEs, dependências ou um formato persistido novo.
-- Substituir a página de Links ou a migração explícita existente em Settings.
-
-## Dependency graph
-
-```text
-Contratos de diagnóstico e reparo
-    │
-    ├── SkillHealthService no processo principal
-    │       │
-    │       ├── SkillService / LinkService
-    │       ├── SymlinkService / IDEAdapterService
-    │       ├── ProjectService / SettingsService
-    │       └── LinkMigrationService para destinos globais legados
-    │
-    ├── IPC handlers + preload tipado
-    │       │
-    │       └── window.api.skills.checkDistribution / repairDistribution
-    │
-    └── SkillHealthDialog + SkillsPage
-            │
-            └── verificação pós-edição e reparo confirmado
-```
+O fluxo de ZIP e `importSkills` permanecerá compatível durante a migração,
+reduzindo o risco de regressão enquanto a nova UI passa ao contrato de
+componentes.
 
 ## Architecture Decisions
 
-- **Serviço orquestrador dedicado:** criar `SkillHealthService` em vez de concentrar diagnóstico e reparo em `LinkService`. O serviço coordena uma skill e seus destinos; `LinkService` continua responsável por persistência e verificação básica.
-- **API agrupada por recurso:** expor a feature em `window.api.skills`, com `checkDistribution(skillId)` e `repairDistribution(skillId, linkIds)`. O renderer enviará IDs opacos, nunca caminhos locais.
-- **Revalidação no processo principal:** o processo principal fará novo lookup da skill, dos links e das raízes permitidas no início do diagnóstico e novamente antes do reparo. O resultado mostrado na UI não será tratado como autorização.
-- **Diagnóstico baseado em links registrados:** a feature verificará destinos que já pertencem ao inventário persistido. Ela não inferirá que uma skill deveria estar instalada em todo projeto detectado.
-- **Estados explícitos:** usar estados tipados como `healthy`, `broken`, `conflict`, `legacy` e `unavailable`, sempre acompanhados de texto explicativo e de `repairable`.
-- **Reparo seguro por item:** links quebrados gerenciados podem ser recriados se o destino estiver livre; conflitos e links externos serão bloqueados. Destinos globais legados devem reutilizar as regras de `LinkMigrationService`.
-- **Rollback e resultado parcial:** cada item retornará seu resultado; se uma etapa criar um destino e a persistência posterior falhar, o destino criado será removido e o estado anterior será preservado quando possível.
-- **UI contextual:** não criar um novo item de menu. A ação ficará na linha da skill, com modal controlado baseado em Radix Dialog, relatório agrupado e confirmação antes de reparar.
-- **Sem dependências novas:** reutilizar React, Radix Dialog/Select, Tailwind, IPC existente e serviços de filesystem já presentes.
+- **Contrato discriminado:** `ImportComponent`, `ImportAnalysis`,
+  `ImportPlan`, conflitos e resultados por item; sem `any` na nova API.
+- **Revisão imutável:** resolver branch/tag para commit/tree SHA antes da
+  análise e usar a mesma revisão ao baixar os arquivos.
+- **Detector manifest-first:** consultar manifestos conhecidos e depois aplicar
+  convenções explícitas; recursos compartilhados entram como dependências.
+- **Plano antes da mutação:** análise, seleção, destino, risco e conflito são
+  fases distintas; o main revalida o plano antes de instalar.
+- **Registry de adapters:** cada ferramenta declara tipos, escopos, paths,
+  preview, conflito, rollback e capacidade de ativar hooks.
+- **Staging central:** snapshots ficam em
+  `getAppDataDir()/imports/<importId>/source`; skills continuam usando a
+  fonte central e links atuais.
+- **Hooks em duas operações:** instalar desabilitado e ativar somente depois de
+  diff, backup e segunda confirmação.
+- **Subprocessos restritos:** fallback usa `spawn`/`execFile` sem shell por
+  padrão, captura saída e aceita cancelamento; shell/elevação exige confirmação.
+- **Conflito conservador:** bloquear por padrão; merge só para schemas
+  conhecidos e sempre com backup.
+- **Proveniência JSON:** `imports.json` segue o padrão de
+  `LinkService`/`ProjectService` e permite atualização futura.
+
+## Dependency Graph
+
+```text
+Path safety + contracts
+        |
+        +-- Revision-aware GitHub acquisition
+                |
+                +-- Component detector + dependency graph
+                        |
+                        +-- Selection/target plan
+                                |
+                +---------------+----------------+
+                |               |                |
+             Staging        Fallback          Hooks
+                +---------------+----------------+
+                                |
+                    Native adapters + provenance
+                                |
+                         IPC + typed preload
+                                |
+                         Inventory/review UI
+                                |
+                  Integration and quality gates
+```
 
 ## Documentação externa consultada
 
-- Electron `33.4.11`, biblioteca Context7 `/electron/electron`: usar `ipcMain.handle` + `ipcRenderer.invoke` para request/response e expor somente wrappers mínimos pelo `contextBridge`, sem expor o `ipcRenderer` inteiro. Referências oficiais: [IPC Main](https://github.com/electron/electron/blob/main/docs/api/ipc-main.md), [IPC tutorial](https://github.com/electron/electron/blob/main/docs/tutorial/ipc.md) e [Security](https://github.com/electron/electron/blob/main/docs/tutorial/security.md).
-- Radix Primitives `@radix-ui/react-dialog@1.1.15`, biblioteca Context7 `/radix-ui/primitives`: manter `Dialog.Title`/`Dialog.Description`, foco preso no modal, Escape, fechamento controlado e retorno de foco ao acionador. Referência oficial: [Dialog source](https://github.com/radix-ui/primitives/blob/main/packages/react/dialog/src/dialog.tsx).
+- Electron `/electron/electron`, lockfile `33.4.11`: wrappers mínimos via
+  `contextBridge`, `ipcRenderer.invoke` e `ipcMain.handle`; fontes:
+  [Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation)
+  e [IPC](https://www.electronjs.org/docs/latest/tutorial/ipc).
+- Node.js `/nodejs/node`: `spawn`/`execFile`, pipes de stdout/stderr e
+  `AbortSignal`; fonte:
+  [Child process](https://nodejs.org/api/child_process.html). O runtime não é
+  fixado no `package.json`; testar no Node embarcado pelo Electron e Windows.
+- GitHub REST `/websites/github_en_rest`: refs/branches, árvores por SHA e
+  contents por path; fontes:
+  [Git trees](https://docs.github.com/en/rest/git/trees),
+  [Git refs](https://docs.github.com/en/rest/git/refs),
+  [Branches](https://docs.github.com/en/rest/branches/branches) e
+  [Contents](https://docs.github.com/en/rest/repos/contents).
+- Radix Primitives `/radix-ui/primitives`, lockfile `1.1.15`: Dialog
+  controlado, título/descrição, foco, Escape e retorno de foco; fonte:
+  [Dialog](https://www.radix-ui.com/primitives/docs/components/dialog).
 
 ## Task List
 
-### Phase 1: Contrato e diagnóstico seguro
+### Phase 1: Análise confiável
 
-- [x] Task 1: Definir contratos e implementar o diagnóstico por skill.
-- [x] Task 2: Expor o diagnóstico por IPC e preload tipado.
+- [x] Task 1: Contratos de importação e segurança de paths
+- [x] Task 2: Aquisição por revisão resolvida
+- [x] Task 3: Detector de componentes e grafo de dependências
 
-### Checkpoint: Diagnóstico
+### Checkpoint: Análise
 
-- [x] Uma skill com link válido, quebrado, conflitante e legado pode ser diagnosticada em fixtures reais.
-- [x] O renderer recebe somente IDs e dados de apresentação; nenhum caminho arbitrário é aceito como alvo.
+- [x] Fixture equivalente a `agent-skills` lista todos os componentes sem
+      escrever ou executar nada.
+- [x] Ref, commit/tree SHA, paths relativos e erros de manifesto aparecem.
 - [x] Testes focados e typecheck passam.
+- [x] Revisão humana antes das primeiras mutações.
 
-### Phase 2: Relatório e reparo explícito
+### Phase 2: Plano e barreiras
 
-- [x] Task 3: Criar o relatório visual de saúde da skill.
-- [x] Task 4: Implementar reparo seguro no processo principal.
-- [x] Task 5: Integrar prévia, confirmação e resultados de reparo na UI.
+- [x] Task 4: Plano de seleção, destinos e dependências
+- [x] Task 5: Staging seguro e materialização
+- [x] Task 6: Fallback de comando autorizado
+- [x] Task 7: Ciclo de vida seguro de hooks
 
-### Checkpoint: Fluxo principal
+### Checkpoint: Plano seguro
 
-- [x] O autor abre uma skill, verifica todos os destinos, entende os problemas e repara apenas os itens selecionados após confirmação.
-- [x] Conflitos, destinos externos, projetos indisponíveis e falhas parciais permanecem protegidos e visíveis.
-- [x] A página Links continua funcionando sem regressão.
+- [x] Plano pode ser criado, revisado e expirado sem instalar.
+- [x] Traversal, symlink, arquivo grande e manifesto inválido são bloqueados.
+- [x] Fallback não executa na análise e possui saída/cancelamento.
+- [x] Hook é instalado desabilitado e ativa em chamada separada.
 
-### Phase 3: Integração pós-edição e verificação final
+### Phase 3: Instalação e proveniência
 
-- [x] Task 6: Verificar a distribuição após salvar uma edição e oferecer retorno contextual.
-- [x] Task 7: Executar regressão, acessibilidade, lint, typecheck, testes e build.
+- [x] Task 8: Registry de capacidades e adaptador de skill
+- [x] Task 9: Operações de arquivos, conflitos e rollback
+- [x] Task 10: Proveniência e atualização
 
-### Checkpoint: Completo
+### Checkpoint: Backend instalável
 
-- [x] Todos os critérios de aceitação do plano passam.
-- [x] O fluxo foi verificado em 320px, 768px, 1024px e 1440px com capturas reais do renderer; o fixture visual cobriu relatório com estados mistos e confirmação explícita.
-- [x] O plano está pronto para revisão da implementação executada.
+- [x] Seleção mista instala em destinos válidos.
+- [x] Conflitos bloqueiam; backups, rollback e falhas parciais são reportados.
+- [x] Cada item aponta para origem, revisão, destino e método em
+      `imports.json`.
+
+### Phase 4: API e UX
+
+- [x] Task 11: IPC, preload e contratos tipados
+- [x] Task 12: Inventário e mapeamento de destinos
+- [x] Task 13: Revisão, confirmação, ativação e resultados
+
+### Checkpoint: Fluxo completo
+
+- [x] Wizard percorre URL, análise, seleção, destino, riscos, conflitos,
+      instalação e resultado.
+- [x] Hooks, fallbacks, diffs, erros e falhas parciais são visíveis.
+- [x] A UI permanece acessível e responsiva.
+
+### Phase 5: Integração e qualidade
+
+- [x] Task 14: Smoke test do pacote de referência e regressão do ZIP
+- [x] Task 15: Gates finais e documentação
+
+### Checkpoint: Complete
+
+- [x] Critérios da spec passam com evidência.
+- [x] Testes, typecheck, lint e build são executados e registrados.
+- [x] Plano/todo refletem o estado real.
+
+## Parallelization Opportunities
+
+- Tasks 1–3 são sequenciais porque todos dependem do contrato e do grafo.
+- Tasks 5–7 podem ser paralelas depois que Task 4 estabilizar os contratos.
+- Tasks 8 e 10 podem avançar em paralelo após Task 5; Task 9 integra os dois.
+- A estrutura visual da Task 12 pode avançar após Task 11; confirmação real
+  depende dos contratos backend da Task 13.
+- Task 14 e documentação final só ocorrem após as fatias funcionais.
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Reparar um destino que deixou de pertencer ao Skills Manager | Alto | Aceitar somente `linkIds`, revalidar fonte, destino, escopo e ownership no processo principal |
-| Sobrescrever arquivo ou diretório real em um destino conflitante | Alto | Classificar como `conflict`, bloquear reparo e exigir resolução fora da feature |
-| Projeto ou IDE não estar disponível durante o reparo | Alto | Mostrar `unavailable`, não fabricar projeto/raiz e permitir retry após o ambiente voltar |
-| Caminho global legado usar regra diferente da atual | Alto | Delegar a migração para `LinkMigrationService` e preservar o fluxo opt-in de Settings |
-| Falha no meio de um reparo em lote | Alto | Revalidar antes de cada item, resultado por item, rollback de criação e persistência transacional quando possível |
-| Usuário interpretar “sincronizar” como cópia de conteúdo | Médio | Rotular a feature como saúde/reparo de distribuição e explicar que links apontam para a fonte central |
-| Modal crescer demais e ficar difícil de usar | Médio | Componente dedicado, resumo no topo, filtros, agrupamento por destino e cards responsivos no mobile |
-| Lint global continuar bloqueado pelo estado legado | Médio | Registrar baseline antes da implementação e exigir que os arquivos alterados não adicionem novos erros |
+|------|--------|------------|
+| Ref muda durante instalação | Alto | Registrar commit/tree SHA e rejeitar plano divergente |
+| Manifest aponta fora da árvore | Alto | Normalização, allowlist e testes de traversal |
+| Hook/script malicioso | Alto | Staging desabilitado, segunda confirmação, diff e backup |
+| Fallback executa shell inesperado | Alto | Processo direto sem shell; confirmação extra para shell/elevação |
+| Path de ferramenta incorreto | Alto | Adapter registry, docs oficiais e status manual sem adivinhação |
+| Recurso compartilhado omitido | Alto | Grafo de dependências e seleção em cascata |
+| Configuração sobrescrita | Alto | Conflito bloqueado, diff, backup e merge conhecido |
+| Árvore GitHub truncada/rate limit | Médio | Verificar `truncated`, tratar rate limit e reportar incompletude |
+| Regressão de ZIP/skills | Médio | Wrapper compatível e testes de migração incremental |
+| Wizard grande | Médio | Componentes por fase, resumo de risco, foco Radix e testes responsivos |
+| .cmd/.bat no Windows | Médio | Resolver executável por plataforma e testar sem shell implícito |
 
 ## Open Questions
 
-- Nenhuma pergunta bloqueante para iniciar a implementação.
-- A semântica de `legacy` e a estratégia de rollback foram implementadas com allowlist de raízes conhecidas, revalidação do novo link e bloqueio conservador em caso de indisponibilidade.
+- A matriz final de paths/capacidades de Claude, Codex, OpenCode, Kimi e Cursor
+  deve ser validada nas documentações oficiais durante a implementação. Se um
+  schema não for confirmável, o adapter retorna `manual`.
+- A ativação de hooks em configuração compartilhada deve manter desativação
+  correspondente; fechar isso na Task 7 com fixtures reais.
+- Se “suporte total” incluir ferramenta fora do catálogo atual de
+  `IDEAdapterService`, isso deve ser uma decisão explícita antes da Task 8.
+
+## Definition of Done
+
+- Cada task possui critérios e verificação em `tasks/todo.md`.
+- Nenhuma task de implementação prevê mais de cinco arquivos.
+- Todo código novo possui testes unitários/integrados proporcionais ao risco.
+- Não há execução de terceiros durante análise ou sem confirmação.
+- O usuário consegue auditar origem, destino, risco, resultado e rollback.
+- O plano é revisado e aprovado antes da implementação.

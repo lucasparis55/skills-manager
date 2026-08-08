@@ -5,12 +5,21 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Circle,
   ChevronRight,
   Info,
   AlertTriangle,
 } from 'lucide-react';
 import { useToast } from './Toast';
+import type {
+  ImportActivationPreview,
+  ImportComponent,
+  ImportComponentResult,
+  ImportComponentSelection,
+  ImportPlan,
+  ImportProgress as ComponentImportProgress,
+  ImportTarget,
+} from '../../../../main/types/import';
+import { GitHubImportComponentFlow, type GitHubComponentPreview } from './GitHubImportComponentFlow';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -51,7 +60,15 @@ interface ImportProgress {
   percentComplete: number;
 }
 
-type Phase = 'url-input' | 'preview' | 'conflicts' | 'importing' | 'results';
+type Phase =
+  | 'url-input'
+  | 'preview'
+  | 'conflicts'
+  | 'importing'
+  | 'results'
+  | 'component-review'
+  | 'component-importing'
+  | 'component-results';
 
 interface GitHubImportDialogProps {
   open: boolean;
@@ -76,6 +93,14 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
   const [resolutions, setResolutions] = useState<Record<string, ConflictResolution>>({});
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [componentMode, setComponentMode] = useState(false);
+  const [components, setComponents] = useState<ImportComponent[]>([]);
+  const [targets, setTargets] = useState<ImportTarget[]>([]);
+  const [componentSelections, setComponentSelections] = useState<Record<string, ImportComponentSelection>>({});
+  const [componentPlan, setComponentPlan] = useState<ImportPlan | null>(null);
+  const [componentResults, setComponentResults] = useState<ImportComponentResult[]>([]);
+  const [componentProgress, setComponentProgress] = useState<ComponentImportProgress | null>(null);
+  const [componentPreview, setComponentPreview] = useState<GitHubComponentPreview | null>(null);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   useToast();
@@ -98,6 +123,14 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     setResolutions({});
     setImportResults([]);
     setProgress(null);
+    setComponentMode(false);
+    setComponents([]);
+    setTargets([]);
+    setComponentSelections({});
+    setComponentPlan(null);
+    setComponentResults([]);
+    setComponentProgress(null);
+    setComponentPreview(null);
     setError('');
     setLoading(false);
   };
@@ -107,6 +140,15 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     if (phase === 'importing') {
       const unsubscribe = window.api.githubImport.onProgress((p: ImportProgress) => {
         setProgress(p);
+      });
+      return unsubscribe;
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'component-importing') {
+      const unsubscribe = window.api.githubImport.onComponentProgress((nextProgress: ComponentImportProgress) => {
+        setComponentProgress(nextProgress);
       });
       return unsubscribe;
     }
@@ -147,6 +189,42 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
       setRepoInfo(analyzeResult.repoInfo);
       setDetectedSkills(analyzeResult.skills);
 
+      const analyzedComponents = Array.isArray(analyzeResult.components)
+        ? analyzeResult.components as ImportComponent[]
+        : [];
+      if (analyzedComponents.length > 0) {
+        const discoveredTargets = await window.api.githubImport.getTargets();
+        const analyzedTargets = discoveredTargets.length > 0
+          ? discoveredTargets as ImportTarget[]
+          : Array.isArray(analyzeResult.targets) ? analyzeResult.targets as ImportTarget[] : [];
+        const defaultSelections: Record<string, ImportComponentSelection> = {};
+
+        for (const component of analyzedComponents) {
+          const preferredTarget = component.kind === 'skill'
+            ? analyzedTargets.find((target) => target.id === 'central')
+            : component.nativeTargets
+              .map((adapterId) => analyzedTargets.find((target) => target.adapterId === adapterId || target.id === adapterId))
+              .find(Boolean);
+          const compatibleTarget = analyzedTargets.find((target) => target.supportedKinds.includes(component.kind));
+          const target = preferredTarget || compatibleTarget || analyzedTargets[0];
+          defaultSelections[component.id] = {
+            componentId: component.id,
+            targetId: target?.id || '',
+            selected: true,
+            conflictStrategy: 'block',
+            activate: false,
+            fallbackAuthorized: false,
+          };
+        }
+
+        setComponentMode(true);
+        setComponents(analyzedComponents);
+        setTargets(analyzedTargets);
+        setComponentSelections(defaultSelections);
+        setPhase('preview');
+        return;
+      }
+
       // Select all skills by default
       const allNames = new Set(analyzeResult.skills.map((s: DetectedSkill) => s.name));
       setSelectedSkills(allNames);
@@ -162,6 +240,26 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
   // ─── Phase 2: Selection → check conflicts ────────────────────────
 
   const handleImportSelected = async () => {
+    if (componentMode) {
+      const selections = Object.values(componentSelections).filter((selection) => selection.selected);
+      if (selections.length === 0) return;
+
+      setLoading(true);
+      setError('');
+      try {
+        const plan = await window.api.githubImport.plan({ parsed, selections });
+        setComponentPlan(plan as ImportPlan);
+        setComponentResults([]);
+        setComponentProgress(null);
+        setPhase('component-review');
+      } catch (err: any) {
+        setError(err.message || 'Failed to create import plan');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const selectedNames = Array.from(selectedSkills);
     if (selectedNames.length === 0) return;
 
@@ -215,6 +313,86 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     }
   };
 
+  const startComponentImport = async () => {
+    if (!componentPlan) return;
+    setPhase('component-importing');
+    setComponentProgress(null);
+    setComponentResults([]);
+    setError('');
+
+    try {
+      const results = await window.api.githubImport.importComponents(componentPlan.id);
+      setComponentResults(results as ImportComponentResult[]);
+      setPhase('component-results');
+    } catch (err: any) {
+      setError(err.message || 'Component import failed');
+      setPhase('component-results');
+    }
+  };
+
+  const handlePreviewComponent = async (component: ImportComponent) => {
+    if (!parsed) return;
+    setError('');
+    try {
+      const preview = await window.api.githubImport.previewComponent({
+        parsed,
+        componentId: component.id,
+      });
+      setComponentPreview(preview as GitHubComponentPreview);
+    } catch (err: any) {
+      setError(err.message || 'Failed to preview component files');
+    }
+  };
+
+  const handleActivateHook = async (item: ImportPlan['items'][number], activation: ImportActivationPreview) => {
+    if (!componentPlan) return;
+    setError('');
+    try {
+      const response = await window.api.githubImport.activateHook({
+        planId: componentPlan.id,
+        componentId: item.component.id,
+        targetId: item.target.id,
+        approval: {
+          contentSha256: activation.contentSha256,
+          events: activation.events,
+        },
+      });
+      setComponentResults((previous) => previous.map((result) => (
+        result.componentId === item.component.id && result.targetId === item.target.id
+          ? { ...result, status: 'activated', activation: (response as { activation?: ImportActivationPreview }).activation || { ...activation, currentlyActive: true } }
+          : result
+      )));
+    } catch (err: any) {
+      setError(err.message || 'Hook activation failed');
+    }
+  };
+
+  const handleRunFallback = async (item: ImportPlan['items'][number]) => {
+    if (!componentPlan) return;
+    setError('');
+    try {
+      const response = await window.api.githubImport.runFallback({
+        planId: componentPlan.id,
+        componentId: item.component.id,
+        targetId: item.target.id,
+      });
+      setComponentResults((previous) => previous.map((result) => (
+        result.componentId === item.component.id && result.targetId === item.target.id
+          ? {
+            ...result,
+            status: response.success ? 'installed' : 'failed',
+            message: response.success ? 'Authorized fallback completed.' : response.stderr || 'Fallback command failed.',
+            error: response.success ? undefined : response.stderr,
+            stdout: response.stdout,
+            stderr: response.stderr,
+          }
+          : result
+      )));
+    } catch (err: any) {
+      setError(err.message || 'Fallback command failed');
+    }
+  };
+
   const handleCancelImport = async () => {
     await window.api.githubImport.cancelImport();
   };
@@ -253,9 +431,10 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
   const importedCount = importResults.filter(r => r.status === 'imported' || r.status === 'renamed').length;
   const skippedCount = importResults.filter(r => r.status === 'skipped').length;
   const errorCount = importResults.filter(r => r.status === 'error').length;
+  const componentImportedCount = componentResults.filter((result) => result.status === 'installed' || result.status === 'activated').length;
 
   const handleClose = () => {
-    if (importedCount > 0) {
+    if (importedCount > 0 || componentImportedCount > 0) {
       onImportComplete?.();
     }
     onOpenChange(false);
@@ -272,6 +451,16 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
     }
   };
 
+  const isComponentPhase = phase === 'preview'
+    || phase === 'component-review'
+    || phase === 'component-importing'
+    || phase === 'component-results';
+  const componentFlowPhase = phase === 'component-review'
+    || phase === 'component-importing'
+    || phase === 'component-results'
+    ? phase
+    : 'preview';
+
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
@@ -284,6 +473,9 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
             <DialogPrimitive.Title className="text-lg font-semibold text-white">
               Import from GitHub
             </DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              Review repository components, destinations, conflicts and activation before installing.
+            </DialogPrimitive.Description>
             <DialogPrimitive.Close className="text-white/40 hover:text-white/80">
               <X className="w-5 h-5" />
             </DialogPrimitive.Close>
@@ -367,7 +559,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
             )}
 
             {/* ── Phase 2: Preview & Selection ── */}
-            {phase === 'preview' && (
+            {phase === 'preview' && !componentMode && (
               <div className="space-y-4">
                 <div>
                   <h3 className="text-white font-medium">{repoInfo?.fullName}</h3>
@@ -455,6 +647,34 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+
+            {componentMode && isComponentPhase && (
+              <GitHubImportComponentFlow
+                phase={componentFlowPhase}
+                repoInfo={repoInfo}
+                components={components}
+                targets={targets}
+                selections={componentSelections}
+                plan={componentPlan}
+                results={componentResults}
+                progress={componentProgress}
+                preview={componentPreview}
+                loading={loading}
+                onSelectionChange={(selection) => setComponentSelections((previous) => ({
+                  ...previous,
+                  [selection.componentId]: selection,
+                }))}
+                onPreview={handlePreviewComponent}
+                onClosePreview={() => setComponentPreview(null)}
+                onBackToUrl={() => { setPhase('url-input'); setError(''); }}
+                onReview={handleImportSelected}
+                onBackToInventory={() => setPhase('preview')}
+                onInstall={startComponentImport}
+                onActivateHook={handleActivateHook}
+                onRunFallback={handleRunFallback}
+                onClose={handleClose}
+              />
             )}
 
             {/* ── Phase 3: Conflict Resolution ── */}
