@@ -1,4 +1,6 @@
-import { autoUpdater, shell } from 'electron';
+import { spawn } from 'child_process';
+import { app, shell } from 'electron';
+import path from 'path';
 import packageJson from '../../../package.json';
 
 const GITHUB_API_URL = 'https://api.github.com/repos/lucasparis55/skills-manager/releases/latest';
@@ -16,7 +18,12 @@ export interface UpdateCheckResult {
   publishedAt: string | null;
 }
 
-export type UpdateOperationStatus = 'downloading' | 'installing';
+export type UpdateOperationStage = 'downloading' | 'installing';
+
+export interface UpdateOperationProgress {
+  stage: UpdateOperationStage;
+  percent: number;
+}
 
 interface GitHubRelease {
   tag_name: string;
@@ -25,22 +32,21 @@ interface GitHubRelease {
   published_at: string | null;
 }
 
-interface AutoUpdaterLike {
-  setFeedURL(options: { url: string }): void;
-  checkForUpdates(): void;
-  quitAndInstall(): void;
-  on(event: 'error', listener: (error: Error) => void): void;
-  on(event: 'update-downloaded', listener: () => void): void;
-  on(event: 'update-not-available', listener: () => void): void;
-  removeListener(event: 'error', listener: (error: Error) => void): void;
-  removeListener(event: 'update-downloaded', listener: () => void): void;
-  removeListener(event: 'update-not-available', listener: () => void): void;
+interface UpdateProcessLike {
+  stdout: NodeJS.ReadableStream;
+  stderr: NodeJS.ReadableStream;
+  once(event: 'error', listener: (error: Error) => void): this;
+  once(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): this;
 }
 
 interface UpdateServiceDependencies {
   fetch: typeof fetch;
   shell: { openExternal: (url: string) => Promise<void> };
-  autoUpdater: AutoUpdaterLike;
+  spawnUpdate: (executable: string, args: string[]) => UpdateProcessLike;
+  updateExecutable: string;
+  launcherExecutable: string;
+  relaunch: (options: { execPath: string }) => void;
+  quit: () => void;
   isPackaged: boolean;
   platform: NodeJS.Platform;
   currentVersion: string;
@@ -60,6 +66,31 @@ function stripVersionPrefix(version: string): string {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+export function resolveUpdateExecutable(execPath: string): string {
+  return path.resolve(path.dirname(execPath), '..', 'Update.exe');
+}
+
+export function resolveLauncherExecutable(execPath: string): string {
+  return path.resolve(path.dirname(execPath), '..', path.basename(execPath));
+}
+
+function parseProgressLine(line: string): number | null {
+  const normalized = line.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+
+  const value = Number(normalized);
+  return Number.isInteger(value) && value >= 0 && value <= 100 ? value : null;
+}
+
+function progressStage(percent: number): UpdateOperationStage {
+  return percent >= 30 ? 'installing' : 'downloading';
+}
+
+function buildUpdateProcessError(stderr: string, exitCode: number | null): Error {
+  const message = stderr.trim();
+  return new Error(message || `Update process exited with code ${exitCode ?? 'unknown'}`);
 }
 
 function parseGitHubRelease(data: unknown): GitHubRelease {
@@ -129,7 +160,15 @@ export class UpdateService {
     this.deps = {
       fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
       shell: deps.shell ?? { openExternal: (url: string) => shell.openExternal(url) },
-      autoUpdater: deps.autoUpdater ?? autoUpdater,
+      spawnUpdate: deps.spawnUpdate ?? ((executable, args) => spawn(executable, args, {
+        shell: false,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })),
+      updateExecutable: deps.updateExecutable ?? resolveUpdateExecutable(process.execPath),
+      launcherExecutable: deps.launcherExecutable ?? resolveLauncherExecutable(process.execPath),
+      relaunch: deps.relaunch ?? ((options) => app.relaunch(options)),
+      quit: deps.quit ?? (() => app.quit()),
       isPackaged: deps.isPackaged ?? false,
       platform: deps.platform ?? process.platform,
       currentVersion: deps.currentVersion ?? packageJson.version,
@@ -179,7 +218,9 @@ export class UpdateService {
     }
   }
 
-  async downloadAndInstall(onStatus: (status: UpdateOperationStatus) => void = () => {}): Promise<void> {
+  async downloadAndInstall(
+    onProgress: (progress: UpdateOperationProgress) => void = () => {},
+  ): Promise<void> {
     if (!this.canUpdate()) {
       throw new Error('App updates are only supported on packaged Windows installations');
     }
@@ -195,44 +236,75 @@ export class UpdateService {
     const feedUrl = buildReleaseFeedUrl(this.availableRelease.latestVersion);
     const updatePromise = new Promise<void>((resolve, reject) => {
       let settled = false;
-
-      const cleanup = () => {
-        this.deps.autoUpdater.removeListener('error', handleError);
-        this.deps.autoUpdater.removeListener('update-downloaded', handleDownloaded);
-        this.deps.autoUpdater.removeListener('update-not-available', handleNotAvailable);
-      };
+      let lastPercent = -1;
+      let stdoutBuffer = '';
+      let stderr = '';
 
       const fail = (error: unknown) => {
         if (settled) return;
         settled = true;
-        cleanup();
         reject(toError(error));
       };
 
-      const handleError = (error: Error) => fail(error);
-      const handleDownloaded = () => {
-        if (settled) return;
+      const reportProgress = (percent: number) => {
+        if (percent <= lastPercent) return;
+        lastPercent = percent;
         try {
-          onStatus('installing');
-          this.deps.autoUpdater.quitAndInstall();
+          onProgress({ stage: progressStage(percent), percent });
+        } catch (error) {
+          fail(error);
+        }
+      };
+
+      const handleStdout = (chunk: Buffer | string) => {
+        stdoutBuffer += chunk.toString();
+        const lines = stdoutBuffer.split(/\r?\n/);
+        stdoutBuffer = lines.pop() ?? '';
+        lines.forEach((line) => {
+          const percent = parseProgressLine(line);
+          if (percent !== null) reportProgress(percent);
+        });
+      };
+
+      const flushStdout = () => {
+        const percent = parseProgressLine(stdoutBuffer);
+        if (percent !== null) reportProgress(percent);
+        stdoutBuffer = '';
+      };
+
+      const handleClose = (exitCode: number | null) => {
+        if (settled) return;
+        flushStdout();
+        if (settled) return;
+
+        if (exitCode !== 0) {
+          fail(buildUpdateProcessError(stderr, exitCode));
+          return;
+        }
+
+        try {
+          reportProgress(100);
+          if (settled) return;
+          this.deps.relaunch({ execPath: this.deps.launcherExecutable });
+          this.deps.quit();
           this.availableRelease = null;
           settled = true;
-          cleanup();
           resolve();
         } catch (error) {
           fail(error);
         }
       };
-      const handleNotAvailable = () => fail(new Error('The update is no longer available'));
-
-      this.deps.autoUpdater.on('error', handleError);
-      this.deps.autoUpdater.on('update-downloaded', handleDownloaded);
-      this.deps.autoUpdater.on('update-not-available', handleNotAvailable);
 
       try {
-        onStatus('downloading');
-        this.deps.autoUpdater.setFeedURL({ url: feedUrl });
-        this.deps.autoUpdater.checkForUpdates();
+        reportProgress(0);
+        if (settled) return;
+        const updateProcess = this.deps.spawnUpdate(this.deps.updateExecutable, ['--update', feedUrl]);
+        updateProcess.stdout.on('data', handleStdout);
+        updateProcess.stderr.on('data', (chunk: Buffer | string) => {
+          stderr += chunk.toString();
+        });
+        updateProcess.once('error', fail);
+        updateProcess.once('close', handleClose);
       } catch (error) {
         fail(error);
       }

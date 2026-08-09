@@ -21,6 +21,7 @@ interface UpdateResult {
 interface UseUpdateCheckerReturn {
   status: UpdateStatus;
   result: UpdateResult | null;
+  progress: UpdateOperationProgress | null;
   error: string | null;
   checkNow: () => Promise<void>;
   startUpdate: () => Promise<void>;
@@ -36,17 +37,20 @@ function getErrorMessage(error: unknown): string {
 export function useUpdateChecker(checkForUpdates: boolean | undefined): UseUpdateCheckerReturn {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [result, setResult] = useState<UpdateResult | null>(null);
+  const [progress, setProgress] = useState<UpdateOperationProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkNow = useCallback(async () => {
     if (!checkForUpdates) {
       setStatus('idle');
+      setProgress(null);
       setError(null);
       return;
     }
 
     setStatus('checking');
+    setProgress(null);
     setError(null);
     try {
       const data = await window.api.update.check();
@@ -63,12 +67,14 @@ export function useUpdateChecker(checkForUpdates: boolean | undefined): UseUpdat
       return;
     }
 
+    setProgress({ stage: 'downloading', percent: 0 });
     setStatus('downloading');
     setError(null);
     try {
       await window.api.update.start();
     } catch (updateError) {
       setStatus('error');
+      setProgress(null);
       setError(getErrorMessage(updateError));
     }
   }, [result]);
@@ -76,6 +82,7 @@ export function useUpdateChecker(checkForUpdates: boolean | undefined): UseUpdat
   useEffect(() => {
     if (!checkForUpdates) {
       setStatus('idle');
+      setProgress(null);
       return;
     }
 
@@ -97,8 +104,9 @@ export function useUpdateChecker(checkForUpdates: boolean | undefined): UseUpdat
       return;
     }
 
-    return window.api.update.onStatus((nextStatus) => {
-      setStatus(nextStatus);
+    return window.api.update.onStatus((nextProgress) => {
+      setProgress(nextProgress);
+      setStatus(nextProgress.stage);
       setError(null);
     });
   }, [checkForUpdates]);
@@ -112,6 +120,7 @@ export function useUpdateChecker(checkForUpdates: boolean | undefined): UseUpdat
   return {
     status,
     result,
+    progress,
     error,
     checkNow,
     startUpdate,

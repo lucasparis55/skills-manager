@@ -477,12 +477,15 @@ interface UpdateCheckResult {
   publishedAt: string | null;
 }
 
-type UpdateOperationStatus = 'downloading' | 'installing';
+interface UpdateOperationProgress {
+  stage: 'downloading' | 'installing';
+  percent: number;
+}
 
 interface UpdateAPI {
   check: () => Promise<UpdateCheckResult>;
   start: () => Promise<{ success: boolean }>;
-  onStatus: (callback: (status: UpdateOperationStatus) => void) => () => void;
+  onStatus: (callback: (progress: UpdateOperationProgress) => void) => () => void;
   openRelease: (version: string) => Promise<void>;
 }
 

@@ -18,7 +18,7 @@ import type {
   ImportProgress,
   ImportTarget,
 } from '../main/types/import';
-import type { UpdateOperationStatus } from '../main/services/update.service';
+import type { UpdateOperationProgress } from '../main/services/update.service';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -187,8 +187,8 @@ contextBridge.exposeInMainWorld('api', {
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     start: () => ipcRenderer.invoke('update:start'),
-    onStatus: (callback: (status: UpdateOperationStatus) => void) => {
-      const handler = (_event: any, status: UpdateOperationStatus) => callback(status);
+    onStatus: (callback: (progress: UpdateOperationProgress) => void) => {
+      const handler = (_event: any, progress: UpdateOperationProgress) => callback(progress);
       ipcRenderer.on('update:status', handler);
       return () => {
         ipcRenderer.removeListener('update:status', handler);

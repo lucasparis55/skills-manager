@@ -16,8 +16,8 @@ describe('useUpdateChecker', () => {
   it('tracks an available update and starts the confirmed update', async () => {
     const check = vi.fn(async () => availableUpdate);
     const start = vi.fn(async () => ({ success: true }));
-    let statusHandler: ((status: UpdateOperationStatus) => void) | undefined;
-    const onStatus = vi.fn((callback: (status: UpdateOperationStatus) => void) => {
+    let statusHandler: ((progress: UpdateOperationProgress) => void) | undefined;
+    const onStatus = vi.fn((callback: (progress: UpdateOperationProgress) => void) => {
       statusHandler = callback;
       return () => {};
     });
@@ -34,9 +34,11 @@ describe('useUpdateChecker', () => {
 
     expect(start).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe('downloading');
+    expect(result.current.progress).toEqual({ stage: 'downloading', percent: 0 });
 
-    act(() => statusHandler?.('installing'));
+    act(() => statusHandler?.({ stage: 'installing', percent: 70 }));
     expect(result.current.status).toBe('installing');
+    expect(result.current.progress).toEqual({ stage: 'installing', percent: 70 });
   });
 
   it('exposes a retryable error when starting the update fails', async () => {

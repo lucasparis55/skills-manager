@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UpdateService, isVersionGreaterThan } from './update.service';
+import {
+  UpdateService,
+  isVersionGreaterThan,
+  resolveLauncherExecutable,
+  resolveUpdateExecutable,
+  type UpdateOperationProgress,
+} from './update.service';
 
 describe('isVersionGreaterThan', () => {
   it('returns true when latest is greater', () => {
@@ -33,32 +39,55 @@ describe('isVersionGreaterThan', () => {
   });
 });
 
+describe('Squirrel executable paths', () => {
+  const appExecutable = 'C:\\Users\\Lucas\\AppData\\Local\\Skills Manager\\app-1.0.1\\Skills Manager.exe';
+
+  it('resolves Update.exe and the launcher beside the versioned app directory', () => {
+    expect(resolveUpdateExecutable(appExecutable)).toBe(
+      'C:\\Users\\Lucas\\AppData\\Local\\Skills Manager\\Update.exe',
+    );
+    expect(resolveLauncherExecutable(appExecutable)).toBe(
+      'C:\\Users\\Lucas\\AppData\\Local\\Skills Manager\\Skills Manager.exe',
+    );
+  });
+});
+
 describe('UpdateService', () => {
   const createMockFetch = (response: { ok: boolean; status: number; json: () => Promise<unknown> }) =>
     vi.fn().mockResolvedValue(response);
 
-  const createMockAutoUpdater = () => {
+  const createMockUpdateProcess = () => {
     const listeners = new Map<string, (...args: any[]) => void>();
-    const autoUpdater = {
-      setFeedURL: vi.fn(),
-      checkForUpdates: vi.fn(),
-      quitAndInstall: vi.fn(),
-      on: vi.fn((event: string, listener: (...args: any[]) => void) => {
+    const stdoutListeners: Array<(chunk: Buffer | string) => void> = [];
+    const stderrListeners: Array<(chunk: Buffer | string) => void> = [];
+    const stdout = {
+      on: vi.fn((event: string, listener: (chunk: Buffer | string) => void) => {
+        if (event === 'data') stdoutListeners.push(listener);
+        return stdout;
+      }),
+    };
+    const stderr = {
+      on: vi.fn((event: string, listener: (chunk: Buffer | string) => void) => {
+        if (event === 'data') stderrListeners.push(listener);
+        return stderr;
+      }),
+    };
+    const updateProcess = {
+      stdout,
+      stderr,
+      once: vi.fn((event: string, listener: (...args: any[]) => void) => {
         listeners.set(event, listener);
-        return autoUpdater;
+        return updateProcess;
       }),
-      removeListener: vi.fn((event: string, listener: (...args: any[]) => void) => {
-        if (listeners.get(event) === listener) {
-          listeners.delete(event);
-        }
-        return autoUpdater;
-      }),
-      emit: (event: string, ...args: any[]) => {
-        listeners.get(event)?.(...args);
-      },
     };
 
-    return autoUpdater;
+    return {
+      updateProcess,
+      emitStdout: (chunk: Buffer | string) => stdoutListeners.forEach((listener) => listener(chunk)),
+      emitStderr: (chunk: Buffer | string) => stderrListeners.forEach((listener) => listener(chunk)),
+      emitError: (error: Error) => listeners.get('error')?.(error),
+      emitClose: (code: number | null, signal: NodeJS.Signals | null = null) => listeners.get('close')?.(code, signal),
+    };
   };
 
   const createService = (overrides: Partial<ConstructorParameters<typeof UpdateService>[0]> = {}) =>
@@ -67,7 +96,11 @@ describe('UpdateService', () => {
       platform: 'win32',
       currentVersion: '1.0.1',
       fetch: createMockFetch({ ok: true, status: 200, json: async () => ({}) }),
-      autoUpdater: createMockAutoUpdater(),
+      updateExecutable: 'C:\\Skills Manager\\Update.exe',
+      launcherExecutable: 'C:\\Skills Manager\\Skills Manager.exe',
+      spawnUpdate: vi.fn(() => createMockUpdateProcess().updateProcess),
+      relaunch: vi.fn(),
+      quit: vi.fn(),
       shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
       log: { error: vi.fn() },
       ...overrides,
@@ -193,8 +226,11 @@ describe('UpdateService', () => {
     );
   });
 
-  it('downloads from the versioned GitHub feed and restarts after the update is downloaded', async () => {
-    const autoUpdater = createMockAutoUpdater();
+  it('executes Update.exe, forwards real progress, and relaunches the Squirrel launcher', async () => {
+    const process = createMockUpdateProcess();
+    const spawnUpdate = vi.fn(() => process.updateProcess);
+    const relaunch = vi.fn();
+    const quit = vi.fn();
     const fetchMock = createMockFetch({
       ok: true,
       status: 200,
@@ -205,26 +241,39 @@ describe('UpdateService', () => {
         published_at: '2025-01-01T00:00:00Z',
       }),
     });
-    const service = createService({ fetch: fetchMock, autoUpdater });
-    const statuses: string[] = [];
+    const service = createService({ fetch: fetchMock, spawnUpdate, relaunch, quit });
+    const progress: UpdateOperationProgress[] = [];
 
     await service.checkForUpdates();
-    const updatePromise = service.downloadAndInstall((status) => statuses.push(status));
+    const updatePromise = service.downloadAndInstall((nextProgress) => progress.push(nextProgress));
 
-    expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
-      url: 'https://github.com/lucasparis55/skills-manager/releases/download/v1.0.2',
-    });
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(spawnUpdate).toHaveBeenCalledWith(
+      'C:\\Skills Manager\\Update.exe',
+      ['--update', 'https://github.com/lucasparis55/skills-manager/releases/download/v1.0.2'],
+    );
+    expect(progress).toEqual([{ stage: 'downloading', percent: 0 }]);
 
-    autoUpdater.emit('update-downloaded');
+    process.emitStdout('1\r\n29');
+    process.emitStdout('\r\n30\r\n100\r\n');
+    process.emitClose(0);
     await updatePromise;
 
-    expect(statuses).toEqual(['downloading', 'installing']);
-    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+    expect(progress).toEqual([
+      { stage: 'downloading', percent: 0 },
+      { stage: 'downloading', percent: 1 },
+      { stage: 'downloading', percent: 29 },
+      { stage: 'installing', percent: 30 },
+      { stage: 'installing', percent: 100 },
+    ]);
+    expect(relaunch).toHaveBeenCalledWith({ execPath: 'C:\\Skills Manager\\Skills Manager.exe' });
+    expect(quit).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the current app running when the updater reports an error', async () => {
-    const autoUpdater = createMockAutoUpdater();
+  it('keeps the current app running when Update.exe exits with an error', async () => {
+    const process = createMockUpdateProcess();
+    const spawnUpdate = vi.fn(() => process.updateProcess);
+    const relaunch = vi.fn();
+    const quit = vi.fn();
     const fetchMock = createMockFetch({
       ok: true,
       status: 200,
@@ -235,19 +284,53 @@ describe('UpdateService', () => {
         published_at: null,
       }),
     });
-    const service = createService({ fetch: fetchMock, autoUpdater });
+    const service = createService({ fetch: fetchMock, spawnUpdate, relaunch, quit });
 
     await service.checkForUpdates();
     const updatePromise = service.downloadAndInstall();
-    autoUpdater.emit('error', new Error('Feed unavailable'));
+    process.emitStderr('Feed unavailable');
+    process.emitClose(1);
 
     await expect(updatePromise).rejects.toThrow('Feed unavailable');
-    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(relaunch).not.toHaveBeenCalled();
+    expect(quit).not.toHaveBeenCalled();
   });
 
-  it('reports a restart failure without leaving the update operation pending', async () => {
-    const autoUpdater = createMockAutoUpdater();
-    autoUpdater.quitAndInstall.mockImplementation(() => {
+  it('ignores invalid and backwards progress lines', async () => {
+    const process = createMockUpdateProcess();
+    const spawnUpdate = vi.fn(() => process.updateProcess);
+    const relaunch = vi.fn();
+    const fetchMock = createMockFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag_name: 'v1.0.2',
+        html_url: 'https://github.com/lucasparis55/skills-manager/releases/tag/v1.0.2',
+        body: null,
+        published_at: null,
+      }),
+    });
+    const service = createService({ fetch: fetchMock, spawnUpdate, relaunch });
+    const progress: UpdateOperationProgress[] = [];
+
+    await service.checkForUpdates();
+    const updatePromise = service.downloadAndInstall((nextProgress) => progress.push(nextProgress));
+    process.emitStdout('starting\n20\n15\n101\n+30\n0x50\n40\n');
+    process.emitClose(0);
+    await updatePromise;
+
+    expect(progress).toEqual([
+      { stage: 'downloading', percent: 0 },
+      { stage: 'downloading', percent: 20 },
+      { stage: 'installing', percent: 40 },
+      { stage: 'installing', percent: 100 },
+    ]);
+  });
+
+  it('reports a relaunch failure without leaving the update operation pending', async () => {
+    const process = createMockUpdateProcess();
+    const spawnUpdate = vi.fn(() => process.updateProcess);
+    const relaunch = vi.fn(() => {
       throw new Error('Restart failed');
     });
     const fetchMock = createMockFetch({
@@ -260,18 +343,20 @@ describe('UpdateService', () => {
         published_at: null,
       }),
     });
-    const service = createService({ fetch: fetchMock, autoUpdater });
+    const service = createService({ fetch: fetchMock, spawnUpdate, relaunch });
 
     await service.checkForUpdates();
     const updatePromise = service.downloadAndInstall();
-    autoUpdater.emit('update-downloaded');
+    process.emitClose(0);
 
     await expect(updatePromise).rejects.toThrow('Restart failed');
-    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+    expect(relaunch).toHaveBeenCalledTimes(1);
   });
 
   it('does not start a second updater operation while one is active', async () => {
-    const autoUpdater = createMockAutoUpdater();
+    const process = createMockUpdateProcess();
+    const spawnUpdate = vi.fn(() => process.updateProcess);
+    const relaunch = vi.fn();
     const fetchMock = createMockFetch({
       ok: true,
       status: 200,
@@ -282,22 +367,22 @@ describe('UpdateService', () => {
         published_at: null,
       }),
     });
-    const service = createService({ fetch: fetchMock, autoUpdater });
+    const service = createService({ fetch: fetchMock, spawnUpdate, relaunch });
 
     await service.checkForUpdates();
     const firstUpdate = service.downloadAndInstall();
     const secondUpdate = service.downloadAndInstall();
 
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(spawnUpdate).toHaveBeenCalledTimes(1);
 
-    autoUpdater.emit('update-downloaded');
+    process.emitClose(0);
     await Promise.all([firstUpdate, secondUpdate]);
 
-    expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+    expect(relaunch).toHaveBeenCalledTimes(1);
   });
 
   it('ignores updates on unsupported platforms', async () => {
-    const autoUpdater = createMockAutoUpdater();
+    const spawnUpdate = vi.fn();
     const fetchMock = createMockFetch({
       ok: true,
       status: 200,
@@ -308,13 +393,13 @@ describe('UpdateService', () => {
         published_at: null,
       }),
     });
-    const service = createService({ fetch: fetchMock, autoUpdater, platform: 'darwin' });
+    const service = createService({ fetch: fetchMock, spawnUpdate, platform: 'darwin' });
 
     const result = await service.checkForUpdates();
 
     expect(result.hasUpdate).toBe(false);
     await expect(service.downloadAndInstall()).rejects.toThrow(/Windows/);
-    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(spawnUpdate).not.toHaveBeenCalled();
   });
 
   it('rejects a release tag that cannot be used to build a feed URL', async () => {

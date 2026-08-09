@@ -245,8 +245,8 @@ describe('preload bridge', () => {
     const unsubscribeUpdate = api.update.onStatus(callback);
     expect(on).toHaveBeenCalledWith('update:status', expect.any(Function));
     const updateHandler = on.mock.calls[3][1];
-    updateHandler({}, 'downloading');
-    expect(callback).toHaveBeenCalledWith('downloading');
+    updateHandler({}, { stage: 'downloading', percent: 42 });
+    expect(callback).toHaveBeenCalledWith({ stage: 'downloading', percent: 42 });
     unsubscribeUpdate();
     expect(removeListener).toHaveBeenCalledWith('update:status', updateHandler);
   });

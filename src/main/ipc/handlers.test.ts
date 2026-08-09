@@ -1,6 +1,7 @@
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, CreateLinkInput } from '../types/domain';
+import type { UpdateOperationProgress } from '../services/update.service';
 import {
   IPCHandlerDependencies,
   registerIPCHandlers,
@@ -195,9 +196,9 @@ const createHarness = (overrides: Partial<IPCHandlerDependencies> = {}) => {
         publishedAt: null,
       })),
       openReleasePage: vi.fn(async () => undefined),
-      downloadAndInstall: vi.fn(async (onStatus: (status: 'downloading' | 'installing') => void) => {
-        onStatus('downloading');
-        onStatus('installing');
+      downloadAndInstall: vi.fn(async (onProgress: (progress: UpdateOperationProgress) => void) => {
+        onProgress({ stage: 'downloading', percent: 0 });
+        onProgress({ stage: 'installing', percent: 30 });
       }),
     },
     createSkillService: vi.fn(() => skillService),
@@ -378,8 +379,8 @@ describe('registerIPCHandlers', () => {
     await expect(harness.invokeWithSender('update:start', sender)).resolves.toEqual({ success: true });
 
     expect(harness.deps.updateService.downloadAndInstall).toHaveBeenCalledTimes(1);
-    expect(sender.send).toHaveBeenNthCalledWith(1, 'update:status', 'downloading');
-    expect(sender.send).toHaveBeenNthCalledWith(2, 'update:status', 'installing');
+    expect(sender.send).toHaveBeenNthCalledWith(1, 'update:status', { stage: 'downloading', percent: 0 });
+    expect(sender.send).toHaveBeenNthCalledWith(2, 'update:status', { stage: 'installing', percent: 30 });
   });
 
   it('delegates global inventory and preview calls with validated ids', async () => {

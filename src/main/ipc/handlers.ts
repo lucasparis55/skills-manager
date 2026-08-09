@@ -8,7 +8,7 @@ import { DetectionService } from '../services/detection.service';
 import { SettingsService } from '../services/settings.service';
 import { GitHubImportService } from '../services/github-import.service';
 import { ZipImportService } from '../services/zip-import.service';
-import { UpdateService, type UpdateOperationStatus } from '../services/update.service';
+import { UpdateService, type UpdateOperationProgress } from '../services/update.service';
 import { DuplicateService } from '../services/duplicate.service';
 import { GlobalSkillService } from '../services/global-skill.service';
 import { PluginInventoryService } from '../services/plugin-inventory.service';
@@ -841,8 +841,8 @@ export function registerIPCHandlers(inputDeps: Partial<IPCHandlerDependencies> =
   });
 
   deps.ipcMain.handle('update:start', async (event) => {
-    await deps.updateService.downloadAndInstall((status: UpdateOperationStatus) => {
-      event.sender.send('update:status', status);
+    await deps.updateService.downloadAndInstall((progress: UpdateOperationProgress) => {
+      event.sender.send('update:status', progress);
     });
     return { success: true };
   });

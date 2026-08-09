@@ -12,6 +12,7 @@ interface UpdateDialogProps {
   releaseNotes: string | null;
   publishedAt: string | null;
   updateStatus: UpdateDialogStatus;
+  updateProgress: UpdateOperationProgress | null;
   errorMessage: string | null;
   onInstall: () => void;
 }
@@ -24,12 +25,14 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
   releaseNotes,
   publishedAt,
   updateStatus,
+  updateProgress,
   errorMessage,
   onInstall,
 }) => {
   const isDownloading = updateStatus === 'downloading';
   const isInstalling = updateStatus === 'installing';
   const isBusy = isDownloading || isInstalling;
+  const progressPercent = updateProgress?.percent ?? 0;
   const formattedDate = publishedAt
     ? new Date(publishedAt).toLocaleDateString(undefined, {
         year: 'numeric',
@@ -60,7 +63,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
                   Update Available
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Description className="text-sm text-white/45">
-                  A new version is ready. The app will close and restart after the download finishes; save any ongoing work before continuing.
+                  A new version is ready. The app will close and restart after the update finishes; save any ongoing work before continuing.
                 </DialogPrimitive.Description>
               </div>
             </div>
@@ -110,9 +113,28 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
             )}
 
             {isBusy && (
-              <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-400/20 p-3 text-sm text-blue-200">
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                <span>{isInstalling ? 'Restarting with the new version…' : 'Downloading update…'}</span>
+              <div role="status" aria-live="polite" className="rounded-lg bg-blue-500/10 border border-blue-400/20 p-3 text-sm text-blue-200">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    <span>{isInstalling ? 'Installing update…' : 'Downloading update…'}</span>
+                  </div>
+                  <span className="font-medium tabular-nums">{progressPercent}%</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label="Update progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressPercent}
+                  aria-valuetext={`${progressPercent}%`}
+                  className="mt-2 h-2 overflow-hidden rounded-full bg-blue-950/70"
+                >
+                  <div
+                    className="h-full rounded-full bg-blue-400"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
               </div>
             )}
 
@@ -145,7 +167,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 text-white rounded-lg transition-colors text-sm font-medium"
             >
               {isBusy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4" aria-hidden="true" />}
-              {isDownloading ? 'Downloading…' : isInstalling ? 'Restarting…' : errorMessage ? 'Try Again' : 'Download and Install'}
+              {isDownloading ? 'Downloading…' : isInstalling ? 'Installing…' : errorMessage ? 'Try Again' : 'Download and Install'}
             </button>
           </div>
         </DialogPrimitive.Content>

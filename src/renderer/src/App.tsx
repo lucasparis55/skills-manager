@@ -22,7 +22,7 @@ const App: React.FC = () => {
     window.api.settings.get().then((s) => setSettings(s));
   }, []);
 
-  const { status, result, error, startUpdate } = useUpdateChecker(settings?.checkForUpdates);
+  const { status, result, progress, error, startUpdate } = useUpdateChecker(settings?.checkForUpdates);
   const hasUpdate = result?.hasUpdate === true && (status === 'available' || status === 'error');
 
   const handleUpdateClick = () => {
@@ -70,6 +70,7 @@ const App: React.FC = () => {
           releaseNotes={result.releaseNotes}
           publishedAt={result.publishedAt}
           updateStatus={updateDialogStatus}
+          updateProgress={progress}
           errorMessage={error}
           onInstall={handleInstall}
         />
