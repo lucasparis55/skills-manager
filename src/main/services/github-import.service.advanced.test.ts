@@ -202,6 +202,39 @@ describe('GitHubImportService advanced', () => {
     expect(result.skills).toHaveLength(1);
   });
 
+  it('returns logical provider skills from repository analysis', async () => {
+    const repoInfo = {
+      name: 'impeccable',
+      fullName: 'pbakaus/impeccable',
+      description: 'Design guidance for AI coding agents.',
+      defaultBranch: 'main',
+      isPrivate: false,
+      htmlUrl: 'https://github.com/pbakaus/impeccable',
+      starsCount: 0,
+    };
+    vi.spyOn(service, 'fetchRepoInfo').mockResolvedValue(repoInfo);
+    vi.spyOn(service, 'fetchRepoTree').mockResolvedValue([
+      { path: '.agents/skills/impeccable/SKILL.md', type: 'blob', sha: '1', size: 100 },
+      { path: '.claude/skills/impeccable/SKILL.md', type: 'blob', sha: '2', size: 100 },
+      { path: '.cursor/skills/impeccable/SKILL.md', type: 'blob', sha: '3', size: 100 },
+      { path: '.github/skills/impeccable/SKILL.md', type: 'blob', sha: '4', size: 100 },
+      { path: 'plugin/skills/impeccable/SKILL.md', type: 'blob', sha: '5', size: 100 },
+    ]);
+
+    const result = await service.analyze(parsed);
+
+    expect(result.skills).toHaveLength(1);
+    expect(result.skills[0].name).toBe('impeccable');
+    expect(result.skills[0].variants?.map((variant) => variant.sourcePath)).toEqual([
+      '.agents/skills/impeccable',
+      '.claude/skills/impeccable',
+      '.cursor/skills/impeccable',
+      '.github/skills/impeccable',
+      'plugin/skills/impeccable',
+    ]);
+    expect(result.components.filter((component) => component.kind === 'skill')).toHaveLength(1);
+  });
+
   it('resolves the immutable commit tree and rejects truncated trees', async () => {
     queueHttpResponses([
       { statusCode: 200, body: JSON.stringify({ sha: 'commit-sha', commit: { tree: { sha: 'tree-sha' } } }) },

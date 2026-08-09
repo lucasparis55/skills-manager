@@ -59,6 +59,15 @@ export interface GitHubTreeEntry {
   mode?: string;
 }
 
+/** A provider-specific source for one logical skill. */
+export interface DetectedSkillVariant {
+  sourcePath: string;
+  displayName: string;
+  providerId?: string;
+  nativeTargets: string[];
+  files: GitHubTreeEntry[];
+}
+
 /** A skill detected within a GitHub repository */
 export interface DetectedSkill {
   name: string;
@@ -70,6 +79,7 @@ export interface DetectedSkill {
   files: GitHubTreeEntry[];
   structure: SkillStructure;
   repoInfo: GitHubRepoInfo;
+  variants?: DetectedSkillVariant[];
 }
 
 /** Typed error from GitHub API interactions */

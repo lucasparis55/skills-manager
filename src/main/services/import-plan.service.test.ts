@@ -72,6 +72,31 @@ const target: ImportTarget = {
   hookConfigPath: path.join('C:', 'Users', 'test', '.claude', 'settings.json'),
 };
 
+const variantSkill: ImportComponent = {
+  ...skill,
+  id: 'skill:impeccable',
+  name: 'impeccable',
+  displayName: 'Impeccable',
+  sourcePath: '.agents/skills/impeccable',
+  files: [{ path: '.agents/skills/impeccable/SKILL.md', sha: 'agents-skill', type: 'blob' }],
+  variants: [
+    {
+      sourcePath: '.agents/skills/impeccable',
+      displayName: 'Agents',
+      providerId: 'agents',
+      nativeTargets: ['codex-cli', 'codex-desktop'],
+      files: [{ path: '.agents/skills/impeccable/SKILL.md', sha: 'agents-skill', type: 'blob' }],
+    },
+    {
+      sourcePath: '.claude/skills/impeccable',
+      displayName: 'Claude',
+      providerId: 'claude',
+      nativeTargets: ['claude-code'],
+      files: [{ path: '.claude/skills/impeccable/SKILL.md', sha: 'claude-skill', type: 'blob' }],
+    },
+  ],
+};
+
 describe('ImportPlanService', () => {
   it('includes a hook dependency automatically and still requires approval for activation', () => {
     const plan = new ImportPlanService({ now: () => new Date('2026-08-07T00:00:00.000Z') }).create({
@@ -119,5 +144,39 @@ describe('ImportPlanService', () => {
     });
     expect(renamed.items[0].status).toBe('ready');
     expect(renamed.items[0].destinationPath).toContain(path.join('skills', 'review-v2'));
+  });
+
+  it('resolves the provider variant that matches the selected target', () => {
+    const plan = new ImportPlanService({ now: () => new Date('2026-08-07T00:00:00.000Z') }).create({
+      sourceUrl: 'https://github.com/pbakaus/impeccable',
+      sourceRef: 'main',
+      components: [variantSkill],
+      targets: [target],
+      selections: [{ componentId: variantSkill.id, targetId: target.id, selected: true }],
+    });
+
+    expect(plan.items[0].component.sourcePath).toBe('.claude/skills/impeccable');
+    expect(plan.items[0].component.files[0].path).toBe('.claude/skills/impeccable/SKILL.md');
+  });
+
+  it('uses the canonical variant when the selected target has no provider-specific copy', () => {
+    const centralTarget: ImportTarget = {
+      ...target,
+      id: 'central',
+      adapterId: 'central',
+      scope: 'central',
+      componentRoots: { skill: path.join('C:', 'skills') },
+      rootPath: path.join('C:', 'skills'),
+      supportedKinds: ['skill'],
+    };
+    const plan = new ImportPlanService({ now: () => new Date('2026-08-07T00:00:00.000Z') }).create({
+      sourceUrl: 'https://github.com/pbakaus/impeccable',
+      sourceRef: 'main',
+      components: [variantSkill],
+      targets: [centralTarget],
+      selections: [{ componentId: variantSkill.id, targetId: centralTarget.id, selected: true }],
+    });
+
+    expect(plan.items[0].component.sourcePath).toBe('.agents/skills/impeccable');
   });
 });

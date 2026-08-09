@@ -31,6 +31,23 @@ const hookComponent = {
   metadata: { manifestPath: 'hooks/hooks.json' },
 };
 
+const informationalBundle = {
+  id: 'bundle:.claude-plugin/plugin.json',
+  kind: 'bundle',
+  name: 'impeccable',
+  displayName: 'Impeccable package',
+  description: 'Repository bundle',
+  sourcePath: '',
+  files: [{ path: '.claude-plugin/plugin.json', sha: 'bundle-sha', type: 'blob' as const }],
+  dependencies: [hookComponent.id],
+  risk: 'medium',
+  hasExecutableFiles: false,
+  requiresActivation: false,
+  events: [],
+  nativeTargets: ['claude-code'],
+  metadata: { informational: true },
+};
+
 const target = {
   id: 'claude-code:global',
   label: 'Claude Code (global)',
@@ -53,7 +70,7 @@ describe('GitHubImportDialog component flow', () => {
         analyze: vi.fn(async () => ({
           repoInfo: { fullName: 'addyosmani/agent-skills', description: 'Agent skills' },
           skills: [],
-          components: [hookComponent],
+          components: [informationalBundle, hookComponent],
           targets: [target],
           revision: { ref: 'main', commitSha: 'commit-sha' },
           warnings: [],
@@ -108,7 +125,8 @@ describe('GitHubImportDialog component flow', () => {
 
     expect(await screen.findByText('Repository inventory')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Select Repository hooks' })).toBeChecked();
-    await userEvent.click(screen.getByRole('button', { name: 'Review files' }));
+    expect(screen.getByRole('checkbox', { name: 'Select Impeccable package' })).not.toBeChecked();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Review files' })[1]);
     expect(await screen.findByText('{"hooks":{}}')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Close preview' }));
 

@@ -197,3 +197,27 @@ Path safety + contracts
 - Não há execução de terceiros durante análise ou sem confirmação.
 - O usuário consegue auditar origem, destino, risco, resultado e rollback.
 - O plano é revisado e aprovado antes da implementação.
+
+## Phase 6: Correção de identidade de skills distribuídas
+
+### Objetivo
+
+Corrigir a análise de repositórios que vendorizam uma mesma skill em várias
+raízes de provider. A identidade lógica deve ser o caminho relativo da skill,
+enquanto a origem concreta permanece como variante selecionável pelo target.
+
+### Task 16: Agrupamento e resolução de variantes
+
+- [x] Agrupar raízes reconhecidas como `*/skills/<logical-path>` em uma única
+      componente `skill` e preservar as variantes com seus arquivos/targets.
+- [x] Escolher a variante compatível com o target na criação do plano, usando a
+      variante canônica somente como fallback.
+- [x] Exibir a contagem e as origens das variantes e não pré-selecionar bundles
+      marcados como informativos quando eles sobrepõem os filhos.
+
+### Verificação
+
+- [x] Teste do detector reproduz `.agents/.claude/.cursor/skills/impeccable`.
+- [x] Teste do plano confirma a seleção de `.claude` para Claude Code e
+      `.agents` para Codex/central quando disponíveis.
+- [x] Testes de UI exibem as variantes sem duplicar linhas de skill.

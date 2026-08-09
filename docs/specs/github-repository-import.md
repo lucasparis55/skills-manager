@@ -176,6 +176,29 @@ os itens escolhidos.
 8. Preservar texto e binários pequenos; rejeitar symlinks, traversal, paths
    absolutos e arquivos acima do limite configurado antes do staging.
 
+### Variantes de uma mesma skill
+
+Alguns repositórios distribuem a mesma skill em diretórios específicos de cada
+ferramenta, por exemplo `.agents/skills/<name>`, `.claude/skills/<name>`,
+`.cursor/skills/<name>`, `.github/skills/<name>` e `plugin/skills/<name>`.
+Esses diretórios representam variantes de uma única skill lógica quando o
+caminho relativo depois de `skills/` é o mesmo. O
+inventário deve:
+
+- expor uma única componente `skill` para essa identidade lógica;
+- preservar cada origem, seus arquivos e os destinos nativos compatíveis como
+  variantes auditáveis;
+- escolher a variante compatível com o target no plano; se não houver uma
+  específica, usar a variante canônica sem copiar as demais;
+- manter skills distintas separadas quando não pertencem a uma raiz de
+  distribuição reconhecida;
+- informar na UI quantas variantes existem e quais caminhos foram considerados,
+  sem transformar a origem em parte do nome visível da skill.
+
+O repositório de referência para esta regra é
+[`pbakaus/impeccable`](https://github.com/pbakaus/impeccable), que declara uma
+skill e publica cópias para vários providers.
+
 ### Exemplo mínimo de contrato
 
 ```ts
@@ -432,6 +455,9 @@ README em execução automática.
     resultado permite retry/diagnóstico por item.
 11. Importação ZIP e fluxos existentes continuam funcionando e os comandos de
     testes, typecheck, lint e build passam conforme o baseline documentado.
+12. A análise de `pbakaus/impeccable` não cria uma componente `skill` para
+    cada cópia provider-specific de `impeccable`; o plano escolhe uma variante
+    compatível com o target e não estagia as variantes descartadas.
 
 ## References
 

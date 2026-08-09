@@ -1,6 +1,7 @@
 import { assignFilesToDeepestSkill, isSkillMdPath } from '../utils/skill-md';
 import type {
   DetectedSkill,
+  DetectedSkillVariant,
   GitHubRepoInfo,
   GitHubTreeEntry,
 } from '../types/github';
@@ -10,6 +11,7 @@ import type {
   ImportFallbackCommand,
   ImportRiskLevel,
   ImportSourceFile,
+  ImportComponentVariant,
 } from '../types/import';
 
 export interface GitHubComponentDetectionResult {
@@ -19,8 +21,36 @@ export interface GitHubComponentDetectionResult {
 }
 
 const SKILL_TARGETS = ['claude-code', 'codex-cli', 'codex-desktop', 'opencode', 'kimi-cli', 'cursor'];
+// These roots are provider builds of the same logical `skills/<name>` payload.
+const PROVIDER_TARGETS: Record<string, string[]> = {
+  agents: ['codex-cli', 'codex-desktop', 'kimi-cli', 'opencode'],
+  claude: ['claude-code', 'opencode'],
+  codex: ['codex-cli', 'codex-desktop'],
+  cursor: ['cursor'],
+  github: ['github-copilot'],
+  gemini: ['gemini-cli'],
+  grok: ['grok'],
+  kiro: ['kiro'],
+  kimi: ['kimi-cli'],
+  opencode: ['opencode'],
+  pi: ['pi'],
+  plugin: ['claude-code', 'grok'],
+  qoder: ['qoder'],
+  rovodev: ['rovodev'],
+  trae: ['trae'],
+  'trae-cn': ['trae-cn'],
+  vibe: ['vibe'],
+};
 const EXECUTABLE_EXTENSIONS = new Set(['.sh', '.bash', '.ps1', '.cmd', '.bat', '.js', '.mjs', '.cjs', '.py']);
 const EXCLUDED_PARTS = new Set(['.git', 'node_modules', '.DS_Store', 'Thumbs.db', '__pycache__', '.venv', 'dist', 'build']);
+
+interface SkillDirectoryInfo {
+  logicalPath: string;
+  displayName: string;
+  providerId?: string;
+  nativeTargets: string[];
+  priority: number;
+}
 
 /** Detects the installable inventory of a repository without executing anything from it. */
 export class GitHubComponentDetectorService {
@@ -49,8 +79,8 @@ export class GitHubComponentDetectorService {
 
     const skills = this.detectSkills(filteredTree, repoInfo, subpath);
     for (const skill of skills) {
-      add({
-        id: `skill:${skill.sourcePath || repoInfo.name}`,
+      const skillComponent: ImportComponent = {
+        id: `skill:${this.logicalSkillPath(skill.sourcePath, repoInfo)}`,
         kind: 'skill',
         name: skill.name,
         displayName: skill.displayName,
@@ -62,9 +92,12 @@ export class GitHubComponentDetectorService {
         hasExecutableFiles: skill.files.some((file) => this.isExecutable(file.path)),
         requiresActivation: false,
         events: [],
-        nativeTargets: SKILL_TARGETS,
+        nativeTargets: [...new Set(skill.variants?.flatMap((variant) => variant.nativeTargets) || SKILL_TARGETS)],
+        variants: skill.variants?.map((variant) => this.toImportVariant(variant)),
         metadata: { structure: skill.structure, hasSkillMd: skill.hasSkillMd },
-      });
+      };
+      add(skillComponent);
+      skill.variants?.flatMap((variant) => variant.files).forEach((file) => claimed.add(file.path));
     }
 
     const pluginManifestPaths = [
@@ -209,24 +242,48 @@ export class GitHubComponentDetectorService {
 
     const skillDirs = new Map<string, GitHubTreeEntry[]>();
     for (const skillMd of skillMdFiles) {
-      const directory = skillMd.path.includes('/') ? skillMd.path.slice(0, skillMd.path.lastIndexOf('/')) : '';
+      const normalizedPath = skillMd.path.replace(/\\/g, '/');
+      const directory = normalizedPath.includes('/') ? normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) : '';
       skillDirs.set(directory, [...(skillDirs.get(directory) || []), skillMd]);
     }
 
     const assigned = assignFilesToDeepestSkill([...skillDirs.keys()], tree);
-    return [...skillDirs.keys()].map((directory) => {
-      const baseName = directory ? directory.split('/').pop()! : repoInfo.name;
+    const candidates = [...skillDirs.keys()].map((directory) => {
+      const info = this.getSkillDirectoryInfo(directory, repoInfo);
       const files = assigned.get(directory) || [];
+      return { directory, info, files };
+    });
+    const grouped = new Map<string, typeof candidates>();
+    for (const candidate of candidates) {
+      const group = grouped.get(candidate.info.logicalPath) || [];
+      group.push(candidate);
+      grouped.set(candidate.info.logicalPath, group);
+    }
+
+    return [...grouped.entries()].map(([logicalPath, variants]) => {
+      const orderedVariants = [...variants].sort((left, right) =>
+        left.info.priority - right.info.priority || left.directory.localeCompare(right.directory),
+      );
+      const primary = orderedVariants[0];
+      const baseName = logicalPath.split('/').pop() || repoInfo.name;
+      const detectedVariants: DetectedSkillVariant[] = orderedVariants.map((variant) => ({
+        sourcePath: variant.directory,
+        displayName: variant.info.displayName,
+        providerId: variant.info.providerId,
+        nativeTargets: variant.info.nativeTargets,
+        files: variant.files,
+      }));
       return {
         name: this.slugify(baseName),
         displayName: this.humanize(baseName),
         description: repoInfo.description || '',
-        sourcePath: directory,
+        sourcePath: primary.directory,
         hasSkillMd: true,
-        fileCount: files.length,
-        files,
+        fileCount: primary.files.length,
+        files: primary.files,
         structure: 'folder-per-skill' as const,
         repoInfo,
+        variants: detectedVariants,
       };
     });
   }
@@ -243,6 +300,61 @@ export class GitHubComponentDetectorService {
       files: tree,
       structure: hasSkillMd ? 'single-skill' : 'non-standard',
       repoInfo,
+    };
+  }
+
+  private getSkillDirectoryInfo(directory: string, repoInfo: GitHubRepoInfo): SkillDirectoryInfo {
+    const normalized = directory.replace(/\\/g, '/');
+    const providerMatch = normalized.match(/^(?:\.([^/]+)|plugin)\/skills\/(.+)$/);
+    if (providerMatch) {
+      const provider = providerMatch[1] || 'plugin';
+      const providerTargets = PROVIDER_TARGETS[provider];
+      if (!providerTargets) {
+        return {
+          logicalPath: normalized,
+          displayName: 'Repository skill',
+          nativeTargets: SKILL_TARGETS,
+          priority: 3,
+        };
+      }
+      return {
+        logicalPath: providerMatch[2],
+        displayName: this.humanize(provider),
+        providerId: provider,
+        nativeTargets: providerTargets,
+        priority: provider === 'agents' ? 1 : 2,
+      };
+    }
+
+    const standardMatch = normalized.match(/^skills\/(.+)$/);
+    if (standardMatch) {
+      return {
+        logicalPath: standardMatch[1],
+        displayName: 'Repository skills',
+        nativeTargets: SKILL_TARGETS,
+        priority: 0,
+      };
+    }
+
+    return {
+      logicalPath: normalized || repoInfo.name,
+      displayName: 'Repository skill',
+      nativeTargets: SKILL_TARGETS,
+      priority: 3,
+    };
+  }
+
+  private logicalSkillPath(sourcePath: string, repoInfo: GitHubRepoInfo): string {
+    return this.getSkillDirectoryInfo(sourcePath, repoInfo).logicalPath;
+  }
+
+  private toImportVariant(variant: DetectedSkillVariant): ImportComponentVariant {
+    return {
+      sourcePath: variant.sourcePath,
+      displayName: variant.displayName,
+      providerId: variant.providerId,
+      nativeTargets: variant.nativeTargets,
+      files: this.toImportFiles(variant.files),
     };
   }
 

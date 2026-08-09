@@ -468,3 +468,33 @@ spec se decisões mudarem e alinhar plano/todo antes da revisão final.
 - [ ] Cada task tem evidência real, não apenas intenção.
 - [ ] Feature pronta para code review e teste manual do usuário.
 - [ ] Nenhum commit ou fallback foi executado como parte do planejamento.
+
+## Phase 6: Correção de skills provider-specific
+
+### Task 16: Identidade lógica, variantes e seleção segura
+
+**Description:** Agrupar cópias provider-specific da mesma skill, resolver a
+variante adequada ao destino e tornar a origem auditável na UI sem apresentar
+cada cópia como uma skill independente.
+
+**Acceptance criteria:**
+- [x] `pbakaus/impeccable` gera uma única componente `skill` lógica para as
+      cópias `*/skills/impeccable`, com variantes preservadas.
+- [x] O plano usa uma variante compatível com o target e não estagia as demais.
+- [x] Skills distintas continuam separadas e o inventário informa as origens
+      das variantes; bundle informativo não é selecionado automaticamente.
+
+**Verification:**
+- [x] `npx vitest run src/main/services/github-component-detector.service.test.ts src/main/services/import-plan.service.test.ts src/renderer/src/components/ui/GitHubImportInventory.test.tsx`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+
+**Dependencies:** Tasks 3, 4 and 12
+
+**Files likely touched:**
+- `src/main/types/github.ts`
+- `src/main/types/import.ts`
+- `src/main/services/github-component-detector.service.ts`
+- `src/main/services/import-plan.service.ts`
+- `src/renderer/src/components/ui/GitHubImportInventory.tsx`
+- `src/renderer/src/components/ui/GitHubImportDialog.tsx`

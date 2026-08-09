@@ -83,4 +83,39 @@ describe('GitHubComponentDetectorService', () => {
     expect(manual?.requiresActivation).toBe(true);
     expect(manual?.risk).toBe('high');
   });
+
+  it('groups provider-specific copies into one logical skill and preserves every variant', () => {
+    const tree: GitHubTreeEntry[] = [
+      { path: '.agents/skills/impeccable/SKILL.md', type: 'blob', sha: 'agents-skill' },
+      { path: '.agents/skills/impeccable/reference/operate.md', type: 'blob', sha: 'agents-reference' },
+      { path: '.claude/skills/impeccable/SKILL.md', type: 'blob', sha: 'claude-skill' },
+      { path: '.claude/skills/impeccable/reference/operate.md', type: 'blob', sha: 'claude-reference' },
+      { path: '.cursor/skills/impeccable/SKILL.md', type: 'blob', sha: 'cursor-skill' },
+      { path: '.github/skills/impeccable/SKILL.md', type: 'blob', sha: 'github-skill' },
+      { path: 'plugin/skills/impeccable/SKILL.md', type: 'blob', sha: 'plugin-skill' },
+      { path: 'packages/first/review/SKILL.md', type: 'blob', sha: 'first-review' },
+      { path: 'packages/second/review/SKILL.md', type: 'blob', sha: 'second-review' },
+    ];
+
+    const result = new GitHubComponentDetectorService().detect(tree, repoInfo);
+    const skillComponents = result.components.filter((component) => component.kind === 'skill');
+    const impeccable = skillComponents.find((component) => component.name === 'impeccable');
+
+    expect(skillComponents).toHaveLength(3);
+    expect(impeccable).toBeDefined();
+    expect(impeccable?.id).toBe('skill:impeccable');
+    expect(impeccable?.displayName).toBe('Impeccable');
+    expect(impeccable?.variants?.map((variant) => variant.sourcePath)).toEqual([
+      '.agents/skills/impeccable',
+      '.claude/skills/impeccable',
+      '.cursor/skills/impeccable',
+      '.github/skills/impeccable',
+      'plugin/skills/impeccable',
+    ]);
+    expect(impeccable?.files.map((file) => file.path)).toEqual([
+      '.agents/skills/impeccable/SKILL.md',
+      '.agents/skills/impeccable/reference/operate.md',
+    ]);
+    expect(skillComponents.filter((component) => component.name === 'review')).toHaveLength(2);
+  });
 });

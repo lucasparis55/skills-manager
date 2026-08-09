@@ -358,7 +358,6 @@ export class GitHubImportService {
     const effectiveParsed = this.getEffectiveParsed(parsed, repoInfo);
 
     const tree = await this.fetchRepoTree(effectiveParsed) as GitHubTreeWithRevision;
-    const skills = this.detectSkillStructures(tree, repoInfo, effectiveParsed.subpath);
     const manifestContents: Record<string, string> = {};
     const manifestWarnings: string[] = [];
     const manifestPaths = tree
@@ -386,7 +385,7 @@ export class GitHubImportService {
 
     const result: AnalyzeResult = {
       repoInfo,
-      skills,
+      skills: detected.skills,
       components: detected.components,
       targets: this.getImportTargets(),
       revision,

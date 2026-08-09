@@ -210,7 +210,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
           defaultSelections[component.id] = {
             componentId: component.id,
             targetId: target?.id || '',
-            selected: true,
+            selected: component.metadata.informational !== true,
             conflictStrategy: 'block',
             activate: false,
             fallbackAuthorized: false,

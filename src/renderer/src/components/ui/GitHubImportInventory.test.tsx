@@ -20,7 +20,15 @@ const component: ImportComponent = {
   events: ['SessionStart'],
   nativeTargets: ['claude-code'],
   metadata: {},
+  variants: [
+    { sourcePath: '.agents/skills/impeccable', displayName: 'Agents', nativeTargets: ['codex-cli'], files: componentFiles('agents') },
+    { sourcePath: '.claude/skills/impeccable', displayName: 'Claude', nativeTargets: ['claude-code'], files: componentFiles('claude') },
+  ],
 };
+
+function componentFiles(prefix: string) {
+  return [{ path: `${prefix}/SKILL.md`, sha: prefix, type: 'blob' as const }];
+}
 
 const target: ImportTarget = {
   id: 'claude-code:global',
@@ -50,6 +58,9 @@ describe('GitHubImportInventory', () => {
     expect(screen.getByText('Repository hooks')).toBeInTheDocument();
     expect(screen.getByText('high risk')).toBeInTheDocument();
     expect(screen.getByText('Depends on: script:hooks/session-start.sh')).toBeInTheDocument();
+    expect(screen.getByText('2 source variants')).toBeInTheDocument();
+    expect(screen.getByText('.agents/skills/impeccable')).toBeInTheDocument();
+    expect(screen.getByText('.claude/skills/impeccable')).toBeInTheDocument();
     expect(screen.getByLabelText('Destination for Repository hooks')).toHaveValue(target.id);
 
     await userEvent.click(screen.getByLabelText('Select Repository hooks'));

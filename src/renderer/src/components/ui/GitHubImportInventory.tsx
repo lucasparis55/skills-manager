@@ -47,6 +47,7 @@ export const GitHubImportInventory: React.FC<GitHubImportInventoryProps> = ({
           };
           const supportedTargets = targets.filter((target) => target.supportedKinds.includes(component.kind));
           const options = supportedTargets.length > 0 ? supportedTargets : targets;
+          const variants = component.variants || [];
 
           return (
             <article
@@ -75,12 +76,23 @@ export const GitHubImportInventory: React.FC<GitHubImportInventoryProps> = ({
                     <span className="text-[11px] text-white/45">
                       {supportedTargets.length > 0 ? 'Native adapter' : 'Manual/fallback'}
                     </span>
+                    {variants.length > 1 && (
+                      <span className="text-[11px] text-blue-200/80" aria-label={`${variants.length} source variants`}>
+                        {variants.length} source variants
+                      </span>
+                    )}
                     {component.requiresActivation && <ShieldAlert className="w-3.5 h-3.5 text-orange-300" aria-label="Requires activation confirmation" />}
                     {component.metadata.invalidManifest === true && (
                       <span className="text-[11px] text-red-300">Invalid manifest</span>
                     )}
                   </div>
                   <p className="text-xs text-white/45 mt-1">{component.description || 'No description'}</p>
+                  {variants.length > 1 && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-blue-200/70" aria-label={`Source variants for ${component.displayName}`}>
+                      <span>Sources:</span>
+                      {variants.map((variant) => <span key={variant.sourcePath}>{variant.sourcePath}</span>)}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-white/40">
                     <span>{component.files.length} file{component.files.length === 1 ? '' : 's'}</span>
                     <span>Source: {component.sourcePath || '/'}</span>

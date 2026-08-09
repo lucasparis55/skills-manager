@@ -11,6 +11,17 @@ import type {
   ImportTarget,
 } from '../types/import';
 
+const TARGET_PROVIDER_IDS: Record<string, string[]> = {
+  'claude-code': ['claude', 'plugin'],
+  'codex-cli': ['agents', 'codex'],
+  'codex-desktop': ['agents', 'codex'],
+  'github-copilot': ['github'],
+  grok: ['grok', 'plugin'],
+  opencode: ['opencode', 'claude', 'agents'],
+  'kimi-cli': ['kimi', 'agents'],
+  cursor: ['cursor'],
+};
+
 export interface ImportPlanInput {
   sourceUrl: string;
   sourceRef: string;
@@ -53,9 +64,9 @@ export class ImportPlanService {
     const items: ImportPlanItem[] = [];
 
     for (const selection of selected) {
-      const component = components.get(selection.componentId);
+      const sourceComponent = components.get(selection.componentId);
       const target = targets.get(selection.targetId);
-      if (!component) {
+      if (!sourceComponent) {
         blockers.push(`Component "${selection.componentId}" was not found in the analyzed inventory.`);
         continue;
       }
@@ -63,6 +74,8 @@ export class ImportPlanService {
         blockers.push(`Target "${selection.targetId}" was not found in the analyzed inventory.`);
         continue;
       }
+
+      const component = this.resolveComponentVariant(sourceComponent, target);
 
       const itemWarnings: string[] = [];
       let status: ImportPlanItem['status'] = 'ready';
@@ -151,6 +164,28 @@ export class ImportPlanService {
     const name = selection.renameTo || (component.kind === 'skill' ? component.name : path.basename(component.sourcePath || component.name));
     const safeName = ImportPathService.normalizeRepositoryPath(name).split('/').pop()!;
     return this.pathService.assertSafeDestination(path.join(root, safeName), root);
+  }
+
+  private resolveComponentVariant(component: ImportComponent, target: ImportTarget): ImportComponent {
+    if (!component.variants || component.variants.length === 0) return component;
+
+    const providerIds = TARGET_PROVIDER_IDS[target.adapterId] || [];
+    const variant = component.variants.find((candidate) =>
+      candidate.providerId && providerIds.includes(candidate.providerId),
+    ) || component.variants.find((candidate) => candidate.nativeTargets.includes(target.adapterId))
+      || component.variants.find((candidate) => candidate.sourcePath === component.sourcePath)
+      || component.variants[0];
+
+    return {
+      ...component,
+      sourcePath: variant.sourcePath,
+      files: variant.files,
+      nativeTargets: variant.nativeTargets,
+      metadata: {
+        ...component.metadata,
+        selectedVariantSourcePath: variant.sourcePath,
+      },
+    };
   }
 
   private getDestinationRootKind(component: ImportComponent): ImportComponentKind {

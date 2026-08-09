@@ -31,6 +31,14 @@ export interface ImportFallbackCommand {
   timeoutMs?: number;
 }
 
+export interface ImportComponentVariant {
+  sourcePath: string;
+  displayName: string;
+  providerId?: string;
+  files: ImportSourceFile[];
+  nativeTargets: string[];
+}
+
 export interface ImportComponent {
   id: string;
   kind: ImportComponentKind;
@@ -45,6 +53,7 @@ export interface ImportComponent {
   requiresActivation: boolean;
   events: string[];
   nativeTargets: string[];
+  variants?: ImportComponentVariant[];
   fallback?: ImportFallbackCommand;
   metadata: Record<string, unknown>;
 }
