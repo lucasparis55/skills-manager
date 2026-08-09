@@ -20,6 +20,7 @@ import type {
   ImportTarget,
 } from '../../../../main/types/import';
 import { GitHubImportComponentFlow, type GitHubComponentPreview } from './GitHubImportComponentFlow';
+import { getDefaultSelection } from './github-import-inventory.utils';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -210,7 +211,7 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
           defaultSelections[component.id] = {
             componentId: component.id,
             targetId: target?.id || '',
-            selected: component.metadata.informational !== true,
+            selected: getDefaultSelection(component),
             conflictStrategy: 'block',
             activate: false,
             fallbackAuthorized: false,
@@ -395,6 +396,56 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
 
   const handleCancelImport = async () => {
     await window.api.githubImport.cancelImport();
+  };
+
+  const handleComponentSelectionChange = (selection: ImportComponentSelection) => {
+    setComponentSelections((previous) => {
+      const next = { ...previous, [selection.componentId]: selection };
+      const component = components.find((candidate) => candidate.id === selection.componentId);
+      if (!component || !selection.selected) return next;
+
+      if (component.kind === 'bundle') {
+        for (const candidate of components) {
+          if (candidate.kind !== 'bundle') {
+            next[candidate.id] = { ...next[candidate.id], selected: false };
+          }
+        }
+      } else {
+        for (const candidate of components) {
+          if (candidate.kind === 'bundle') {
+            next[candidate.id] = { ...next[candidate.id], selected: false };
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleComponentBulkSelectionChange = (nextSelections: ImportComponentSelection[]) => {
+    setComponentSelections((previous) => {
+      const next = { ...previous };
+      for (const selection of nextSelections) {
+        next[selection.componentId] = selection;
+      }
+      const selectedBundle = nextSelections.some((selection) => selection.selected
+        && components.some((component) => component.id === selection.componentId && component.kind === 'bundle'));
+      const selectedNonBundle = nextSelections.some((selection) => selection.selected
+        && components.some((component) => component.id === selection.componentId && component.kind !== 'bundle'));
+      if (selectedBundle) {
+        for (const component of components) {
+          if (component.kind !== 'bundle') {
+            next[component.id] = { ...next[component.id], selected: false };
+          }
+        }
+      } else if (selectedNonBundle) {
+        for (const component of components) {
+          if (component.kind === 'bundle') {
+            next[component.id] = { ...next[component.id], selected: false };
+          }
+        }
+      }
+      return next;
+    });
   };
 
   // ─── Selection helpers ───────────────────────────────────────────
@@ -661,10 +712,8 @@ const GitHubImportDialog: React.FC<GitHubImportDialogProps> = ({
                 progress={componentProgress}
                 preview={componentPreview}
                 loading={loading}
-                onSelectionChange={(selection) => setComponentSelections((previous) => ({
-                  ...previous,
-                  [selection.componentId]: selection,
-                }))}
+                onSelectionChange={handleComponentSelectionChange}
+                onBulkSelectionChange={handleComponentBulkSelectionChange}
                 onPreview={handlePreviewComponent}
                 onClosePreview={() => setComponentPreview(null)}
                 onBackToUrl={() => { setPhase('url-input'); setError(''); }}

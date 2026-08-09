@@ -12,6 +12,7 @@ import type {
 } from '../../../../main/types/import';
 import { GitHubImportInventory } from './GitHubImportInventory';
 import { GitHubImportReview } from './GitHubImportReview';
+import { getInventorySummary } from './github-import-inventory.utils';
 
 export interface GitHubComponentPreview {
   componentId: string;
@@ -39,6 +40,7 @@ interface GitHubImportComponentFlowProps {
   preview: GitHubComponentPreview | null;
   loading: boolean;
   onSelectionChange: (selection: ImportComponentSelection) => void;
+  onBulkSelectionChange?: (selections: ImportComponentSelection[]) => void;
   onPreview: (component: ImportComponent) => void;
   onClosePreview: () => void;
   onBackToUrl: () => void;
@@ -62,6 +64,7 @@ export const GitHubImportComponentFlow: React.FC<GitHubImportComponentFlowProps>
   preview,
   loading,
   onSelectionChange,
+  onBulkSelectionChange,
   onPreview,
   onClosePreview,
   onBackToUrl,
@@ -73,6 +76,7 @@ export const GitHubImportComponentFlow: React.FC<GitHubImportComponentFlowProps>
   onClose,
 }) => {
   const selectedCount = Object.values(selections).filter((selection) => selection.selected).length;
+  const inventorySummary = getInventorySummary(components);
   const installedCount = results.filter((result) => result.status === 'installed' || result.status === 'activated').length;
   const skippedCount = results.filter((result) => result.status === 'skipped' || result.status === 'needs-approval').length;
   const errorCount = results.filter((result) => result.status === 'failed' || result.status === 'blocked').length;
@@ -107,7 +111,10 @@ export const GitHubImportComponentFlow: React.FC<GitHubImportComponentFlowProps>
             <h3 className="text-white font-medium">{repoInfo?.fullName}</h3>
             <p className="text-sm text-white/45 mt-1">{repoInfo?.description || 'No description'}</p>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-white/40">
-              <span>{components.length} installable component{components.length !== 1 ? 's' : ''} detected</span>
+              <span>{inventorySummary.choices} import choice{inventorySummary.choices !== 1 ? 's' : ''} detected</span>
+              {inventorySummary.supportFiles > 0 && <span>{inventorySummary.supportFiles} support files grouped</span>}
+              {inventorySummary.bundleRoutes > 0 && <span>{inventorySummary.bundleRoutes} package alternative{inventorySummary.bundleRoutes !== 1 ? 's' : ''}</span>}
+              {inventorySummary.manualSteps > 0 && <span>{inventorySummary.manualSteps} manual step{inventorySummary.manualSteps !== 1 ? 's' : ''}</span>}
               {repoInfo?.revision?.commitSha && <span>Revision: {repoInfo.revision.commitSha}</span>}
             </div>
           </div>
@@ -117,11 +124,12 @@ export const GitHubImportComponentFlow: React.FC<GitHubImportComponentFlowProps>
             targets={targets}
             selections={selections}
             onSelectionChange={onSelectionChange}
+            onBulkSelectionChange={onBulkSelectionChange}
             onPreview={onPreview}
           />
 
           <div className="flex justify-between items-center pt-2">
-            <span className="text-xs text-white/40">{selectedCount} of {components.length} selected</span>
+            <span className="text-xs text-white/40">{selectedCount} selected for review</span>
             <div className="flex gap-3">
               <button type="button" onClick={onBackToUrl} className="px-4 py-2 text-white/45 hover:text-white transition-colors">
                 Back

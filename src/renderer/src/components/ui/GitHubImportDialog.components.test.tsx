@@ -31,6 +31,23 @@ const hookComponent = {
   metadata: { manifestPath: 'hooks/hooks.json' },
 };
 
+const skillComponent = {
+  id: 'skill:impeccable',
+  kind: 'skill',
+  name: 'impeccable',
+  displayName: 'Impeccable',
+  description: 'The design language skill',
+  sourcePath: '.agents/skills/impeccable',
+  files: [{ path: '.agents/skills/impeccable/SKILL.md', sha: 'skill-sha', type: 'blob' as const }],
+  dependencies: [],
+  risk: 'low',
+  hasExecutableFiles: false,
+  requiresActivation: false,
+  events: [],
+  nativeTargets: ['claude-code'],
+  metadata: {},
+};
+
 const informationalBundle = {
   id: 'bundle:.claude-plugin/plugin.json',
   kind: 'bundle',
@@ -70,7 +87,7 @@ describe('GitHubImportDialog component flow', () => {
         analyze: vi.fn(async () => ({
           repoInfo: { fullName: 'addyosmani/agent-skills', description: 'Agent skills' },
           skills: [],
-          components: [informationalBundle, hookComponent],
+          components: [informationalBundle, skillComponent, hookComponent],
           targets: [target],
           revision: { ref: 'main', commitSha: 'commit-sha' },
           warnings: [],
@@ -123,14 +140,22 @@ describe('GitHubImportDialog component flow', () => {
     await userEvent.type(screen.getByPlaceholderText('https://github.com/owner/repo'), 'addyosmani/agent-skills');
     await userEvent.click(screen.getByRole('button', { name: 'Analyze' }));
 
-    expect(await screen.findByText('Repository inventory')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Select Repository hooks' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Impeccable package' })).not.toBeChecked();
+    expect(await screen.findByText('Choose what to import')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select Impeccable' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Repository hooks' })).not.toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Show Package alternatives' }));
+    const packageCheckbox = screen.getByRole('checkbox', { name: 'Select Impeccable package' });
+    expect(packageCheckbox).not.toBeChecked();
+    await userEvent.click(packageCheckbox);
+    expect(screen.getByRole('checkbox', { name: 'Select Impeccable' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Repository hooks' })).not.toBeChecked();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Impeccable' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Repository hooks' }));
     await userEvent.click(screen.getAllByRole('button', { name: 'Review files' })[1]);
     expect(await screen.findByText('{"hooks":{}}')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Close preview' }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Review selected (1)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Review selected (2)' }));
     expect(await screen.findByText('Review installation')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Install reviewed components' }));
     expect(await screen.findByRole('button', { name: 'Confirm and activate hook' })).toBeInTheDocument();

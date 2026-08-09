@@ -4,7 +4,9 @@
 
 - Implementação do inventário completo, plano, staging, adapters, hooks,
   fallbacks autorizados, proveniência, IPC/preload e UI concluída.
-- `npm test`: 58 arquivos e 348 testes aprovados.
+- Inventário de importação do GitHub simplificado por grupos de decisão,
+  com seleção conservadora e suporte técnico recolhível.
+- `npm test`: 59 arquivos e 360 testes aprovados.
 - `npm run typecheck`: aprovado.
 - `npm run build`: main, preload e renderer aprovados.
 - `git diff --check`: aprovado; apenas avisos de normalização LF/CRLF.
@@ -498,3 +500,35 @@ cada cópia como uma skill independente.
 - `src/main/services/import-plan.service.ts`
 - `src/renderer/src/components/ui/GitHubImportInventory.tsx`
 - `src/renderer/src/components/ui/GitHubImportDialog.tsx`
+
+## Phase 7: Inventário orientado a decisões
+
+### Task 17: Agrupamento e seleção conservadora do inventário
+
+**Description:** Simplificar a primeira tela da importação agrupando escolhas
+de usuário e separando arquivos técnicos/rotas alternativas, sem reduzir o
+inventário analisado pelo processo principal.
+
+**Acceptance criteria:**
+- [x] Skills, commands, agents e hooks aparecem como grupos de escolha; refs,
+      scripts, configs e assets aparecem como suporte técnico recolhível.
+- [x] Apenas skills são selecionadas por padrão; hooks ficam desmarcados e
+      continuam exigindo ativação separada.
+- [x] Select all/Clear all funcionam globalmente e por grupo sem selecionar
+      automaticamente suporte ou bundle concorrente.
+- [x] Variantes de uma skill continuam em uma única linha lógica, com origem e
+      quantidade auditáveis.
+
+**Verification:**
+- [x] `npx vitest run src/renderer/src/components/ui/github-import-inventory.utils.test.ts src/renderer/src/components/ui/GitHubImportInventory.test.tsx src/renderer/src/components/ui/GitHubImportDialog.components.test.tsx`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+
+**Files likely touched:**
+- `docs/specs/github-import-inventory-simplification.md`
+- `src/renderer/src/components/ui/github-import-inventory.utils.ts`
+- `src/renderer/src/components/ui/github-import-inventory.utils.test.ts`
+- `src/renderer/src/components/ui/GitHubImportInventory.tsx`
+- `src/renderer/src/components/ui/GitHubImportComponentFlow.tsx`
+- `src/renderer/src/components/ui/GitHubImportDialog.tsx`
+- corresponding UI tests

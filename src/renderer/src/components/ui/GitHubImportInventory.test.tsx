@@ -43,7 +43,7 @@ const target: ImportTarget = {
 };
 
 describe('GitHubImportInventory', () => {
-  it('shows the hook risk, dependency and target selector', async () => {
+  it('explains a hook without exposing technical controls by default', async () => {
     const onChange = vi.fn();
     renderWithProviders(
       <GitHubImportInventory
@@ -55,15 +55,47 @@ describe('GitHubImportInventory', () => {
       />,
     );
 
-    expect(screen.getByText('Repository hooks')).toBeInTheDocument();
+    expect(screen.getByText('Choose what to import')).toBeInTheDocument();
+    expect(screen.getByText('Hooks')).toBeInTheDocument();
+    expect(screen.getByText('Automatic actions triggered by events. Installed disabled and reviewed separately.')).toBeInTheDocument();
     expect(screen.getByText('high risk')).toBeInTheDocument();
-    expect(screen.getByText('Depends on: script:hooks/session-start.sh')).toBeInTheDocument();
-    expect(screen.getByText('2 source variants')).toBeInTheDocument();
+    expect(screen.getByText('2 provider variants')).toBeInTheDocument();
+    expect(screen.getByText('Disabled by default')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select Repository hooks' })).not.toBeChecked();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    expect(screen.getByText('Included support')).toBeInTheDocument();
+    expect(screen.getByText('script:hooks/session-start.sh')).toBeInTheDocument();
     expect(screen.getByText('.agents/skills/impeccable')).toBeInTheDocument();
     expect(screen.getByText('.claude/skills/impeccable')).toBeInTheDocument();
     expect(screen.getByLabelText('Destination for Repository hooks')).toHaveValue(target.id);
 
     await userEvent.click(screen.getByLabelText('Select Repository hooks'));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ selected: true }));
+  });
+
+  it('offers global and per-group selection controls', async () => {
+    const onChange = vi.fn();
+    const skill = { ...component, id: 'skill:impeccable', kind: 'skill' as const, displayName: 'Impeccable' };
+    renderWithProviders(
+      <GitHubImportInventory
+        components={[skill, component]}
+        targets={[target]}
+        selections={{
+          [skill.id]: { componentId: skill.id, targetId: target.id, selected: false },
+          [component.id]: { componentId: component.id, targetId: target.id, selected: false },
+        }}
+        onSelectionChange={onChange}
+        onPreview={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select all choices' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ componentId: skill.id, selected: true }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ componentId: component.id, selected: true }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ componentId: skill.id, selected: false }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ componentId: component.id, selected: false }));
   });
 });

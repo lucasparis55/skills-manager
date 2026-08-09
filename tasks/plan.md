@@ -221,3 +221,30 @@ enquanto a origem concreta permanece como variante selecionável pelo target.
 - [x] Teste do plano confirma a seleção de `.claude` para Claude Code e
       `.agents` para Codex/central quando disponíveis.
 - [x] Testes de UI exibem as variantes sem duplicar linhas de skill.
+
+## Phase 7: Inventário orientado a decisões
+
+### Objetivo
+
+Reduzir a carga cognitiva do inventário sem remover a análise técnica. A UI
+deve agrupar escolhas primárias, esconder arquivos de suporte atrás de uma
+seção técnica e tornar bundles uma rota alternativa explícita.
+
+### Task 17: Agrupamento e seleção conservadora do inventário
+
+- [x] Agrupar `skill`, `command`, `agent` e `hook` como escolhas de primeiro
+      nível; mostrar `reference`, `script`, `config` e `asset` como suporte.
+- [x] Selecionar apenas skills por padrão; bundles, hooks e itens técnicos ficam
+      desmarcados e continuam auditáveis.
+- [x] Adicionar `Select all`, `Clear all` e ações equivalentes por grupo, sem
+      marcar suporte automaticamente nem combinar bundle com os filhos.
+- [x] Explicar skill, hook, command, agent, bundle e suporte com texto curto;
+      manter destino, risco, preview e autorização de fallback nos detalhes.
+
+### Verificação
+
+- [x] Testes de utilitários cobrem agrupamento, defaults e seleção global/por
+      grupo.
+- [x] Testes de UI confirmam hooks desmarcados, variantes sem duplicação,
+      suporte recolhido e destino/preview preservados.
+- [x] `npm run typecheck` e `npm run build`.
