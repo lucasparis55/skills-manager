@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, FolderGit2, Link, AlertTriangle, Plus, FolderOpen } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FolderGit2, FolderOpen, Link, Plus, RefreshCw, Target } from 'lucide-react';
 import FormDialog, { FormField } from '../components/ui/FormDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -43,12 +43,14 @@ const createSkillFields: FormField[] = [
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({ skills: 0, projects: 0, links: 0, warnings: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showScanDialog, setShowScanDialog] = useState(false);
   const [scanDefaults, setScanDefaults] = useState<{ path: string; depth: string }>({ path: '', depth: '2' });
   const { toast } = useToast();
 
   const loadStats = async () => {
+    setError(null);
     try {
       const [skills, projects, links] = await Promise.all([
         window.api.skills.list(),
@@ -67,6 +69,7 @@ const Dashboard: React.FC = () => {
       });
     } catch (err) {
       console.error('Failed to load stats:', err);
+      setError(err instanceof Error ? err.message : 'Workspace data could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -131,13 +134,60 @@ const Dashboard: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-12">Loading...</div>;
+    return (
+      <div className="mx-auto max-w-screen-2xl space-y-5" aria-busy="true" aria-label="Loading workspace overview">
+        <div className="space-y-2">
+          <div className="h-3 w-20 animate-pulse rounded bg-white/[0.08]" />
+          <div className="h-8 w-64 max-w-full animate-pulse rounded bg-white/[0.08]" />
+          <div className="h-4 w-96 max-w-full animate-pulse rounded bg-white/[0.05]" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-28 animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.03]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-6 py-14 text-center" role="alert">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+          <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h2 className="mt-4 text-lg font-semibold text-white">Could not load workspace overview</h2>
+        <p className="mt-2 max-w-md text-sm text-white/55">{error}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            void loadStats();
+          }}
+          className="mt-5 flex min-h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Try again
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="mx-auto max-w-screen-2xl space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" aria-labelledby="dashboard-overview-title">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-blue-300/75">Overview</p>
+          <h2 id="dashboard-overview-title" className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Your skills workspace</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">Keep reusable instructions organized, connected to your tools, and ready for the next project.</p>
+        </div>
+        <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-1.5 text-xs text-emerald-200/80">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Workspace ready
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Workspace summary">
         <StatCard
           icon={Target}
           label="Skills"
@@ -154,7 +204,7 @@ const Dashboard: React.FC = () => {
           icon={Link}
           label="Active Links"
           value={stats.links}
-          color="purple"
+          color="sky"
         />
         <StatCard
           icon={AlertTriangle}
@@ -162,34 +212,45 @@ const Dashboard: React.FC = () => {
           value={stats.warnings}
           color="yellow"
         />
-      </div>
+      </section>
 
-      {/* Quick Actions */}
-      <div className="glass-panel p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-        <div className="flex gap-4">
+      <section className="glass-panel p-4 sm:p-5" aria-labelledby="quick-actions-title">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="quick-actions-title" className="text-lg font-semibold text-white">Quick actions</h2>
+            <p className="mt-1 text-sm text-white/45">Start with the two tasks you use most often.</p>
+          </div>
+          <span className="hidden text-xs font-medium uppercase tracking-[0.16em] text-white/30 sm:block">Start here</span>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
+            type="button"
             onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Create Skill
           </button>
           <button
+            type="button"
             onClick={() => setShowScanDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
-            <FolderOpen className="w-4 h-4" />
+            <FolderOpen className="h-4 w-4" aria-hidden="true" />
             Scan Projects
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* IDE Health Check */}
-      <div className="glass-panel p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">IDE Status</h3>
+      <section className="glass-panel p-4 sm:p-5" aria-labelledby="ide-status-title">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 id="ide-status-title" className="text-lg font-semibold text-white">IDE status</h2>
+            <p className="mt-1 text-sm text-white/45">See which tools are ready to receive your skills.</p>
+          </div>
+        </div>
         <IDEHealthCheck />
-      </div>
+      </section>
 
       <FormDialog
         open={showCreateDialog}
@@ -221,20 +282,23 @@ const StatCard: React.FC<{
   color: string;
 }> = ({ icon: Icon, label, value, color }) => {
   const colorClasses: Record<string, string> = {
-    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    green: 'bg-green-500/10 text-green-400 border-green-500/20',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    yellow: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    blue: 'bg-blue-400/10 text-blue-200 ring-blue-300/20',
+    green: 'bg-emerald-400/10 text-emerald-200 ring-emerald-300/20',
+    sky: 'bg-sky-400/10 text-sky-200 ring-sky-300/20',
+    yellow: 'bg-amber-400/10 text-amber-200 ring-amber-300/20',
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${colorClasses[color]}`}>
-      <div className="flex items-center justify-between">
-        <Icon className="w-6 h-6" />
-        <span className="text-2xl font-bold">{value}</span>
+    <article className="glass-card group p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ring-1 ring-inset ${colorClasses[color]}`}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <span className="text-3xl font-semibold tracking-tight text-white">{value}</span>
       </div>
-      <p className="text-sm mt-2 opacity-80">{label}</p>
-    </div>
+      <p className="mt-4 text-sm font-medium text-white/75">{label}</p>
+      <p className="mt-1 text-xs text-white/40">Updated from your local workspace</p>
+    </article>
   );
 };
 
@@ -260,16 +324,21 @@ const IDEHealthCheck: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      {ides.map((ide) => {
+      {ides.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-white/[0.12] bg-white/[0.02] px-4 py-6 text-center" role="status">
+          <p className="text-sm font-medium text-white/70">No IDEs detected yet</p>
+          <p className="mt-1 text-xs text-white/40">Add a supported tool or scan again to see its status here.</p>
+        </div>
+      ) : ides.map((ide) => {
         const ideRoots = roots.filter(r => r.ideId === ide.id);
         const hasExisting = ideRoots.some(r => r.exists);
 
         return (
-          <div key={ide.id} className="flex items-center justify-between p-3 glass-card">
-            <span className="font-medium">{ide.name}</span>
+          <div key={ide.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] p-3">
+            <span className="min-w-0 truncate font-medium text-white/80">{ide.name}</span>
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${hasExisting ? 'bg-green-400' : 'bg-white/20'}`} />
-              <span className="text-sm text-white/45">
+              <span className={`h-2 w-2 rounded-full ${hasExisting ? 'bg-emerald-300' : 'bg-white/20'}`} aria-hidden="true" />
+              <span className={`text-xs font-medium ${hasExisting ? 'text-emerald-200' : 'text-white/45'}`}>
                 {hasExisting ? 'Detected' : 'Not found'}
               </span>
             </div>

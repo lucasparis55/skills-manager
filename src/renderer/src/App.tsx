@@ -16,6 +16,7 @@ import { useUpdateChecker } from './hooks/useUpdateChecker';
 
 const App: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [settings, setSettings] = useState<{ checkForUpdates?: boolean } | null>(null);
 
   React.useEffect(() => {
@@ -42,11 +43,24 @@ const App: React.FC = () => {
 
   return (
     <ToastProvider>
-      <div className="flex h-screen w-screen bg-black text-white">
-        <Sidebar hasUpdate={hasUpdate} onUpdateClick={handleUpdateClick} />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto p-6">
+      <div className="flex h-screen min-h-0 w-full overflow-hidden bg-[var(--bg-base)] text-white">
+        {mobileNavOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            className="fixed inset-0 z-40 bg-black/60 md:hidden"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+        <Sidebar
+          hasUpdate={hasUpdate}
+          onUpdateClick={handleUpdateClick}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
+        />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header onMenuClick={() => setMobileNavOpen(true)} />
+          <main className="min-w-0 flex-1 overflow-auto px-4 py-5 sm:px-6 lg:py-7">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/skills/*" element={<SkillsPage />} />

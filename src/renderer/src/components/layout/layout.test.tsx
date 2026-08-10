@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Header from './Header';
@@ -23,11 +23,27 @@ describe('layout components', () => {
 
     expect(screen.getByText('Skills Manager')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Skills' })).toHaveClass('bg-blue-600');
+    expect(screen.getByRole('link', { name: 'Skills' })).toHaveClass('bg-blue-500/10');
     expect(screen.getByRole('link', { name: 'Duplicates' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Plugins' })).toBeInTheDocument();
     expect(screen.getByText(`v${__APP_VERSION__}`)).toBeInTheDocument();
     expect(screen.queryByText('Electron + React')).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+  });
+
+  it('closes mobile navigation after choosing a route', () => {
+    const onMobileClose = vi.fn();
+    createApiMock();
+
+    render(
+      <MemoryRouter initialEntries={['/skills']}>
+        <Sidebar mobileOpen onMobileClose={onMobileClose} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+
+    expect(onMobileClose).toHaveBeenCalledTimes(1);
   });
 
   it('renders route-based header title with fallback', () => {
@@ -60,6 +76,20 @@ describe('layout components', () => {
     expect(screen.getByRole('heading', { name: 'Plugins' })).toBeInTheDocument();
   });
 
+  it('exposes a mobile navigation trigger', () => {
+    const onMenuClick = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={['/projects']}>
+        <Header onMenuClick={onMenuClick} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+
+    expect(onMenuClick).toHaveBeenCalledTimes(1);
+  });
+
   it('marks duplicates navigation active', () => {
     createApiMock();
     render(
@@ -68,7 +98,7 @@ describe('layout components', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Duplicates' })).toHaveClass('bg-blue-600');
+    expect(screen.getByRole('link', { name: 'Duplicates' })).toHaveClass('bg-blue-500/10');
   });
 
   it('loads status stats', async () => {
@@ -91,5 +121,20 @@ describe('layout components', () => {
     expect(api.skills.list).toHaveBeenCalledTimes(1);
     expect(api.projects.list).toHaveBeenCalledTimes(1);
     expect(api.links.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('communicates when status stats are unavailable', async () => {
+    createApiMock({
+      links: { list: vi.fn(async () => { throw new Error('Database unavailable'); }) },
+    });
+
+    render(
+      <MemoryRouter>
+        <StatusBar />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Sync unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   });
 });

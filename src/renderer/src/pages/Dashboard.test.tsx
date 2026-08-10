@@ -108,4 +108,30 @@ describe('Dashboard', () => {
     expect(activeCard).toHaveTextContent('2');
     expect(warningsCard).toHaveTextContent('2');
   });
+
+  it('shows a recoverable error when workspace stats fail to load', async () => {
+    const api = createApiMock({
+      skills: {
+        list: vi.fn()
+          .mockRejectedValueOnce(new Error('Database unavailable'))
+          .mockResolvedValue([{ id: 's1' }]),
+      },
+      projects: { list: vi.fn(async () => []) },
+      links: { list: vi.fn(async () => []) },
+      ides: {
+        list: vi.fn(async () => []),
+        detectRoots: vi.fn(async () => []),
+      },
+    });
+
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load workspace overview');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Skills')).toBeInTheDocument();
+    expect(api.skills.list).toHaveBeenCalledTimes(2);
+  });
 });

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -49,5 +49,19 @@ describe('App', () => {
     );
 
     expect(screen.getByText('Plugins Page')).toBeInTheDocument();
+  });
+
+  it('opens the mobile navigation from the header', () => {
+    createApiMock();
+
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+
+    expect(screen.getAllByRole('button', { name: 'Close navigation' })).toHaveLength(2);
   });
 });

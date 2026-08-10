@@ -3,20 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --bg-base: #000000;
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-bg-strong: rgba(255, 255, 255, 0.07);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.025);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.12);
+  --bg-base: #0b0f14;
+  --glass-bg: rgba(19, 26, 35, 0.82);
+  --glass-bg-strong: rgba(25, 34, 45, 0.92);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(191, 219, 254, 0.12);
+  --glass-border-hover: rgba(191, 219, 254, 0.2);
   --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --text-muted: rgba(255, 255, 255, 0.45);
+  --text-secondary: rgba(226, 232, 240, 0.78);
+  --text-muted: rgba(203, 213, 225, 0.58);
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
+  --focus-ring: #7dd3fc;
+}
+
+html {
+  color-scheme: dark;
 }
 
 * {
@@ -30,11 +35,36 @@ body {
   background: var(--bg-base);
   color: var(--text-primary);
   line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
   height: 100vh;
   width: 100vw;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.3);
+  color: #fff;
 }
 
 /* Scrollbar styles */
@@ -87,28 +117,28 @@ body {
   }
 
   .glass-sidebar {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 22, 30, 0.96);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--glass-border);
   }
 
   .glass-header {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 22, 30, 0.88);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--glass-border);
   }
 
   .glass-statusbar {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 22, 30, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--glass-border);
   }
 
   .glass-dialog {
-    background: rgba(20, 20, 20, 0.85);
+    background: rgba(18, 25, 34, 0.96);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--glass-border);
@@ -129,5 +159,16 @@ body {
 
   .glass-input::placeholder {
     color: rgba(255, 255, 255, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
